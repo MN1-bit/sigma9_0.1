@@ -89,20 +89,28 @@ Based on [Master Plan v2.0](../Plan/masterplan.md) and [@PROJECT_DNA.md](../../@
 - [x] 2.6.3: Verify `SeismographStrategy` with 2024 historical data
 - [x] 2.6.4: Generate Performance Report (CAGR, MDD, Win Rate)
 
+### Step 2.7: Multi-Timeframe Chart Support (Future)
+> Requires intraday data source: Polygon Paid / IBKR Historical / yfinance
+
+- [ ] 2.7.1: [Backend] Implement Intraday Data API (1m, 5m, 15m, 1h)
+- [ ] 2.7.2: [Backend] Add `intraday_bars` table to database
+- [ ] 2.7.3: [Frontend] Timeframe change handler → data reload
+- [ ] 2.7.4: [Frontend] Dynamic data loading on pan/zoom
+
 ---
 
 ## Phase 3: Execution & Management
 
-### Step 3.1: Order Management System (OMS)
-- [ ] 3.1.1: Implement order placement logic in `IBKRConnector`
-- [ ] 3.1.2: Implement Server-Side OCA (One-Cancels-All) groups (Stop Loss, Time Stop, Profit Taker)
-- [ ] 3.1.3: Verify order states (Pending, Filled, Cancelled) reflect in GUI
+### Step 3.1: Order Management System (OMS) ✅ COMPLETED
+- [x] 3.1.1: Implement order placement logic in `IBKRConnector`
+- [x] 3.1.2: Implement Server-Side OCA (One-Cancels-All) groups (Stop Loss, Time Stop, Profit Taker)
+- [x] 3.1.3: Verify order states (Pending, Filled, Cancelled) reflect in GUI
 
-### Step 3.2: Risk Manager & Position Sizing
-- [ ] 3.2.1: Implement `RiskManager` class
-- [ ] 3.2.2: Implement Kelly Criterion position sizing logic
-- [ ] 3.2.3: Enforce Daily/Weekly Loss Limits
-- [ ] 3.2.4: Implement "Kill Switch" functionality (Cancel All + Liquidate All)
+### Step 3.2: Risk Manager & Position Sizing ✅ COMPLETED
+- [x] 3.2.1: Implement `RiskManager` class
+- [x] 3.2.2: Implement Kelly Criterion position sizing logic
+- [x] 3.2.3: Enforce Daily/Weekly Loss Limits
+- [x] 3.2.4: Implement "Kill Switch" functionality (Cancel All + Liquidate All)
 
 ### Step 3.3: Double Tap & Harvest
 - [ ] 3.3.1: Implement Trailing Stop logic (Harvest)

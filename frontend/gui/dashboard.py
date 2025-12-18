@@ -400,7 +400,11 @@ class Sigma9Dashboard(CustomWindow):
         styles += "QListWidget { background-color: transparent; }"
         self.watchlist.setStyleSheet(styles)
         
-        # 샘플 데이터
+        # [NEW] Watchlist 클릭 시 차트 로드
+        self.watchlist.itemClicked.connect(self._on_watchlist_clicked)
+        
+        # 샘플 데이터 (실제로는 DB에서 로드)
+        # TODO: 실제 워치리스트 연동 시 Scanner에서 가져오기
         sample_tickers = [
             "AAPL  +2.3%  [85]",
             "TSLA  +1.8%  [78]",
@@ -650,6 +654,78 @@ class Sigma9Dashboard(CustomWindow):
         """차트 타임프레임 변경 핸들러"""
         self.log(f"[INFO] Timeframe changed to: {timeframe}")
         # TODO: 백엔드에서 해당 타임프레임 데이터 요청
+
+    def _on_watchlist_clicked(self, item):
+        """
+        Watchlist 종목 클릭 시 차트 데이터 로드
+        
+        워치리스트 아이템 형식: "AAPL  +2.3%  [85]"
+        → 첫 번째 단어(티커)를 추출하여 DB에서 데이터 조회
+        """
+        # 티커 추출 (첫 번째 단어)
+        text = item.text()
+        ticker = text.split()[0].strip()
+        
+        self.log(f"[INFO] Loading chart for {ticker}...")
+        
+        # 비동기 데이터 로드 (별도 스레드에서 실행)
+        import threading
+        from PyQt6.QtCore import QTimer
+        
+        def load_in_thread():
+            try:
+                from frontend.services.chart_data_service import get_chart_data_sync
+                data = get_chart_data_sync(ticker, days=100)
+                
+                # 결과를 인스턴스 변수에 저장 후 메인 스레드에서 업데이트
+                self._pending_chart_data = (ticker, data)
+                QTimer.singleShot(0, self._apply_pending_chart_data)
+            except Exception as e:
+                self.log(f"[ERROR] Failed to load {ticker}: {e}")
+        
+        thread = threading.Thread(target=load_in_thread, daemon=True)
+        thread.start()
+    
+    def _apply_pending_chart_data(self):
+        """
+        대기 중인 차트 데이터 적용 (메인 스레드에서 호출)
+        
+        _on_watchlist_clicked에서 별도 스레드로 데이터를 로드한 후
+        _pending_chart_data에 저장하고, 이 메서드가 메인 스레드에서 차트 업데이트
+        """
+        if not hasattr(self, '_pending_chart_data'):
+            return
+        
+        ticker, data = self._pending_chart_data
+        delattr(self, '_pending_chart_data')
+        
+        if not data.get("candles"):
+            self.log(f"[WARN] No data available for {ticker}")
+            return
+        
+        # 차트 초기화
+        self.chart_widget.clear()
+        
+        # 캔들스틱
+        self.chart_widget.set_candlestick_data(data["candles"])
+        
+        # Volume
+        if data.get("volume"):
+            self.chart_widget.set_volume_data(data["volume"])
+        
+        # VWAP
+        if data.get("vwap"):
+            self.chart_widget.set_vwap_data(data["vwap"])
+        
+        # SMA 20
+        if data.get("sma_20"):
+            self.chart_widget.set_ma_data(data["sma_20"], period=20, color='#3b82f6')
+        
+        # EMA 9
+        if data.get("ema_9"):
+            self.chart_widget.set_ma_data(data["ema_9"], period=9, color='#a855f7')
+        
+        self.log(f"[INFO] Chart updated for {ticker} ({len(data['candles'])} bars)")
 
     def log(self, message: str):
         """로그 콘솔에 메시지 추가"""
