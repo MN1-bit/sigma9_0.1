@@ -39,7 +39,7 @@ try:
         QSlider, QPushButton, QSplitter, QTextEdit, QListWidget,
         QWidget, QSizePolicy, QComboBox
     )
-    from PyQt6.QtCore import Qt
+    from PyQt6.QtCore import Qt, QTimer
 except ModuleNotFoundError:
     from PySide6.QtGui import QIcon, QColor, QFont
     from PySide6.QtWidgets import (
@@ -47,7 +47,7 @@ except ModuleNotFoundError:
         QSlider, QPushButton, QSplitter, QTextEdit, QListWidget,
         QWidget, QSizePolicy, QComboBox
     )
-    from PySide6.QtCore import Qt
+    from PySide6.QtCore import Qt, QTimer
 
 from .custom_window import CustomWindow
 from .particle_effects import ParticleSystem
@@ -112,6 +112,7 @@ class Sigma9Dashboard(CustomWindow):
         self.particle_system = ParticleSystem(self)
         self.particle_system.setGeometry(0, 0, self.width(), self.height())
         self.particle_system.global_alpha = theme.particle_alpha # [NEW] 초기 투명도 적용
+        self.particle_system.set_background_effect(theme.background_effect) # [NEW] 초기 배경 이펙트 적용
         self.particle_system.raise_()
         
         # ═══════════════════════════════════════════════════════════════════
@@ -582,58 +583,157 @@ class Sigma9Dashboard(CustomWindow):
 
     def _create_right_panel(self) -> QFrame:
         """
-        RIGHT PANEL - Positions & P&L (포지션 및 손익)
+        RIGHT PANEL - Positions & P&L + Oracle (Step 4.2.5)
+        
+        두 섹션이 세로로 배치됩니다:
+        1. Trading (Positions & P&L) - 상단
+        2. Oracle (분석 요청) - 하단
         """
-        frame, layout = self._create_panel_frame("💰 Positions & P&L")
+        frame = QFrame()
+        frame.setStyleSheet(theme.get_stylesheet("panel"))
         frame.setMinimumWidth(200)
         frame.setMaximumWidth(350)
         
+        main_layout = QVBoxLayout(frame)
+        main_layout.setContentsMargins(10, 10, 10, 10)
+        main_layout.setSpacing(8)
+        
+        # ═══════════════════════════════════════════════════════════
+        # 1. Trading Section (Positions & P&L)
+        # ═══════════════════════════════════════════════════════════
+        trading_label = QLabel("💰 Positions & P&L")
+        trading_label.setStyleSheet(f"""
+            color: {theme.get_color('text_secondary')}; 
+            font-size: 12px; 
+            font-weight: bold;
+            background: transparent;
+            border: none;
+        """)
+        main_layout.addWidget(trading_label)
+        
         # P&L 요약
         pnl_frame = QFrame()
-        c = theme.colors # 단축 변수
-        # success color 변형해서 배경색 사용 (투명도 조절은 어려우므로 일단 surface 사용)
+        c = theme.colors
         pnl_frame.setStyleSheet(f"""
             background-color: {c['surface']};
             border: 1px solid {c['success']};
             border-radius: 8px;
         """)
         pnl_layout = QVBoxLayout(pnl_frame)
+        pnl_layout.setContentsMargins(8, 8, 8, 8)
         
         pnl_label = QLabel("Today's P&L")
         pnl_label.setStyleSheet(f"color: {c['text_secondary']}; font-size: 11px; background: transparent; border: none;")
         pnl_layout.addWidget(pnl_label)
         
-        pnl_value = QLabel("+ $0.00")
-        pnl_value.setStyleSheet(f"""
+        self.pnl_value = QLabel("+ $0.00")
+        self.pnl_value.setStyleSheet(f"""
             color: {c['success']}; 
-            font-size: 24px; 
+            font-size: 20px; 
             font-weight: bold;
             background: transparent;
             border: none;
         """)
-        pnl_layout.addWidget(pnl_value)
+        pnl_layout.addWidget(self.pnl_value)
         
-        layout.addWidget(pnl_frame)
+        main_layout.addWidget(pnl_frame)
         
-        # 포지션 리스트
+        # 포지션 리스트 (축소)
         positions_label = QLabel("Active Positions")
-        positions_label.setStyleSheet(f"color: {c['text_secondary']}; font-size: 11px; background: transparent; border: none; margin-top: 10px;")
-        layout.addWidget(positions_label)
+        positions_label.setStyleSheet(f"color: {c['text_secondary']}; font-size: 11px; background: transparent; border: none;")
+        main_layout.addWidget(positions_label)
         
         self.positions_list = QListWidget()
-        # [REFAC] 테마 매니저 List 스타일 사용
         styles = theme.get_stylesheet("list")
-        # [FIX] 배경을 투명하게 하고 패널 배경을 사용
-        styles += "QListWidget { background-color: transparent; }"
+        styles += "QListWidget { background-color: transparent; max-height: 80px; }"
         self.positions_list.setStyleSheet(styles)
+        self.positions_list.setMaximumHeight(80)
+        self.positions_list.addItem("No active positions")
+        main_layout.addWidget(self.positions_list)
         
-        self.positions_list.addItems([
-            "No active positions"
-        ])
+        # ═══════════════════════════════════════════════════════════
+        # 2. Oracle Section (Step 4.2.5)
+        # ═══════════════════════════════════════════════════════════
+        oracle_label = QLabel("🔮 Oracle")
+        oracle_label.setStyleSheet(f"""
+            color: {theme.get_color('text_secondary')}; 
+            font-size: 12px; 
+            font-weight: bold;
+            background: transparent;
+            border: none;
+            margin-top: 8px;
+        """)
+        main_layout.addWidget(oracle_label)
         
-        layout.addWidget(self.positions_list)
+        # Oracle 프레임
+        oracle_frame = QFrame()
+        oracle_frame.setStyleSheet(f"""
+            background-color: {c['surface']};
+            border: 1px solid {theme.get_color('primary')};
+            border-radius: 8px;
+        """)
+        oracle_layout = QVBoxLayout(oracle_frame)
+        oracle_layout.setContentsMargins(8, 8, 8, 8)
+        oracle_layout.setSpacing(6)
+        
+        # 분석 버튼들
+        self.oracle_why_btn = QPushButton("❓ Why?")
+        self.oracle_why_btn.setToolTip("선택된 종목이 왜 신호를 발생했는지 분석")
+        self.oracle_why_btn.setStyleSheet(self._get_oracle_btn_style())
+        self.oracle_why_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        oracle_layout.addWidget(self.oracle_why_btn)
+        
+        self.oracle_fundamental_btn = QPushButton("📊 Fundamental")
+        self.oracle_fundamental_btn.setToolTip("종목 펀더멘털 분석")
+        self.oracle_fundamental_btn.setStyleSheet(self._get_oracle_btn_style())
+        self.oracle_fundamental_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        oracle_layout.addWidget(self.oracle_fundamental_btn)
+        
+        self.oracle_reflection_btn = QPushButton("💭 Reflection")
+        self.oracle_reflection_btn.setToolTip("거래 복기 및 교훈 분석")
+        self.oracle_reflection_btn.setStyleSheet(self._get_oracle_btn_style())
+        self.oracle_reflection_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        oracle_layout.addWidget(self.oracle_reflection_btn)
+        
+        # 결과 표시 영역
+        self.oracle_result = QTextEdit()
+        self.oracle_result.setReadOnly(True)
+        self.oracle_result.setPlaceholderText("Select a stock and click a button...")
+        self.oracle_result.setStyleSheet(f"""
+            QTextEdit {{
+                background-color: rgba(0,0,0,0.3);
+                border: 1px solid {c['border']};
+                border-radius: 4px;
+                color: {c['text']};
+                font-size: 11px;
+            }}
+        """)
+        self.oracle_result.setMaximumHeight(100)
+        oracle_layout.addWidget(self.oracle_result)
+        
+        main_layout.addWidget(oracle_frame)
+        main_layout.addStretch()
         
         return frame
+    
+    def _get_oracle_btn_style(self) -> str:
+        """Oracle 버튼 스타일"""
+        c = theme.colors
+        return f"""
+            QPushButton {{
+                background-color: rgba(33, 150, 243, 0.2);
+                border: 1px solid {theme.get_color('primary')};
+                border-radius: 4px;
+                color: {c['text']};
+                padding: 6px 12px;
+                font-size: 11px;
+                text-align: left;
+            }}
+            QPushButton:hover {{
+                background-color: rgba(33, 150, 243, 0.4);
+            }}
+        """
+
 
     def _create_bottom_panel(self) -> QFrame:
         """
@@ -683,7 +783,7 @@ class Sigma9Dashboard(CustomWindow):
         self.control_panel.kill_clicked.connect(self._on_kill)
         self.control_panel.strategy_selected.connect(self._on_strategy_changed)
         self.control_panel.strategy_reload_clicked.connect(self._on_reload_strategy)
-        self.control_panel.settings_btn.clicked.connect(self._on_settings)
+        self.control_panel.settings_clicked.connect(self._on_settings)
 
     def _on_connect(self):
         """Connect 버튼 클릭 (Step 3.4.1)"""
@@ -947,22 +1047,28 @@ class Sigma9Dashboard(CustomWindow):
 
     def _on_settings(self):
         """설정 버튼 클릭"""
+        print("[DEBUG] Dashboard: _on_settings called!")
+        self.log("[ACTION] Settings button clicked")
         current_settings = load_settings()
-        dlg = SettingsDialog(self, current_settings)
-        dlg.sig_settings_changed.connect(self._on_settings_preview)
-        
-        if dlg.exec():
-            # Save Setting
-            # Note: For complex nested settings, better to use recursive update or specialized manager
-            # Here we manually update what we support
-            s = current_settings
-            if 'gui' not in s: s['gui'] = {}
+        try:
+            # [FIX] Parent를 None으로 설정하여 Top-level 윈도우로 띄움 (부모의 효과 간섭 방지)
+            dlg = SettingsDialog(None, current_settings)
+            dlg.sig_settings_changed.connect(self._on_settings_preview)
+            
+            print("[DEBUG] Executing Settings Dialog...")
+            if dlg.exec():
+                # Save Setting
+                # Note: For complex nested settings, better to use recursive update or specialized manager
+                # Here we manually update what we support
+                s = current_settings
+                if 'gui' not in s: s['gui'] = {}
             
             s['gui']['opacity'] = dlg.opacity_slider.value() / 100.0
             s['gui']['acrylic_map_alpha'] = dlg.alpha_slider.value()
             s['gui']['particle_alpha'] = dlg.particle_slider.value() / 100.0
             s['gui']['tint_color'] = dlg.initial_tint_color
             s['gui']['theme'] = 'light' if dlg.radio_light.isChecked() else 'dark'
+            s['gui']['background_effect'] = dlg.effect_combo.currentText().lower()
                 
             if save_settings(s):
                 self.log("[INFO] Settings saved.")
@@ -974,6 +1080,7 @@ class Sigma9Dashboard(CustomWindow):
                 self.tint_b = theme.tint_b
                 self.alpha = theme.acrylic_map_alpha
                 self.particle_system.global_alpha = theme.particle_alpha
+                self.particle_system.set_background_effect(theme.background_effect)
                 
                 self.setWindowOpacity(theme.opacity)
                 self.update_acrylic_color(self._get_color_string())
@@ -982,11 +1089,19 @@ class Sigma9Dashboard(CustomWindow):
                 if theme.mode != s['gui']['theme']:
                      self.log("[INFO] Theme changed. Restart recommended for full effect.")
 
-        else:
-            # Revert preview
-            self.setWindowOpacity(theme.opacity)
-            self.alpha = theme.acrylic_map_alpha
-            self.particle_system.global_alpha = theme.particle_alpha # [NEW] Revert
+            else:
+                # Revert preview
+                print("[DEBUG] Dialog Cancelled")
+                self.setWindowOpacity(theme.opacity)
+                self.alpha = theme.acrylic_map_alpha
+                self.particle_system.global_alpha = theme.particle_alpha # [NEW] Revert
+                
+        except Exception as e:
+            print(f"[ERROR] Settings Dialog Crashed: {e}")
+            self.log(f"[ERROR] Settings Dialog Crashed: {e}")
+            import traceback
+            traceback.print_exc()
+            self.particle_system.set_background_effect(theme.background_effect) # [NEW] Revert
             self.update_acrylic_color(self._get_color_string())
 
     def _on_settings_preview(self, changes: dict):
@@ -1012,6 +1127,9 @@ class Sigma9Dashboard(CustomWindow):
             
         if "particle_alpha" in changes:
             self.particle_system.global_alpha = changes["particle_alpha"]
+
+        if "background_effect" in changes:
+            self.particle_system.set_background_effect(changes["background_effect"])
 
 
 

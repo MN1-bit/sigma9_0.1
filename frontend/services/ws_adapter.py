@@ -1,0 +1,341 @@
+"""
+Sigma9 WebSocket Adapter
+=========================
+WebSocket 기반 실시간 스트리밍 클라이언트.
+
+📌 사용법:
+    from frontend.services.ws_adapter import WsAdapter
+    
+    adapter = WsAdapter("ws://localhost:8000/ws/feed")
+    adapter.log_received.connect(on_log)
+    adapter.watchlist_updated.connect(on_watchlist)
+    await adapter.connect()
+
+📌 메시지 타입:
+    - LOG:xxx       - 서버 로그
+    - TICK:xxx      - 틱 데이터 (JSON)
+    - TRADE:xxx     - 거래 이벤트 (JSON)
+    - WATCHLIST:xxx - Watchlist 업데이트 (JSON)
+    - STATUS:xxx    - 상태 변경 (JSON)
+"""
+
+import asyncio
+import json
+from typing import Optional
+from enum import Enum
+from loguru import logger
+
+try:
+    from PyQt6.QtCore import QObject, pyqtSignal, QTimer
+    PYQT_AVAILABLE = True
+except ImportError:
+    try:
+        from PySide6.QtCore import QObject, Signal as pyqtSignal, QTimer
+        PYQT_AVAILABLE = True
+    except ImportError:
+        PYQT_AVAILABLE = False
+        logger.warning("⚠️ PyQt6/PySide6 not available")
+
+try:
+    import websockets
+    WEBSOCKETS_AVAILABLE = True
+except ImportError:
+    WEBSOCKETS_AVAILABLE = False
+    logger.warning("⚠️ websockets not installed. Run: pip install websockets")
+
+
+class MessageType(str, Enum):
+    """WebSocket 메시지 타입"""
+    LOG = "LOG"
+    TICK = "TICK"
+    TRADE = "TRADE"
+    WATCHLIST = "WATCHLIST"
+    STATUS = "STATUS"
+    ERROR = "ERROR"
+    PONG = "PONG"
+
+
+class WsAdapter(QObject):
+    """
+    WebSocket 클라이언트 Adapter
+    
+    📌 기능:
+        - 서버 WebSocket 연결 관리
+        - 자동 재연결
+        - 메시지 파싱 및 Signal 발생
+        - 하트비트 (PING/PONG)
+    
+    📌 Signals:
+        - connected: 연결 성공
+        - disconnected: 연결 해제
+        - log_received(str): 로그 메시지 수신
+        - tick_received(dict): 틱 데이터 수신
+        - trade_received(dict): 거래 이벤트 수신
+        - watchlist_updated(list): Watchlist 업데이트
+        - status_changed(dict): 상태 변경
+        - error_occurred(str): 에러 발생
+    """
+    
+    # Signals
+    connected = pyqtSignal()
+    disconnected = pyqtSignal()
+    log_received = pyqtSignal(str)
+    tick_received = pyqtSignal(dict)
+    trade_received = pyqtSignal(dict)
+    watchlist_updated = pyqtSignal(list)
+    status_changed = pyqtSignal(dict)
+    error_occurred = pyqtSignal(str)
+    
+    def __init__(
+        self, 
+        ws_url: str,
+        reconnect_interval: int = 5,
+        heartbeat_interval: int = 15,
+        parent=None
+    ):
+        """
+        WebSocket Adapter 초기화
+        
+        Args:
+            ws_url: WebSocket URL (e.g., "ws://localhost:8000/ws/feed")
+            reconnect_interval: 재연결 시도 간격 (초)
+            heartbeat_interval: 하트비트 간격 (초)
+            parent: Qt 부모 객체
+        """
+        super().__init__(parent)
+        
+        if not WEBSOCKETS_AVAILABLE:
+            raise ImportError("websockets is required. Run: pip install websockets")
+        
+        self.ws_url = ws_url
+        self.reconnect_interval = reconnect_interval
+        self.heartbeat_interval = heartbeat_interval
+        
+        self._ws: Optional[websockets.WebSocketClientProtocol] = None
+        self._is_connected = False
+        self._should_reconnect = True
+        self._receive_task: Optional[asyncio.Task] = None
+        self._heartbeat_timer: Optional[QTimer] = None
+        
+        logger.debug(f"WsAdapter initialized: {self.ws_url}")
+    
+    @property
+    def is_connected(self) -> bool:
+        """연결 상태 반환"""
+        return self._is_connected and self._ws is not None
+    
+    # ─────────────────────────────────────────────────────────────
+    # Connection Management
+    # ─────────────────────────────────────────────────────────────
+    
+    async def connect(self) -> bool:
+        """
+        WebSocket 연결
+        
+        Returns:
+            bool: 연결 성공 여부
+        """
+        if self._is_connected:
+            logger.debug("Already connected")
+            return True
+        
+        try:
+            logger.info(f"📡 Connecting to {self.ws_url}...")
+            self._ws = await websockets.connect(
+                self.ws_url,
+                ping_interval=None,  # 수동 PING 관리
+                close_timeout=5
+            )
+            
+            self._is_connected = True
+            self._should_reconnect = True
+            
+            # 수신 태스크 시작
+            self._receive_task = asyncio.create_task(self._receive_loop())
+            
+            # 하트비트 타이머 시작
+            self._start_heartbeat()
+            
+            logger.info("✅ WebSocket connected")
+            self.connected.emit()
+            return True
+            
+        except Exception as e:
+            logger.error(f"❌ WebSocket connection failed: {e}")
+            self.error_occurred.emit(str(e))
+            return False
+    
+    async def disconnect(self):
+        """WebSocket 연결 해제"""
+        self._should_reconnect = False
+        self._stop_heartbeat()
+        
+        if self._receive_task:
+            self._receive_task.cancel()
+            try:
+                await self._receive_task
+            except asyncio.CancelledError:
+                pass
+            self._receive_task = None
+        
+        if self._ws:
+            try:
+                await self._ws.close()
+            except Exception:
+                pass
+            self._ws = None
+        
+        if self._is_connected:
+            self._is_connected = False
+            logger.info("📡 WebSocket disconnected")
+            self.disconnected.emit()
+    
+    async def _receive_loop(self):
+        """메시지 수신 루프"""
+        try:
+            async for message in self._ws:
+                self._handle_message(message)
+                
+        except websockets.ConnectionClosed as e:
+            logger.warning(f"WebSocket connection closed: {e}")
+            self._is_connected = False
+            self.disconnected.emit()
+            
+            # 자동 재연결
+            if self._should_reconnect:
+                await self._reconnect()
+                
+        except Exception as e:
+            logger.error(f"WebSocket receive error: {e}")
+            self.error_occurred.emit(str(e))
+    
+    async def _reconnect(self):
+        """자동 재연결"""
+        while self._should_reconnect:
+            logger.info(f"🔄 Reconnecting in {self.reconnect_interval}s...")
+            await asyncio.sleep(self.reconnect_interval)
+            
+            if await self.connect():
+                break
+    
+    # ─────────────────────────────────────────────────────────────
+    # Message Handling
+    # ─────────────────────────────────────────────────────────────
+    
+    def _handle_message(self, message: str):
+        """
+        메시지 파싱 및 Signal 발생
+        
+        메시지 형식: TYPE:DATA
+        예: LOG:Hello World
+            TICK:{"ticker":"AAPL","price":150.25}
+        """
+        try:
+            # 타입과 데이터 분리
+            if ":" not in message:
+                logger.debug(f"Unknown message format: {message[:50]}")
+                return
+            
+            msg_type, data = message.split(":", 1)
+            
+            # 타입별 처리
+            if msg_type == MessageType.LOG:
+                self.log_received.emit(data)
+                
+            elif msg_type == MessageType.TICK:
+                try:
+                    tick_data = json.loads(data)
+                    self.tick_received.emit(tick_data)
+                except json.JSONDecodeError:
+                    logger.warning(f"Invalid TICK JSON: {data[:50]}")
+                    
+            elif msg_type == MessageType.TRADE:
+                try:
+                    trade_data = json.loads(data)
+                    self.trade_received.emit(trade_data)
+                except json.JSONDecodeError:
+                    logger.warning(f"Invalid TRADE JSON: {data[:50]}")
+                    
+            elif msg_type == MessageType.WATCHLIST:
+                try:
+                    wl_data = json.loads(data)
+                    items = wl_data.get("items", [])
+                    self.watchlist_updated.emit(items)
+                except json.JSONDecodeError:
+                    logger.warning(f"Invalid WATCHLIST JSON: {data[:50]}")
+                    
+            elif msg_type == MessageType.STATUS:
+                try:
+                    status_data = json.loads(data)
+                    self.status_changed.emit(status_data)
+                except json.JSONDecodeError:
+                    logger.warning(f"Invalid STATUS JSON: {data[:50]}")
+                    
+            elif msg_type == MessageType.PONG:
+                # 하트비트 응답 - 무시
+                pass
+                
+            elif msg_type == MessageType.ERROR:
+                self.error_occurred.emit(data)
+                
+            else:
+                logger.debug(f"Unknown message type: {msg_type}")
+                
+        except Exception as e:
+            logger.error(f"Message handling error: {e}")
+    
+    # ─────────────────────────────────────────────────────────────
+    # Heartbeat
+    # ─────────────────────────────────────────────────────────────
+    
+    def _start_heartbeat(self):
+        """하트비트 타이머 시작"""
+        if self._heartbeat_timer:
+            self._heartbeat_timer.stop()
+        
+        self._heartbeat_timer = QTimer(self)
+        self._heartbeat_timer.timeout.connect(self._send_ping)
+        self._heartbeat_timer.start(self.heartbeat_interval * 1000)
+    
+    def _stop_heartbeat(self):
+        """하트비트 타이머 중지"""
+        if self._heartbeat_timer:
+            self._heartbeat_timer.stop()
+            self._heartbeat_timer = None
+    
+    def _send_ping(self):
+        """PING 메시지 전송"""
+        if self._ws and self._is_connected:
+            asyncio.create_task(self._async_send_ping())
+    
+    async def _async_send_ping(self):
+        """비동기 PING 전송"""
+        try:
+            await self._ws.send("PING")
+        except Exception as e:
+            logger.debug(f"PING failed: {e}")
+    
+    # ─────────────────────────────────────────────────────────────
+    # Send Message
+    # ─────────────────────────────────────────────────────────────
+    
+    async def send(self, message: str) -> bool:
+        """
+        메시지 전송
+        
+        Args:
+            message: 전송할 메시지
+        
+        Returns:
+            bool: 전송 성공 여부
+        """
+        if not self._ws or not self._is_connected:
+            logger.warning("Cannot send: not connected")
+            return False
+        
+        try:
+            await self._ws.send(message)
+            return True
+        except Exception as e:
+            logger.error(f"Send failed: {e}")
+            return False

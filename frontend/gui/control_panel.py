@@ -62,7 +62,10 @@ class ControlPanel(QFrame):
     stop_clicked = pyqtSignal()
     kill_clicked = pyqtSignal()
     strategy_selected = pyqtSignal(str)
+    strategy_selection_changed = pyqtSignal(str) # Renaming alias if needed
+    # strategy_selected = pyqtSignal(str) # Kept above
     strategy_reload_clicked = pyqtSignal()
+    settings_clicked = pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -129,6 +132,8 @@ class ControlPanel(QFrame):
             QPushButton {{ color: {theme.get_color('text_secondary')}; background: transparent; border: none; font-size: 16px; }}
             QPushButton:hover {{ color: {theme.get_color('text')}; }}
         """)
+        self.settings_btn.clicked.connect(lambda: print("[DEBUG] ControlPanel: Settings Button Clicked!"))
+        self.settings_btn.clicked.connect(self.settings_clicked.emit)
         layout.addWidget(self.settings_btn)
 
     def _init_strategy_ui(self, layout):

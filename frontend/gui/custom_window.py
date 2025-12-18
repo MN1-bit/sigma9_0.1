@@ -12,12 +12,18 @@ try:
     from PyQt6.QtCore import Qt, QTimer, QPointF, QSize
     from PyQt6.QtGui import QGuiApplication, QPainter, QPen, QPainterPath, \
         QIcon, QCursor
-    from PyQt6.QtWidgets import QWidget, QToolButton, QLabel, QHBoxLayout
+    from PyQt6.QtWidgets import (
+        QWidget, QToolButton, QLabel, QHBoxLayout, 
+        QPushButton, QComboBox, QSlider, QAbstractButton, QLineEdit
+    )
 except ModuleNotFoundError:
     from PySide6.QtCore import Qt, QTimer, QPointF, QSize
     from PySide6.QtGui import QGuiApplication, QPainter, QPen, QPainterPath, \
         QIcon, QCursor
-    from PySide6.QtWidgets import QWidget, QToolButton, QLabel, QHBoxLayout
+    from PySide6.QtWidgets import (
+        QWidget, QToolButton, QLabel, QHBoxLayout, 
+        QPushButton, QComboBox, QSlider, QAbstractButton, QLineEdit
+    )
 from win32comext.shell import shellcon
 
 from .window_effects import WindowsEffects
@@ -534,6 +540,20 @@ class CustomWindow(CustomBase):
                 self.max_btn_hovered = True
                 self.title_bar.max_btn.set_state(TitleBarButtonState.HOVER)
                 return True, win32con.HTMAXBUTTON
+            
+            # [FIX] Check if mouse is over an interactive widget (Button, Combo, etc.)
+            # This prevents the resize border from "stealing" clicks if the widget is near the edge.
+            global_pos = QCursor.pos()
+            child = self.childAt(self.mapFromGlobal(global_pos))
+            if child:
+                # If it's a known interactive widget, return HTCLIENT to ensure it gets the event
+                if isinstance(child, (QAbstractButton, QComboBox, QSlider, QLineEdit)):
+                    return True, win32con.HTCLIENT
+                # Also check parent (sometimes childAt returns a sub-element)
+                parent = child.parent()
+                if isinstance(parent, (QAbstractButton, QComboBox, QSlider, QLineEdit)):
+                     return True, win32con.HTCLIENT
+
             lx = x < self.BORDER_WIDTH
             rx = x > self.width() - self.BORDER_WIDTH
             ty = y < self.BORDER_WIDTH

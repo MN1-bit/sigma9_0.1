@@ -13,6 +13,7 @@ gui:
   acrylic_map_alpha: 5
   particle_alpha: 1.0
   tint_color: '#151520'
+  background_effect: bokeh
 chart:
   default_timeframe: 5m
   show_vwap: true
