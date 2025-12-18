@@ -42,7 +42,40 @@ from typing import List, Dict, Optional
 import numpy as np
 
 from .candlestick_item import CandlestickItem
+from .candlestick_item import CandlestickItem
 from ..theme import theme
+
+
+class IndexDateAxis(pg.AxisItem):
+    """
+    인덱스 기반 날짜 X축 (Gap 제거용)
+    0, 1, 2... 인덱스를 받아서 해당 인덱스의 날짜 문자열(MM-DD)로 표시
+    """
+    def __init__(self, orientation='bottom'):
+        super().__init__(orientation)
+        self.timestamps = {}  # {index: timestamp}
+        self.time_strs = {}   # {index: "MM-DD"}
+        
+    def update_ticks(self, timestamps: List[float]):
+        """타임스탬프 매핑 업데이트"""
+        self.timestamps = {i: t for i, t in enumerate(timestamps)}
+        from datetime import datetime
+        self.time_strs = {
+            i: datetime.fromtimestamp(t).strftime('%m-%d')
+            for i, t in enumerate(timestamps)
+        }
+    
+    def tickStrings(self, values, scale, spacing):
+        """인덱스를 날짜 문자열로 변환"""
+        strings = []
+        for v in values:
+            idx = int(round(v))
+            if idx in self.time_strs:
+                strings.append(self.time_strs[idx])
+            else:
+                strings.append("")
+        return strings
+
 
 
 class PyQtGraphChartWidget(QWidget):
@@ -78,9 +111,6 @@ class PyQtGraphChartWidget(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setStyleSheet("background: transparent;")
         
-        # UI 초기화
-        self._setup_ui()
-        
         # 데이터 시리즈 저장
         self._candle_item: Optional[CandlestickItem] = None
         self._volume_bars = None
@@ -90,6 +120,16 @@ class PyQtGraphChartWidget(QWidget):
         self._ma_lines = {}  # {period: PlotDataItem}
         self._price_levels = {}  # {'entry': InfiniteLine, 'sl': ..., 'tp': ...}
         self._markers = []
+        
+        # 데이터 캐시 (툴팁용)
+        self._candle_data = []
+        self._volume_data = []
+        
+        # UI 초기화 (plots 생성)
+        self._setup_ui()
+        
+        # 툴팁 설정 (plots 생성 후!!)
+        self._setup_tooltips()
     
     def _setup_ui(self):
         """UI 구성"""
@@ -147,12 +187,21 @@ class PyQtGraphChartWidget(QWidget):
         # ─────────────────────────────────────────────────────────────
         # 2A. 캔들스틱 플롯 (상단, 70%)
         # ─────────────────────────────────────────────────────────────
-        date_axis = DateAxisItem(orientation='bottom')
+        # ─────────────────────────────────────────────────────────────
+        # 2A. 캔들스틱 플롯 (상단, 70%)
+        # ─────────────────────────────────────────────────────────────
+        # [Gap 제거] 커스텀 축 사용
+        self.date_axis = IndexDateAxis(orientation='bottom')
         self.price_plot = self.graphics_layout.addPlot(
             row=0, col=0,
-            axisItems={'bottom': date_axis}
+            axisItems={'bottom': self.date_axis}
         )
-        self._style_plot(self.price_plot)
+        self.price_plot.showAxis('left', False)
+        self.price_plot.showAxis('right', True)
+        self._style_plot(self.price_plot, axis_side='right')
+        
+        # [New] X축 범위 변경 시 Y축 수동 자동 스케일링 연결
+        self.price_plot.getViewBox().sigXRangeChanged.connect(self._update_y_range)
         
         # X축 숨김 (아래 Volume과 공유)
         self.price_plot.hideAxis('bottom')
@@ -160,12 +209,20 @@ class PyQtGraphChartWidget(QWidget):
         # ─────────────────────────────────────────────────────────────
         # 2B. Volume 플롯 (하단, 30%)
         # ─────────────────────────────────────────────────────────────
-        volume_date_axis = DateAxisItem(orientation='bottom')
+        # ─────────────────────────────────────────────────────────────
+        # 2B. Volume 플롯 (하단, 30%)
+        # ─────────────────────────────────────────────────────────────
+        # [Gap 제거] 커스텀 축 사용 (Price 축과 공유하지만 인스턴스는 별도 필요할 수 있음. 
+        # 하지만 여기서는 Price 축을 메인으로 쓰고 Volume 축은 숨기거나 연동)
+        self.volume_date_axis = IndexDateAxis(orientation='bottom')
         self.volume_plot = self.graphics_layout.addPlot(
             row=1, col=0,
-            axisItems={'bottom': volume_date_axis}
+            axisItems={'bottom': self.volume_date_axis}
         )
-        self._style_plot(self.volume_plot)
+        # [User Request] Volume 축은 다시 왼쪽으로 이동
+        self.volume_plot.showAxis('left', True)
+        self.volume_plot.showAxis('right', False)
+        self._style_plot(self.volume_plot, axis_side='left')
         
         # 높이 비율 설정 (Price:Volume = 3:1)
         self.graphics_layout.ci.layout.setRowStretchFactor(0, 3)
@@ -176,17 +233,32 @@ class PyQtGraphChartWidget(QWidget):
         
         layout.addWidget(self.graphics_layout)
     
-    def _style_plot(self, plot):
+    def _style_plot(self, plot, axis_side='right'):
         """플롯 스타일 설정"""
-        # 축 색상 설정 - PyQtGraph는 CSS rgba()를 파싱하지 못하므로 QColor 사용
+        # 축 색상 설정
         axis_color = QColor(255, 255, 255, 150)  # 반투명 흰색
-        for axis_name in ['left', 'bottom']:
+        
+        # 지정된 방향의 축과 하단 축 스타일링
+        axes_to_style = ['bottom', axis_side]
+        
+        for axis_name in axes_to_style:
             axis = plot.getAxis(axis_name)
             axis.setPen(pg.mkPen(axis_color, width=1))
             axis.setTextPen(pg.mkPen(axis_color))
         
+        # 불필요한 쪽 축 숨기기 (안전장치)
+        opposite_side = 'left' if axis_side == 'right' else 'right'
+        plot.showAxis(opposite_side, False)
+        plot.showAxis(axis_side, True)
+        
         # 그리드 설정 (반투명)
         plot.showGrid(x=True, y=True, alpha=0.1)
+        
+        # [FIX] Y축 자동 스케일링 설정 제거 (수동 제어로 변경)
+        # plot.enableAutoRange(axis='y', enable=True)
+        # plot.setAutoVisible(y=True)
+        plot.enableAutoRange(axis='y', enable=False)
+        plot.setAutoVisible(y=False)
         
         # 마우스 인터랙션 활성화
         plot.setMouseEnabled(x=True, y=True)
@@ -195,27 +267,205 @@ class PyQtGraphChartWidget(QWidget):
         """타임프레임 변경 핸들러"""
         self.timeframe_changed.emit(timeframe)
     
+    def _format_volume_axis(self):
+        """
+        Volume Y축을 자연수 포맷으로 설정
+        
+        1,000,000 → 1M, 500,000 → 500K 형식으로 표시
+        """
+        # [User Request] Volume은 다시 왼쪽 축 사용
+        axis = self.volume_plot.getAxis('left')
+        
+        def format_volume(value):
+            if abs(value) >= 1_000_000_000:
+                return f"{value / 1_000_000_000:.1f}B"
+            elif abs(value) >= 1_000_000:
+                return f"{value / 1_000_000:.1f}M"
+            elif abs(value) >= 1_000:
+                return f"{value / 1_000:.0f}K"
+            else:
+                return f"{int(value)}"
+        
+        # 커스텀 틱 문자열 생성
+        axis.setTicks(None)  # 자동 틱 사용
+        axis.enableAutoSIPrefix(False)  # SI 접두사 비활성화
+        axis.setTickSpacing()  # 기본 간격
+        
+        # Y축 라벨 포맷터 설정
+        axis.tickStrings = lambda values, scale, spacing: [format_volume(v) for v in values]
+    
+    def _setup_tooltips(self):
+        """
+        호버 툴팁 설정
+        
+        캔들스틱 위에 마우스를 올리면 OHLCV + 시간 표시
+        Volume 바 위에 마우스를 올리면 거래량 + 시간 표시
+        """
+        # 프록시 아이템으로 마우스 이벤트 감지
+        self._price_proxy = pg.SignalProxy(
+            self.price_plot.scene().sigMouseMoved,
+            rateLimit=60,
+            slot=self._on_price_mouse_moved
+        )
+        self._volume_proxy = pg.SignalProxy(
+            self.volume_plot.scene().sigMouseMoved,
+            rateLimit=60,
+            slot=self._on_volume_mouse_moved
+        )
+        
+        # 툴팁 텍스트 아이템
+        self._price_tooltip = pg.TextItem(
+            text="",
+            color='white',
+            fill=pg.mkBrush(0, 0, 0, 180),
+            anchor=(0, 1)
+        )
+        self._price_tooltip.setZValue(100)
+        self.price_plot.addItem(self._price_tooltip)
+        self._price_tooltip.hide()
+        
+        self._volume_tooltip = pg.TextItem(
+            text="",
+            color='white',
+            fill=pg.mkBrush(0, 0, 0, 180),
+            anchor=(0, 1)
+        )
+        self._volume_tooltip.setZValue(100)
+        self.volume_plot.addItem(self._volume_tooltip)
+        self._volume_tooltip.hide()
+    
+    def _on_price_mouse_moved(self, evt):
+        """캔들스틱 호버 이벤트"""
+        pos = evt[0]
+        if not self.price_plot.sceneBoundingRect().contains(pos):
+            self._price_tooltip.hide()
+            return
+        
+        mouse_point = self.price_plot.getViewBox().mapSceneToView(pos)
+        x = mouse_point.x()
+        
+        # 인덱스 기반으로 캔들 찾기
+        idx = int(round(x))
+        if 0 <= idx < len(self._candle_data):
+            closest = self._candle_data[idx]
+            from datetime import datetime
+            time_str = datetime.fromtimestamp(closest['time']).strftime('%Y-%m-%d')
+            
+            text = (
+                f"📅 {time_str}\n"
+                f"O: {closest['open']:.2f}  H: {closest['high']:.2f}\n"
+                f"L: {closest['low']:.2f}  C: {closest['close']:.2f}"
+            )
+            self._price_tooltip.setText(text)
+            self._price_tooltip.setPos(x, closest['high'])
+            self._price_tooltip.show()
+        else:
+            self._price_tooltip.hide()
+    
+    def _update_y_range(self):
+        """X축 범위 변경 시 Y축 자동 스케일링 (TradingView 스타일)"""
+        if not hasattr(self, '_candle_data') or not self._candle_data:
+            return
+            
+        # 현재 보이는 X축 범위 (인덱스) 가져오기
+        view_box = self.price_plot.getViewBox()
+        view_range = view_box.viewRange()
+        x_min, x_max = view_range[0]
+        
+        # 범위 내 캔들 필터링
+        min_price = float('inf')
+        max_price = float('-inf')
+        found = False
+        
+        # 인덱스 기반으로 빠르게 필터링 가능
+        start_idx = max(0, int(x_min))
+        end_idx = min(len(self._candle_data) - 1, int(x_max) + 1)
+        
+        if start_idx <= end_idx:
+            subset = self._candle_data[start_idx:end_idx+1]
+            for c in subset:
+                if c['low'] < min_price: min_price = c['low']
+                if c['high'] > max_price: max_price = c['high']
+                found = True
+        
+        # 범위 내 데이터가 있으면 Y축 조정
+        if found and min_price < max_price:
+            padding = (max_price - min_price) * 0.1  # 상하 10% 여유
+            view_box.setYRange(min_price - padding, max_price + padding, padding=0)
+
+    def _on_volume_mouse_moved(self, evt):
+        """Volume 바 호버 이벤트"""
+        pos = evt[0]
+        if not self.volume_plot.sceneBoundingRect().contains(pos):
+            self._volume_tooltip.hide()
+            return
+        
+        mouse_point = self.volume_plot.getViewBox().mapSceneToView(pos)
+        x = mouse_point.x()
+        
+        # 가장 가까운 Volume 찾기
+        idx = int(round(x))
+        if 0 <= idx < len(self._volume_data):
+            v = self._volume_data[idx]
+            from datetime import datetime
+            time_str = datetime.fromtimestamp(v['time']).strftime('%Y-%m-%d')
+            
+            vol = v['volume']
+            text = f"📅 {time_str}\n📊 Volume: {vol:,}"
+            self._volume_tooltip.setText(text)
+            self._volume_tooltip.setPos(x, vol)
+            self._volume_tooltip.show()
+        else:
+            self._volume_tooltip.hide()
+    
     # ═══════════════════════════════════════════════════════════════════
     # 데이터 설정 메서드
     # ═══════════════════════════════════════════════════════════════════
     
     def set_candlestick_data(self, candles: List[Dict]):
         """
-        캔들스틱 데이터 설정
+        캔들스틱 데이터 설정 (Gap 제거 적용)
         
         Args:
-            candles: [{"time": timestamp, "open": float, "high": float, 
-                      "low": float, "close": float, "volume": int}, ...]
+            candles: [{"time": timestamp, "open": float, ...}, ...]
         """
         # Dict 리스트를 튜플 리스트로 변환
         data = []
-        for c in candles:
+        timestamps = []  # [Gap 제거] 축 매핑용
+        
+        # [New] 저장용 데이터 초기화
+        self._candle_data = []
+        
+        # 타임스탬프 -> 인덱스 매핑 생성
+        self._timestamp_map = {} 
+        
+        for i, c in enumerate(candles):
             t = c['time']
-            # time이 문자열이면 timestamp로 변환
             if isinstance(t, str):
                 from datetime import datetime
                 t = datetime.fromisoformat(t.replace('Z', '+00:00')).timestamp()
-            data.append((t, c['open'], c['high'], c['low'], c['close']))
+            timestamps.append(t)
+            
+            # [Gap 제거] X좌표는 타임스탬프 대신 인덱스(i) 사용
+            data.append((i, c['open'], c['high'], c['low'], c['close']))
+            
+            self._timestamp_map[t] = i
+            
+            # 데이터 캐시 저장 (인덱스 포함)
+            self._candle_data.append({
+                'index': i,
+                'time': t,
+                'open': c['open'],
+                'high': c['high'],
+                'low': c['low'],
+                'close': c['close']
+            })
+            
+        # [Gap 제거] 축 업데이트
+        if hasattr(self, 'date_axis'):
+            self.date_axis.update_ticks(timestamps)
+        if hasattr(self, 'volume_date_axis'):
+            self.volume_date_axis.update_ticks(timestamps)
         
         # 기존 캔들 제거
         if self._candle_item:
@@ -225,8 +475,10 @@ class PyQtGraphChartWidget(QWidget):
         self._candle_item = CandlestickItem(data)
         self.price_plot.addItem(self._candle_item)
         
-        # 뷰 범위 자동 조정
+        # 뷰 범위 자동 조정 (처음 로드 시)
         self.price_plot.autoRange()
+        # 이후에는 X축 변경 시 자동으로 _update_y_range가 호출됨
+        self._update_y_range()
     
     def set_volume_data(self, volume_data: List[Dict]):
         """
@@ -239,26 +491,39 @@ class PyQtGraphChartWidget(QWidget):
         if self._volume_bars:
             self.volume_plot.removeItem(self._volume_bars)
         
-        times = []
+        # self._candle_data가 먼저 설정되어야 매핑 가능
+        # 보통 candles와 volume 데이터 길이가 같다고 가정하거나,
+        # volume_data의 time을 이용해 인덱스를 찾아야 함.
+        
+        times = [] # 인덱스 리스트
         volumes = []
         colors = []
         
-        for v in volume_data:
+        self._volume_data = [] # 인덱스 포함해서 재저장
+        
+        for i, v in enumerate(volume_data):
             t = v['time']
             if isinstance(t, str):
                 from datetime import datetime
                 t = datetime.fromisoformat(t.replace('Z', '+00:00')).timestamp()
-            times.append(t)
+            
+            # 매핑된 인덱스 찾기 (없으면 순서대로)
+            idx = self._timestamp_map.get(t, i)
+            
+            times.append(idx)
             volumes.append(v['volume'])
-            # 상승봉 녹색, 하락봉 빨간색
+            
             is_up = v.get('is_up', True)
             colors.append('#22c55e' if is_up else '#ef4444')
+            
+            self._volume_data.append({
+                'index': idx,
+                'time': t,
+                'volume': v['volume']
+            })
         
-        # 바 너비 계산
-        if len(times) >= 2:
-            bar_width = (times[1] - times[0]) * 0.8
-        else:
-            bar_width = 86400 * 0.8  # 1일
+        # 바 너비 (인덱스 간격은 1이므로 0.8로 고정)
+        bar_width = 0.8
         
         # BarGraphItem으로 Volume 바 생성
         brushes = [pg.mkBrush(c) for c in colors]
@@ -268,6 +533,10 @@ class PyQtGraphChartWidget(QWidget):
             pen=pg.mkPen(None)  # 테두리 없음
         )
         self.volume_plot.addItem(self._volume_bars)
+        
+        # [NEW] Volume Y축 자연수 포맷터 (과학 표기법 대신)
+        self._format_volume_axis()
+        
         self.volume_plot.autoRange()
     
     def set_vwap_data(self, vwap_data: List[Dict]):
@@ -280,6 +549,9 @@ class PyQtGraphChartWidget(QWidget):
         if self._vwap_line:
             self.price_plot.removeItem(self._vwap_line)
         
+        if not hasattr(self, '_timestamp_map'):
+            return
+
         times = []
         values = []
         for v in vwap_data:
@@ -287,14 +559,18 @@ class PyQtGraphChartWidget(QWidget):
             if isinstance(t, str):
                 from datetime import datetime
                 t = datetime.fromisoformat(t.replace('Z', '+00:00')).timestamp()
-            times.append(t)
-            values.append(v['value'])
+            
+            # 매핑된 인덱스 찾기
+            if t in self._timestamp_map:
+                times.append(self._timestamp_map[t])
+                values.append(v['value'])
         
-        self._vwap_line = self.price_plot.plot(
-            times, values,
-            pen=pg.mkPen('#eab308', width=2),  # 노란색 VWAP
-            name='VWAP'
-        )
+        if times:
+            self._vwap_line = self.price_plot.plot(
+                times, values,
+                pen=pg.mkPen('#eab308', width=2),  # 노란색 VWAP
+                name='VWAP'
+            )
     
     def set_ma_data(self, ma_data: List[Dict], period: int = 20, color: str = '#3b82f6'):
         """
@@ -309,6 +585,9 @@ class PyQtGraphChartWidget(QWidget):
         if period in self._ma_lines:
             self.price_plot.removeItem(self._ma_lines[period])
         
+        if not hasattr(self, '_timestamp_map'):
+            return
+
         times = []
         values = []
         for d in ma_data:
@@ -316,15 +595,19 @@ class PyQtGraphChartWidget(QWidget):
             if isinstance(t, str):
                 from datetime import datetime
                 t = datetime.fromisoformat(t.replace('Z', '+00:00')).timestamp()
-            times.append(t)
-            values.append(d['value'])
+            
+            # 매핑된 인덱스 찾기
+            if t in self._timestamp_map:
+                times.append(self._timestamp_map[t])
+                values.append(d['value'])
         
-        line = self.price_plot.plot(
-            times, values,
-            pen=pg.mkPen(color, width=1),
-            name=f'MA{period}'
-        )
-        self._ma_lines[period] = line
+        if times:
+            line = self.price_plot.plot(
+                times, values,
+                pen=pg.mkPen(color, width=1),
+                name=f'MA{period}'
+            )
+            self._ma_lines[period] = line
     
     def set_atr_bands(self, upper_data: List[Dict], lower_data: List[Dict]):
         """
@@ -340,6 +623,9 @@ class PyQtGraphChartWidget(QWidget):
         if self._atr_lower_line:
             self.price_plot.removeItem(self._atr_lower_line)
         
+        if not hasattr(self, '_timestamp_map'):
+            return
+
         # 상단 ATR
         upper_times = []
         upper_values = []
@@ -348,14 +634,17 @@ class PyQtGraphChartWidget(QWidget):
             if isinstance(t, str):
                 from datetime import datetime
                 t = datetime.fromisoformat(t.replace('Z', '+00:00')).timestamp()
-            upper_times.append(t)
-            upper_values.append(d['value'])
+            
+            if t in self._timestamp_map:
+                upper_times.append(self._timestamp_map[t])
+                upper_values.append(d['value'])
         
-        self._atr_upper_line = self.price_plot.plot(
-            upper_times, upper_values,
-            pen=pg.mkPen('#22c55e', width=1, style=Qt.PenStyle.DashLine),
-            name='ATR+'
-        )
+        if upper_times:
+            self._atr_upper_line = self.price_plot.plot(
+                upper_times, upper_values,
+                pen=pg.mkPen('#22c55e', width=1, style=Qt.PenStyle.DashLine),
+                name='ATR+'
+            )
         
         # 하단 ATR
         lower_times = []
@@ -365,14 +654,17 @@ class PyQtGraphChartWidget(QWidget):
             if isinstance(t, str):
                 from datetime import datetime
                 t = datetime.fromisoformat(t.replace('Z', '+00:00')).timestamp()
-            lower_times.append(t)
-            lower_values.append(d['value'])
+            
+            if t in self._timestamp_map:
+                lower_times.append(self._timestamp_map[t])
+                lower_values.append(d['value'])
         
-        self._atr_lower_line = self.price_plot.plot(
-            lower_times, lower_values,
-            pen=pg.mkPen('#ef4444', width=1, style=Qt.PenStyle.DashLine),
-            name='ATR-'
-        )
+        if lower_times:
+            self._atr_lower_line = self.price_plot.plot(
+                lower_times, lower_values,
+                pen=pg.mkPen('#ef4444', width=1, style=Qt.PenStyle.DashLine),
+                name='ATR-'
+            )
     
     def set_price_levels(self, entry: float = None, stop_loss: float = None, take_profit: float = None):
         """
@@ -444,9 +736,19 @@ class PyQtGraphChartWidget(QWidget):
             from datetime import datetime
             time = datetime.fromisoformat(time.replace('Z', '+00:00')).timestamp()
         
+        # [Map] 타임스탬프를 인덱스로 변환
+        x_pos = time
+        if hasattr(self, '_timestamp_map') and time in self._timestamp_map:
+            x_pos = self._timestamp_map[time]
+        else:
+            # 매핑에 없는 경우(예: 장외 거래?) - 추가하거나 무시해야 함
+            # 여기선 무시하거나 근사값 처리. 일단 예외 처리 없이 리턴
+            # return 
+            pass
+        
         # ScatterPlotItem으로 마커 추가
         scatter = pg.ScatterPlotItem(
-            [time], [price],
+            [x_pos], [price],
             symbol=symbol,
             size=12,
             pen=pg.mkPen(color, width=2),
@@ -458,7 +760,7 @@ class PyQtGraphChartWidget(QWidget):
         # 텍스트 라벨 추가
         if text:
             label = pg.TextItem(text, color=color, anchor=(0.5, 1))
-            label.setPos(time, price)
+            label.setPos(x_pos, price)  # 인덱스 좌표 사용
             self.price_plot.addItem(label)
             self._markers.append(label)
     
@@ -499,16 +801,53 @@ class PyQtGraphChartWidget(QWidget):
     
     def clear(self):
         """차트 초기화"""
-        self.price_plot.clear()
-        self.volume_plot.clear()
-        self._candle_item = None
-        self._volume_bars = None
-        self._vwap_line = None
-        self._atr_upper_line = None
-        self._atr_lower_line = None
+        # [FIX] self.price_plot.clear() 대신 항목별 제거로 변경
+        # 이렇게 해야 툴팁(TextItem)과 Grid, Axis 설정이 유지됨
+        
+        # 1. 캔들 제거
+        if self._candle_item:
+            self.price_plot.removeItem(self._candle_item)
+            self._candle_item = None
+            
+        # 2. Volume 바 제거
+        if self._volume_bars:
+            self.volume_plot.removeItem(self._volume_bars)
+            self._volume_bars = None
+            
+        # 3. 보조지표 제거
+        if self._vwap_line:
+            self.price_plot.removeItem(self._vwap_line)
+            self._vwap_line = None
+            
+        if self._atr_upper_line:
+            self.price_plot.removeItem(self._atr_upper_line)
+            self._atr_upper_line = None
+        
+        if self._atr_lower_line:
+            self.price_plot.removeItem(self._atr_lower_line)
+            self._atr_lower_line = None
+            
+        for line in self._ma_lines.values():
+            self.price_plot.removeItem(line)
         self._ma_lines.clear()
+        
+        for line in self._price_levels.values():
+            self.price_plot.removeItem(line)
         self._price_levels.clear()
-        self._markers.clear()
+        
+        self.clear_markers()
+        
+        # 데이터 캐시 초기화
+        self._candle_data = []
+        self._volume_data = []
+        
+        
+        # 뷰 범위 자동 조정 활성화 (수동 모드이므로 autoRange 비활성화 유지)
+        self.price_plot.enableAutoRange(axis='y', enable=False)
+        self.volume_plot.enableAutoRange(axis='y', enable=False)
+        
+        self.price_plot.autoRange()
+        self.volume_plot.autoRange()
 
 
 # ═══════════════════════════════════════════════════════════════════════════

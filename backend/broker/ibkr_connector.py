@@ -37,7 +37,8 @@ from dotenv import load_dotenv
 
 # ib_insync - IBKR API 래퍼
 # 참고: https://ib-insync.readthedocs.io/
-from ib_insync import IB, util, Stock, Ticker
+from ib_insync import IB, util, Stock, Ticker, MarketOrder, StopOrder, LimitOrder, Trade
+import time
 
 # PyQt6 - GUI 스레드 분리 및 시그널
 from PyQt6.QtCore import QThread, pyqtSignal
@@ -111,6 +112,15 @@ class IBKRConnector(QThread):
     error = pyqtSignal(str)             # 에러 메시지
     log_message = pyqtSignal(str)       # 로그 메시지
     
+    # ═══════════════════════════════════════════════════════════════════
+    # 주문 관련 Signals (Step 3.1 OMS)
+    # ═══════════════════════════════════════════════════════════════════
+    order_placed = pyqtSignal(dict)     # 주문 접수됨 {order_id, symbol, action, qty, ...}
+    order_filled = pyqtSignal(dict)     # 주문 체결됨 {order_id, symbol, fill_price, ...}
+    order_cancelled = pyqtSignal(dict)  # 주문 취소됨 {order_id, symbol, ...}
+    order_error = pyqtSignal(str, str)  # 주문 오류 (order_id, message)
+    positions_update = pyqtSignal(list) # 포지션 목록 변경 [{symbol, qty, avg_price, ...}]
+    
     def __init__(self, parent=None) -> None:
         """
         커넥터 초기화
@@ -149,6 +159,12 @@ class IBKRConnector(QThread):
         # 로그: 설정 로드 완료
         # (아직 GUI 연결 전이므로 print 사용)
         print(f"[IBKRConnector] 설정 로드: {self.host}:{self.port} (Client ID: {self.client_id})")
+        
+        # --- 주문 추적 (Step 3.1 OMS) ---
+        # 활성 주문 추적: order_id -> Trade 객체
+        self._active_orders: Dict[int, Trade] = {}
+        # OCA 그룹 추적: oca_group_id -> [order_ids]
+        self._oca_groups: Dict[str, List[int]] = {}
     
     # ═══════════════════════════════════════════════════════════════════
     # 스레드 메인 루프
@@ -447,6 +463,375 @@ class IBKRConnector(QThread):
         except Exception:
             # 시세 업데이트가 매우 빈번하므로 에러 로깅 생략
             pass
+    
+    # ═══════════════════════════════════════════════════════════════════
+    # 주문 관리 (Step 3.1 OMS)
+    # ═══════════════════════════════════════════════════════════════════
+    
+    def place_market_order(
+        self, 
+        symbol: str, 
+        qty: int, 
+        action: str = "BUY"
+    ) -> Optional[int]:
+        """
+        시장가 주문 배치
+        
+        Args:
+            symbol: 종목 심볼 (예: "AAPL")
+            qty: 수량
+            action: "BUY" 또는 "SELL"
+            
+        Returns:
+            int: 주문 ID (실패 시 None)
+            
+        Example:
+            >>> order_id = connector.place_market_order("AAPL", 10, "BUY")
+        """
+        if not self.ib or not self.ib.isConnected():
+            self.log_message.emit("❌ 주문 실패: IBKR 연결 안됨")
+            return None
+        
+        try:
+            # Stock 계약 생성
+            contract = Stock(symbol, "SMART", "USD")
+            
+            # 시장가 주문 생성
+            order = MarketOrder(action, qty)
+            
+            # 주문 배치
+            trade = self.ib.placeOrder(contract, order)
+            order_id = trade.order.orderId
+            
+            # 주문 추적에 추가
+            self._active_orders[order_id] = trade
+            
+            # 체결 콜백 등록
+            trade.filledEvent += lambda t: self._on_order_filled(t)
+            trade.cancelledEvent += lambda t: self._on_order_cancelled(t)
+            
+            # Signal 발생
+            self.order_placed.emit({
+                "order_id": order_id,
+                "symbol": symbol,
+                "action": action,
+                "qty": qty,
+                "order_type": "MKT",
+                "status": "Submitted",
+            })
+            
+            self.log_message.emit(f"📤 주문 접수: {action} {qty} {symbol} @ MKT (ID: {order_id})")
+            return order_id
+            
+        except Exception as e:
+            self.log_message.emit(f"❌ 주문 실패: {str(e)}")
+            self.order_error.emit("", str(e))
+            return None
+    
+    def place_stop_order(
+        self, 
+        symbol: str, 
+        qty: int, 
+        stop_price: float,
+        action: str = "SELL",
+        oca_group: Optional[str] = None
+    ) -> Optional[int]:
+        """
+        Stop Loss 주문 배치
+        
+        Args:
+            symbol: 종목 심볼
+            qty: 수량
+            stop_price: Stop 가격
+            action: "BUY" 또는 "SELL" (기본: SELL)
+            oca_group: OCA 그룹 ID (선택)
+            
+        Returns:
+            int: 주문 ID (실패 시 None)
+        """
+        if not self.ib or not self.ib.isConnected():
+            self.log_message.emit("❌ Stop 주문 실패: IBKR 연결 안됨")
+            return None
+        
+        try:
+            contract = Stock(symbol, "SMART", "USD")
+            
+            # Stop 주문 생성
+            order = StopOrder(action, qty, stop_price)
+            
+            # OCA 그룹 설정 (있으면)
+            if oca_group:
+                order.ocaGroup = oca_group
+                order.ocaType = 1  # Cancel on Fill
+            
+            trade = self.ib.placeOrder(contract, order)
+            order_id = trade.order.orderId
+            
+            self._active_orders[order_id] = trade
+            
+            # 콜백 등록
+            trade.filledEvent += lambda t: self._on_order_filled(t)
+            trade.cancelledEvent += lambda t: self._on_order_cancelled(t)
+            
+            # OCA 그룹 추적
+            if oca_group:
+                if oca_group not in self._oca_groups:
+                    self._oca_groups[oca_group] = []
+                self._oca_groups[oca_group].append(order_id)
+            
+            self.order_placed.emit({
+                "order_id": order_id,
+                "symbol": symbol,
+                "action": action,
+                "qty": qty,
+                "order_type": "STP",
+                "stop_price": stop_price,
+                "oca_group": oca_group,
+                "status": "Submitted",
+            })
+            
+            self.log_message.emit(f"📤 Stop 주문: {action} {qty} {symbol} @ ${stop_price:.2f} (ID: {order_id})")
+            return order_id
+            
+        except Exception as e:
+            self.log_message.emit(f"❌ Stop 주문 실패: {str(e)}")
+            return None
+    
+    def place_oca_group(
+        self, 
+        symbol: str, 
+        qty: int, 
+        entry_price: float,
+        stop_loss_pct: float = -2.0,
+        profit_target_pct: float = 8.0,
+    ) -> Optional[str]:
+        """
+        OCA (One-Cancels-All) 그룹 주문 배치
+        
+        진입 즉시 3개 주문을 OCA로 묶어 전송합니다.
+        하나가 체결되면 나머지는 자동 취소됩니다.
+        
+        Args:
+            symbol: 종목 심볼
+            qty: 수량
+            entry_price: 진입 가격 (Stop/Limit 계산 기준)
+            stop_loss_pct: Stop Loss 비율 (기본: -2.0%)
+            profit_target_pct: Profit Target 비율 (기본: 8.0%)
+            
+        Returns:
+            str: OCA 그룹 ID (실패 시 None)
+            
+        Note:
+            masterplan 5.1절 기준:
+            - Safety Stop: -2.0%
+            - Profit Target: +8.0%
+        """
+        if not self.ib or not self.ib.isConnected():
+            self.log_message.emit("❌ OCA 그룹 실패: IBKR 연결 안됨")
+            return None
+        
+        try:
+            # OCA 그룹 ID 생성
+            oca_group = f"OCA_{symbol}_{int(time.time())}"
+            
+            contract = Stock(symbol, "SMART", "USD")
+            
+            # --- 1. Stop Loss 주문 ---
+            stop_price = entry_price * (1 + stop_loss_pct / 100)
+            stop_order = StopOrder("SELL", qty, round(stop_price, 2))
+            stop_order.ocaGroup = oca_group
+            stop_order.ocaType = 1  # Cancel on Fill
+            
+            stop_trade = self.ib.placeOrder(contract, stop_order)
+            self._active_orders[stop_trade.order.orderId] = stop_trade
+            
+            # --- 2. Profit Target (Limit) 주문 ---
+            limit_price = entry_price * (1 + profit_target_pct / 100)
+            limit_order = LimitOrder("SELL", qty, round(limit_price, 2))
+            limit_order.ocaGroup = oca_group
+            limit_order.ocaType = 1
+            
+            limit_trade = self.ib.placeOrder(contract, limit_order)
+            self._active_orders[limit_trade.order.orderId] = limit_trade
+            
+            # OCA 그룹 추적
+            self._oca_groups[oca_group] = [
+                stop_trade.order.orderId,
+                limit_trade.order.orderId,
+            ]
+            
+            # 콜백 등록
+            for trade in [stop_trade, limit_trade]:
+                trade.filledEvent += lambda t: self._on_order_filled(t)
+                trade.cancelledEvent += lambda t: self._on_order_cancelled(t)
+            
+            self.log_message.emit(
+                f"📦 OCA 그룹 배치: {symbol} | "
+                f"Stop ${stop_price:.2f} / Target ${limit_price:.2f}"
+            )
+            
+            return oca_group
+            
+        except Exception as e:
+            self.log_message.emit(f"❌ OCA 그룹 실패: {str(e)}")
+            return None
+    
+    def cancel_order(self, order_id: int) -> bool:
+        """
+        주문 취소
+        
+        Args:
+            order_id: 취소할 주문 ID
+            
+        Returns:
+            bool: 성공 여부
+        """
+        if order_id not in self._active_orders:
+            self.log_message.emit(f"⚠️ 주문 ID {order_id}를 찾을 수 없음")
+            return False
+        
+        try:
+            trade = self._active_orders[order_id]
+            self.ib.cancelOrder(trade.order)
+            self.log_message.emit(f"🚫 주문 취소 요청: ID {order_id}")
+            return True
+        except Exception as e:
+            self.log_message.emit(f"❌ 주문 취소 실패: {str(e)}")
+            return False
+    
+    def cancel_all_orders(self) -> int:
+        """
+        모든 미체결 주문 취소
+        
+        Returns:
+            int: 취소 요청한 주문 수
+        """
+        if not self.ib or not self.ib.isConnected():
+            return 0
+        
+        try:
+            self.ib.reqGlobalCancel()
+            count = len(self._active_orders)
+            self.log_message.emit(f"🚫 전체 주문 취소 요청: {count}개")
+            return count
+        except Exception as e:
+            self.log_message.emit(f"❌ 전체 취소 실패: {str(e)}")
+            return 0
+    
+    def get_positions(self) -> List[dict]:
+        """
+        현재 포지션 조회
+        
+        Returns:
+            list: 포지션 목록 [{symbol, qty, avg_price, market_value, pnl}]
+        """
+        if not self.ib or not self.ib.isConnected():
+            return []
+        
+        try:
+            positions = self.ib.positions()
+            result = []
+            
+            for pos in positions:
+                result.append({
+                    "symbol": pos.contract.symbol,
+                    "qty": pos.position,
+                    "avg_price": pos.avgCost,
+                    "contract": pos.contract,
+                })
+            
+            # Signal 발생
+            self.positions_update.emit(result)
+            return result
+            
+        except Exception as e:
+            self.log_message.emit(f"⚠️ 포지션 조회 실패: {str(e)}")
+            return []
+    
+    def get_open_orders(self) -> List[dict]:
+        """
+        미체결 주문 조회
+        
+        Returns:
+            list: 미체결 주문 목록
+        """
+        if not self.ib or not self.ib.isConnected():
+            return []
+        
+        try:
+            open_trades = self.ib.openTrades()
+            result = []
+            
+            for trade in open_trades:
+                result.append({
+                    "order_id": trade.order.orderId,
+                    "symbol": trade.contract.symbol,
+                    "action": trade.order.action,
+                    "qty": trade.order.totalQuantity,
+                    "order_type": trade.order.orderType,
+                    "status": trade.orderStatus.status,
+                })
+            
+            return result
+            
+        except Exception as e:
+            self.log_message.emit(f"⚠️ 미체결 조회 실패: {str(e)}")
+            return []
+    
+    # ═══════════════════════════════════════════════════════════════════
+    # 주문 콜백 (내부용)
+    # ═══════════════════════════════════════════════════════════════════
+    
+    def _on_order_filled(self, trade: Trade) -> None:
+        """주문 체결 콜백"""
+        try:
+            order_id = trade.order.orderId
+            symbol = trade.contract.symbol
+            
+            # 활성 주문에서 제거
+            if order_id in self._active_orders:
+                del self._active_orders[order_id]
+            
+            # 체결 정보
+            fill_price = trade.orderStatus.avgFillPrice
+            
+            self.order_filled.emit({
+                "order_id": order_id,
+                "symbol": symbol,
+                "action": trade.order.action,
+                "qty": trade.order.totalQuantity,
+                "fill_price": fill_price,
+                "status": "Filled",
+            })
+            
+            self.log_message.emit(f"✅ 체결: {symbol} @ ${fill_price:.2f} (ID: {order_id})")
+            
+            # 포지션 업데이트
+            self.get_positions()
+            
+        except Exception as e:
+            self.log_message.emit(f"⚠️ 체결 콜백 오류: {str(e)}")
+    
+    def _on_order_cancelled(self, trade: Trade) -> None:
+        """주문 취소 콜백"""
+        try:
+            order_id = trade.order.orderId
+            symbol = trade.contract.symbol
+            
+            # 활성 주문에서 제거
+            if order_id in self._active_orders:
+                del self._active_orders[order_id]
+            
+            self.order_cancelled.emit({
+                "order_id": order_id,
+                "symbol": symbol,
+                "status": "Cancelled",
+            })
+            
+            self.log_message.emit(f"🚫 취소됨: {symbol} (ID: {order_id})")
+            
+        except Exception as e:
+            self.log_message.emit(f"⚠️ 취소 콜백 오류: {str(e)}")
 
 
 # ═══════════════════════════════════════════════════════════════════════════
