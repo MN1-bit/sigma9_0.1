@@ -36,7 +36,7 @@ Features:
 import pyqtgraph as pg
 from pyqtgraph import DateAxisItem
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QComboBox, QLabel
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import Qt, pyqtSignal, QTimer
 from PyQt6.QtGui import QColor
 from typing import List, Dict, Optional
 import numpy as np
@@ -100,6 +100,7 @@ class PyQtGraphChartWidget(QWidget):
     # 시그널 정의
     timeframe_changed = pyqtSignal(str)
     chart_clicked = pyqtSignal(float, float)
+    viewport_data_needed = pyqtSignal(int, int)  # (start_idx, end_idx) - Step 2.7.4
     
     # 지원하는 타임프레임 (Step 2.7)
     TIMEFRAMES = ['1m', '5m', '15m', '1h', '1D']
@@ -124,6 +125,13 @@ class PyQtGraphChartWidget(QWidget):
         # 데이터 캐시 (툴팁용)
         self._candle_data = []
         self._volume_data = []
+        
+        # [Step 2.7.4] 디바운싱을 위한 타이머
+        self._viewport_timer = QTimer()
+        self._viewport_timer.setSingleShot(True)
+        self._viewport_timer.setInterval(150)  # 150ms 디바운스
+        self._viewport_timer.timeout.connect(self._check_viewport_data_needs)
+        self._pending_range = None
         
         # UI 초기화 (plots 생성)
         self._setup_ui()
@@ -200,8 +208,15 @@ class PyQtGraphChartWidget(QWidget):
         self.price_plot.showAxis('right', True)
         self._style_plot(self.price_plot, axis_side='right')
         
+        # [Fix] X축 auto range 비활성화 (데이터 prepend 시 뷰포트 자동 이동 방지)
+        self.price_plot.getViewBox().setAutoVisible(x=False)
+        self.price_plot.getViewBox().enableAutoRange(axis='x', enable=False)
+        
         # [New] X축 범위 변경 시 Y축 수동 자동 스케일링 연결
         self.price_plot.getViewBox().sigXRangeChanged.connect(self._update_y_range)
+        
+        # [Step 2.7.4] Viewport 변경 감지 (동적 데이터 로딩용)
+        self.price_plot.getViewBox().sigXRangeChanged.connect(self._on_viewport_changed)
         
         # X축 숨김 (아래 Volume과 공유)
         self.price_plot.hideAxis('bottom')
@@ -392,6 +407,47 @@ class PyQtGraphChartWidget(QWidget):
         if found and min_price < max_price:
             padding = (max_price - min_price) * 0.1  # 상하 10% 여유
             view_box.setYRange(min_price - padding, max_price + padding, padding=0)
+    
+    # ═══════════════════════════════════════════════════════════════════
+    # Step 2.7.4: Dynamic Data Loading on Pan/Zoom
+    # ═══════════════════════════════════════════════════════════════════
+    
+    def _on_viewport_changed(self, view_box, range_changed=None):
+        """
+        Viewport 범위 변경 감지 (디바운싱 적용)
+        
+        Pan/Zoom 시 호출되며, 150ms 디바운싱 후 실제 체크를 수행합니다.
+        """
+        x_range = view_box.viewRange()[0]
+        self._pending_range = (int(x_range[0]), int(x_range[1]))
+        self._viewport_timer.start()
+    
+    def _check_viewport_data_needs(self):
+        """
+        실제 데이터 로드 필요 여부 확인 (디바운싱 후 호출)
+        
+        왼쪽(과거) 방향으로 스크롤 시 추가 데이터가 필요하면 시그널 emit
+        """
+        if self._pending_range is None:
+            return
+        
+        start_idx, end_idx = self._pending_range
+        self._pending_range = None  # 처리 완료 후 초기화
+        
+        # 현재 로드된 데이터 수
+        data_count = len(self._candle_data)
+        if data_count == 0:
+            return
+        
+        # 이미 요청한 범위 추적 (중복 요청 방지)
+        if not hasattr(self, '_last_requested_start'):
+            self._last_requested_start = 0
+        
+        # 왼쪽으로 스크롤하여 데이터 범위를 벗어났는지 확인
+        if start_idx < 0 and start_idx < self._last_requested_start:
+            # 새로운 과거 데이터 필요 - 시그널 emit
+            self._last_requested_start = start_idx
+            self.viewport_data_needed.emit(start_idx, end_idx)
 
     def _on_volume_mouse_moved(self, evt):
         """Volume 바 호버 이벤트"""

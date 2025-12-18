@@ -89,13 +89,15 @@ Based on [Master Plan v2.0](../Plan/masterplan.md) and [@PROJECT_DNA.md](../../@
 - [x] 2.6.3: Verify `SeismographStrategy` with 2024 historical data
 - [x] 2.6.4: Generate Performance Report (CAGR, MDD, Win Rate)
 
-### Step 2.7: Multi-Timeframe Chart Support (Future)
-> Requires intraday data source: Polygon Paid / IBKR Historical / yfinance
+### Step 2.7: Multi-Timeframe Chart Support ✅ COMPLETED
+> Intraday data source: Polygon API (Free tier limited)
 
-- [ ] 2.7.1: [Backend] Implement Intraday Data API (1m, 5m, 15m, 1h)
-- [ ] 2.7.2: [Backend] Add `intraday_bars` table to database
-- [ ] 2.7.3: [Frontend] Timeframe change handler → data reload
-- [ ] 2.7.4: [Frontend] Dynamic data loading on pan/zoom
+- [x] 2.7.1: [Backend] Implement Intraday Data API (1m, 5m, 15m, 1h) - `routes.py` + `polygon_client.py`
+- [x] 2.7.2: [Backend] Add `intraday_bars` table to database *(using Polygon API directly, no local cache)*
+- [x] 2.7.3: [Frontend] Timeframe change handler → data reload
+- [x] 2.7.4: [Frontend] Dynamic data loading on pan/zoom *(2-Tier Cache: Memory + SQLite)*
+- [x] 2.7.5: [Frontend] Fix Doji candle rendering bug (wick height=0 caused $1 pen width interpretation)
+
 
 ---
 

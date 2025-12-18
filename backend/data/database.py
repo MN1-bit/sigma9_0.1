@@ -121,10 +121,91 @@ class DailyBar(Base):
             "transactions": self.transactions,
         }
 
+# ═══════════════════════════════════════════════════════════════════════════
+# IntradayBar 모델 - 분봉/시봉 시계열 데이터 (Step 2.7.4)
+# ═══════════════════════════════════════════════════════════════════════════
+
+class IntradayBar(Base):
+    """
+    Intraday OHLCV 데이터 모델 (1m, 5m, 15m, 1h)
+    
+    Polygon.io의 Aggregates API에서 받아온 분봉/시봉 데이터를 저장합니다.
+    각 종목(ticker), 타임프레임(timeframe), 타임스탬프(timestamp)의 조합이 Primary Key입니다.
+    
+    Attributes:
+        ticker: 종목 심볼 (예: "AAPL", "MSFT")
+        timeframe: 타임프레임 (예: "1m", "5m", "15m", "1h")
+        timestamp: Unix timestamp (밀리초)
+        open: 시가
+        high: 고가
+        low: 저가
+        close: 종가
+        volume: 거래량
+        vwap: 거래량 가중 평균가 (optional)
+    
+    Note:
+        - 완성된 Bar만 저장 (현재 형성 중인 Bar는 제외)
+        - Bar 완성 기준: current_time > bar_timestamp + bar_duration
+        - 인덱스: (ticker, timeframe, timestamp) 복합 인덱스로 빠른 범위 조회
+    
+    Example:
+        >>> bar = IntradayBar(
+        ...     ticker="AAPL",
+        ...     timeframe="5m",
+        ...     timestamp=1702905600000,  # Unix ms
+        ...     open=150.0, high=150.5,
+        ...     low=149.5, close=150.2,
+        ...     volume=50000
+        ... )
+    """
+    __tablename__ = "intraday_bars"
+    
+    # ─────────────────────────────────────────────────────────────────────
+    # Primary Key (Composite: ticker + timeframe + timestamp)
+    # ─────────────────────────────────────────────────────────────────────
+    ticker: Mapped[str] = mapped_column(String(20), primary_key=True)
+    timeframe: Mapped[str] = mapped_column(String(5), primary_key=True)  # 1m, 5m, 15m, 1h
+    timestamp: Mapped[int] = mapped_column(Integer, primary_key=True)  # Unix milliseconds
+    
+    # ─────────────────────────────────────────────────────────────────────
+    # OHLCV 데이터
+    # ─────────────────────────────────────────────────────────────────────
+    open: Mapped[float] = mapped_column(Float, nullable=False)
+    high: Mapped[float] = mapped_column(Float, nullable=False)
+    low: Mapped[float] = mapped_column(Float, nullable=False)
+    close: Mapped[float] = mapped_column(Float, nullable=False)
+    volume: Mapped[int] = mapped_column(Integer, nullable=False)
+    
+    # ─────────────────────────────────────────────────────────────────────
+    # 추가 메타데이터
+    # ─────────────────────────────────────────────────────────────────────
+    vwap: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    
+    def __repr__(self) -> str:
+        from datetime import datetime
+        dt = datetime.fromtimestamp(self.timestamp / 1000)
+        return f"<IntradayBar({self.ticker} {self.timeframe} @ {dt}: C={self.close} V={self.volume})>"
+    
+    def to_dict(self) -> dict:
+        """딕셔너리로 변환 (API 응답용)"""
+        return {
+            "ticker": self.ticker,
+            "timeframe": self.timeframe,
+            "timestamp": self.timestamp,
+            "time": self.timestamp / 1000,  # Unix seconds (차트용)
+            "open": self.open,
+            "high": self.high,
+            "low": self.low,
+            "close": self.close,
+            "volume": self.volume,
+            "vwap": self.vwap,
+        }
+
 
 # ═══════════════════════════════════════════════════════════════════════════
 # Ticker 모델 - 종목 메타정보 + 펀더멘털
 # ═══════════════════════════════════════════════════════════════════════════
+
 
 class Ticker(Base):
     """
@@ -435,6 +516,129 @@ class MarketDB:
                 select(DailyBar.ticker).distinct()
             )
             return [row[0] for row in result.all()]
+    
+    # ═══════════════════════════════════════════════════════════════════════
+    # IntradayBar CRUD (Step 2.7.4)
+    # ═══════════════════════════════════════════════════════════════════════
+    
+    async def upsert_intraday_bulk(
+        self, 
+        bars: Sequence[dict], 
+        chunk_size: int = 500
+    ) -> int:
+        """
+        Intraday 데이터 Bulk Upsert (INSERT OR REPLACE)
+        
+        같은 (ticker, timeframe, timestamp) 조합이 있으면 업데이트하고,
+        없으면 새로 삽입합니다.
+        
+        Args:
+            bars: 딕셔너리 리스트. 각 딕셔너리는 다음 키를 가집니다:
+                  ticker, timeframe, timestamp, open, high, low, close, volume, vwap
+            chunk_size: 한 번에 처리할 레코드 수 (기본값: 500)
+        
+        Returns:
+            int: 처리된 레코드 수
+        
+        Example:
+            >>> bars = [
+            ...     {"ticker": "AAPL", "timeframe": "5m", "timestamp": 1702905600000, ...},
+            ... ]
+            >>> count = await db.upsert_intraday_bulk(bars)
+        """
+        if not bars:
+            return 0
+        
+        total_count = 0
+        
+        for i in range(0, len(bars), chunk_size):
+            chunk = bars[i:i + chunk_size]
+            
+            async with self.session_factory() as session:
+                stmt = sqlite_insert(IntradayBar).values(list(chunk))
+                stmt = stmt.on_conflict_do_update(
+                    index_elements=["ticker", "timeframe", "timestamp"],
+                    set_={
+                        "open": stmt.excluded.open,
+                        "high": stmt.excluded.high,
+                        "low": stmt.excluded.low,
+                        "close": stmt.excluded.close,
+                        "volume": stmt.excluded.volume,
+                        "vwap": stmt.excluded.vwap,
+                    }
+                )
+                
+                await session.execute(stmt)
+                await session.commit()
+            
+            total_count += len(chunk)
+        
+        logger.debug(f"📊 {total_count}개 Intraday 데이터 Upsert 완료")
+        return total_count
+    
+    async def get_intraday_bars(
+        self,
+        ticker: str,
+        timeframe: str,
+        start_timestamp: int,
+        end_timestamp: int
+    ) -> list[IntradayBar]:
+        """
+        특정 종목의 Intraday 데이터 범위 조회
+        
+        Args:
+            ticker: 종목 심볼 (예: "AAPL")
+            timeframe: 타임프레임 (예: "5m")
+            start_timestamp: 시작 Unix timestamp (밀리초)
+            end_timestamp: 종료 Unix timestamp (밀리초)
+        
+        Returns:
+            list[IntradayBar]: Intraday 데이터 리스트 (시간순)
+        
+        Example:
+            >>> bars = await db.get_intraday_bars(
+            ...     "AAPL", "5m",
+            ...     start_timestamp=1702800000000,
+            ...     end_timestamp=1702905600000
+            ... )
+        """
+        async with self.session_factory() as session:
+            result = await session.execute(
+                select(IntradayBar)
+                .where(IntradayBar.ticker == ticker)
+                .where(IntradayBar.timeframe == timeframe)
+                .where(IntradayBar.timestamp >= start_timestamp)
+                .where(IntradayBar.timestamp <= end_timestamp)
+                .order_by(IntradayBar.timestamp.asc())
+            )
+            return list(result.scalars().all())
+    
+    async def get_intraday_latest_timestamp(
+        self,
+        ticker: str,
+        timeframe: str
+    ) -> Optional[int]:
+        """
+        특정 종목의 가장 최근 Intraday 타임스탬프 조회
+        
+        증분 업데이트 시 이 시점 이후의 데이터만 가져오기 위해 사용합니다.
+        
+        Args:
+            ticker: 종목 심볼
+            timeframe: 타임프레임
+        
+        Returns:
+            int | None: 가장 최근 타임스탬프 (밀리초) 또는 None
+        """
+        async with self.session_factory() as session:
+            result = await session.execute(
+                select(IntradayBar.timestamp)
+                .where(IntradayBar.ticker == ticker)
+                .where(IntradayBar.timeframe == timeframe)
+                .order_by(IntradayBar.timestamp.desc())
+                .limit(1)
+            )
+            return result.scalar_one_or_none()
     
     # ═══════════════════════════════════════════════════════════════════════
     # Ticker CRUD

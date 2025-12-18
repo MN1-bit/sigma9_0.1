@@ -2066,3 +2066,390 @@
 2025-12-19 01:34:23 | INFO     | backend.data.polygon_client:fetch_intraday_bars:501 - ✅ SGBX 1m: 1187개 바 데이터 수신
 2025-12-19 01:34:35 | INFO     | backend.api.websocket:disconnect:74 - 📡 Client disconnected. Total connections: 0
 2025-12-19 01:34:35 | INFO     | backend.server:websocket_endpoint:261 - WebSocket client disconnected
+2025-12-19 01:57:15 | INFO     | backend.server:lifespan:125 - ✅ Config loaded (debug=True)
+2025-12-19 01:57:15 | DEBUG    | backend.data.database:__init__:341 - 🗄️ MarketDB 초기화: data/market_data.db
+2025-12-19 01:57:15 | INFO     | backend.server:lifespan:131 - ✅ Database connected: data/market_data.db
+2025-12-19 01:57:15 | INFO     | backend.server:lifespan:140 - ✅ Strategy Loader initialized. Found 1 strategies
+2025-12-19 01:57:15 | INFO     | backend.server:lifespan:149 - 📡 IBKR connection will be attempted in background...
+2025-12-19 01:57:15 | WARNING  | backend.core.scheduler:<module>:32 - ⚠️ APScheduler not installed. Run: pip install apscheduler
+2025-12-19 01:57:15 | INFO     | backend.server:lifespan:164 - ℹ️ Scheduler module not found - will be created in Step 4.1.4
+2025-12-19 01:57:15 | INFO     | backend.server:lifespan:168 - ==================================================
+2025-12-19 01:57:15 | INFO     | backend.server:lifespan:169 - 🎯 Server running at http://0.0.0.0:8000
+2025-12-19 01:57:15 | INFO     | backend.server:lifespan:170 - ==================================================
+2025-12-19 01:57:18 | INFO     | backend.api.websocket:connect:57 - 📡 Client connected. Total connections: 1
+2025-12-19 01:57:18 | DEBUG    | backend.data.watchlist_store:__init__:78 - 📁 WatchlistStore 초기화 (경로: data\watchlist)
+2025-12-19 01:57:18 | INFO     | backend.data.watchlist_store:load:154 - 📂 Watchlist 로드: 50개 항목 (생성: 2025-12-18T17:41:58.477156)
+2025-12-19 01:57:18 | INFO     | backend.api.routes:get_watchlist:326 - 📋 Watchlist 반환: 50개 항목
+2025-12-19 01:57:18 | INFO     | backend.api.routes:control_engine:195 - 🎮 Control command received: EngineCommand.START
+2025-12-19 01:57:18 | INFO     | backend.api.routes:control_engine:209 - 🚀 Trading Engine Started
+2025-12-19 01:57:26 | INFO     | backend.api.routes:get_intraday_chart:738 - 📊 Intraday 차트 조회: EPSM 5m (2025-12-14 ~ 2025-12-19)
+2025-12-19 01:57:26 | DEBUG    | backend.data.polygon_client:__init__:127 - 🔌 PolygonClient 초기화: rate_limit=5/min
+2025-12-19 01:57:26 | DEBUG    | backend.data.polygon_client:fetch_intraday_bars:450 - 📡 Intraday Bars API 호출: EPSM 5m (2025-12-14 ~ 2025-12-19)
+2025-12-19 01:57:27 | INFO     | backend.data.polygon_client:fetch_intraday_bars:501 - ✅ EPSM 5m: 191개 바 데이터 수신
+2025-12-19 01:57:50 | INFO     | backend.api.routes:get_intraday_chart:738 - 📊 Intraday 차트 조회: EPSM 1m (2025-12-14 ~ 2025-12-19)
+2025-12-19 01:57:50 | DEBUG    | backend.data.polygon_client:__init__:127 - 🔌 PolygonClient 초기화: rate_limit=5/min
+2025-12-19 01:57:51 | DEBUG    | backend.data.polygon_client:fetch_intraday_bars:450 - 📡 Intraday Bars API 호출: EPSM 1m (2025-12-14 ~ 2025-12-19)
+2025-12-19 01:57:51 | INFO     | backend.data.polygon_client:fetch_intraday_bars:501 - ✅ EPSM 1m: 318개 바 데이터 수신
+2025-12-19 02:00:42 | INFO     | backend.api.websocket:disconnect:74 - 📡 Client disconnected. Total connections: 0
+2025-12-19 02:00:42 | INFO     | backend.server:websocket_endpoint:261 - WebSocket client disconnected
+2025-12-19 02:05:32 | INFO     | backend.server:lifespan:125 - ✅ Config loaded (debug=True)
+2025-12-19 02:05:32 | DEBUG    | backend.data.database:__init__:341 - 🗄️ MarketDB 초기화: data/market_data.db
+2025-12-19 02:05:32 | INFO     | backend.server:lifespan:131 - ✅ Database connected: data/market_data.db
+2025-12-19 02:05:32 | INFO     | backend.server:lifespan:140 - ✅ Strategy Loader initialized. Found 1 strategies
+2025-12-19 02:05:32 | INFO     | backend.server:lifespan:149 - 📡 IBKR connection will be attempted in background...
+2025-12-19 02:05:32 | WARNING  | backend.core.scheduler:<module>:32 - ⚠️ APScheduler not installed. Run: pip install apscheduler
+2025-12-19 02:05:32 | INFO     | backend.server:lifespan:164 - ℹ️ Scheduler module not found - will be created in Step 4.1.4
+2025-12-19 02:05:32 | INFO     | backend.server:lifespan:168 - ==================================================
+2025-12-19 02:05:32 | INFO     | backend.server:lifespan:169 - 🎯 Server running at http://0.0.0.0:8000
+2025-12-19 02:05:32 | INFO     | backend.server:lifespan:170 - ==================================================
+2025-12-19 02:05:36 | INFO     | backend.api.websocket:connect:57 - 📡 Client connected. Total connections: 1
+2025-12-19 02:05:36 | DEBUG    | backend.data.watchlist_store:__init__:78 - 📁 WatchlistStore 초기화 (경로: data\watchlist)
+2025-12-19 02:05:36 | INFO     | backend.data.watchlist_store:load:154 - 📂 Watchlist 로드: 50개 항목 (생성: 2025-12-18T17:41:58.477156)
+2025-12-19 02:05:36 | INFO     | backend.api.routes:get_watchlist:326 - 📋 Watchlist 반환: 50개 항목
+2025-12-19 02:05:36 | INFO     | backend.api.routes:control_engine:195 - 🎮 Control command received: EngineCommand.START
+2025-12-19 02:05:36 | INFO     | backend.api.routes:control_engine:209 - 🚀 Trading Engine Started
+2025-12-19 02:05:42 | INFO     | backend.api.routes:get_intraday_chart:738 - 📊 Intraday 차트 조회: EPSM 15m (2025-12-14 ~ 2025-12-19)
+2025-12-19 02:05:42 | DEBUG    | backend.data.polygon_client:__init__:127 - 🔌 PolygonClient 초기화: rate_limit=5/min
+2025-12-19 02:05:42 | DEBUG    | backend.data.polygon_client:fetch_intraday_bars:450 - 📡 Intraday Bars API 호출: EPSM 15m (2025-12-14 ~ 2025-12-19)
+2025-12-19 02:05:43 | INFO     | backend.data.polygon_client:fetch_intraday_bars:501 - ✅ EPSM 15m: 98개 바 데이터 수신
+2025-12-19 02:06:07 | INFO     | backend.api.websocket:disconnect:74 - 📡 Client disconnected. Total connections: 0
+2025-12-19 02:06:07 | INFO     | backend.server:websocket_endpoint:261 - WebSocket client disconnected
+2025-12-19 02:07:40 | INFO     | backend.server:lifespan:125 - ✅ Config loaded (debug=True)
+2025-12-19 02:07:40 | DEBUG    | backend.data.database:__init__:341 - 🗄️ MarketDB 초기화: data/market_data.db
+2025-12-19 02:07:40 | INFO     | backend.server:lifespan:131 - ✅ Database connected: data/market_data.db
+2025-12-19 02:07:40 | INFO     | backend.server:lifespan:140 - ✅ Strategy Loader initialized. Found 1 strategies
+2025-12-19 02:07:40 | INFO     | backend.server:lifespan:149 - 📡 IBKR connection will be attempted in background...
+2025-12-19 02:07:40 | WARNING  | backend.core.scheduler:<module>:32 - ⚠️ APScheduler not installed. Run: pip install apscheduler
+2025-12-19 02:07:40 | INFO     | backend.server:lifespan:164 - ℹ️ Scheduler module not found - will be created in Step 4.1.4
+2025-12-19 02:07:40 | INFO     | backend.server:lifespan:168 - ==================================================
+2025-12-19 02:07:40 | INFO     | backend.server:lifespan:169 - 🎯 Server running at http://0.0.0.0:8000
+2025-12-19 02:07:40 | INFO     | backend.server:lifespan:170 - ==================================================
+2025-12-19 02:07:43 | INFO     | backend.api.websocket:connect:57 - 📡 Client connected. Total connections: 1
+2025-12-19 02:07:43 | DEBUG    | backend.data.watchlist_store:__init__:78 - 📁 WatchlistStore 초기화 (경로: data\watchlist)
+2025-12-19 02:07:43 | INFO     | backend.data.watchlist_store:load:154 - 📂 Watchlist 로드: 50개 항목 (생성: 2025-12-18T17:41:58.477156)
+2025-12-19 02:07:43 | INFO     | backend.api.routes:get_watchlist:326 - 📋 Watchlist 반환: 50개 항목
+2025-12-19 02:07:43 | INFO     | backend.api.routes:control_engine:195 - 🎮 Control command received: EngineCommand.START
+2025-12-19 02:07:43 | INFO     | backend.api.routes:control_engine:209 - 🚀 Trading Engine Started
+2025-12-19 02:07:48 | INFO     | backend.api.routes:get_intraday_chart:738 - 📊 Intraday 차트 조회: EPSM 15m (2025-12-14 ~ 2025-12-19)
+2025-12-19 02:07:48 | DEBUG    | backend.data.polygon_client:__init__:127 - 🔌 PolygonClient 초기화: rate_limit=5/min
+2025-12-19 02:07:48 | DEBUG    | backend.data.polygon_client:fetch_intraday_bars:450 - 📡 Intraday Bars API 호출: EPSM 15m (2025-12-14 ~ 2025-12-19)
+2025-12-19 02:07:57 | INFO     | backend.data.polygon_client:fetch_intraday_bars:501 - ✅ EPSM 15m: 99개 바 데이터 수신
+2025-12-19 02:07:59 | INFO     | backend.api.websocket:disconnect:74 - 📡 Client disconnected. Total connections: 0
+2025-12-19 02:07:59 | INFO     | backend.server:websocket_endpoint:261 - WebSocket client disconnected
+2025-12-19 02:10:33 | INFO     | backend.server:lifespan:125 - ✅ Config loaded (debug=True)
+2025-12-19 02:10:33 | DEBUG    | backend.data.database:__init__:341 - 🗄️ MarketDB 초기화: data/market_data.db
+2025-12-19 02:10:33 | INFO     | backend.server:lifespan:131 - ✅ Database connected: data/market_data.db
+2025-12-19 02:10:33 | INFO     | backend.server:lifespan:140 - ✅ Strategy Loader initialized. Found 1 strategies
+2025-12-19 02:10:33 | INFO     | backend.server:lifespan:149 - 📡 IBKR connection will be attempted in background...
+2025-12-19 02:10:33 | WARNING  | backend.core.scheduler:<module>:32 - ⚠️ APScheduler not installed. Run: pip install apscheduler
+2025-12-19 02:10:33 | INFO     | backend.server:lifespan:164 - ℹ️ Scheduler module not found - will be created in Step 4.1.4
+2025-12-19 02:10:33 | INFO     | backend.server:lifespan:168 - ==================================================
+2025-12-19 02:10:33 | INFO     | backend.server:lifespan:169 - 🎯 Server running at http://0.0.0.0:8000
+2025-12-19 02:10:33 | INFO     | backend.server:lifespan:170 - ==================================================
+2025-12-19 02:10:36 | INFO     | backend.api.websocket:connect:57 - 📡 Client connected. Total connections: 1
+2025-12-19 02:10:36 | DEBUG    | backend.data.watchlist_store:__init__:78 - 📁 WatchlistStore 초기화 (경로: data\watchlist)
+2025-12-19 02:10:36 | INFO     | backend.data.watchlist_store:load:154 - 📂 Watchlist 로드: 50개 항목 (생성: 2025-12-18T17:41:58.477156)
+2025-12-19 02:10:36 | INFO     | backend.api.routes:get_watchlist:326 - 📋 Watchlist 반환: 50개 항목
+2025-12-19 02:10:36 | INFO     | backend.api.routes:control_engine:195 - 🎮 Control command received: EngineCommand.START
+2025-12-19 02:10:36 | INFO     | backend.api.routes:control_engine:209 - 🚀 Trading Engine Started
+2025-12-19 02:10:40 | INFO     | backend.api.routes:get_intraday_chart:738 - 📊 Intraday 차트 조회: EPSM 15m (2025-12-14 ~ 2025-12-19)
+2025-12-19 02:10:40 | DEBUG    | backend.data.polygon_client:__init__:127 - 🔌 PolygonClient 초기화: rate_limit=5/min
+2025-12-19 02:10:41 | DEBUG    | backend.data.polygon_client:fetch_intraday_bars:450 - 📡 Intraday Bars API 호출: EPSM 15m (2025-12-14 ~ 2025-12-19)
+2025-12-19 02:10:41 | INFO     | backend.data.polygon_client:fetch_intraday_bars:501 - ✅ EPSM 15m: 99개 바 데이터 수신
+2025-12-19 02:11:05 | INFO     | backend.api.websocket:disconnect:74 - 📡 Client disconnected. Total connections: 0
+2025-12-19 02:11:05 | INFO     | backend.server:websocket_endpoint:261 - WebSocket client disconnected
+2025-12-19 02:12:20 | INFO     | backend.server:lifespan:125 - ✅ Config loaded (debug=True)
+2025-12-19 02:12:20 | DEBUG    | backend.data.database:__init__:341 - 🗄️ MarketDB 초기화: data/market_data.db
+2025-12-19 02:12:20 | INFO     | backend.server:lifespan:131 - ✅ Database connected: data/market_data.db
+2025-12-19 02:12:20 | INFO     | backend.server:lifespan:140 - ✅ Strategy Loader initialized. Found 1 strategies
+2025-12-19 02:12:20 | INFO     | backend.server:lifespan:149 - 📡 IBKR connection will be attempted in background...
+2025-12-19 02:12:20 | WARNING  | backend.core.scheduler:<module>:32 - ⚠️ APScheduler not installed. Run: pip install apscheduler
+2025-12-19 02:12:20 | INFO     | backend.server:lifespan:164 - ℹ️ Scheduler module not found - will be created in Step 4.1.4
+2025-12-19 02:12:20 | INFO     | backend.server:lifespan:168 - ==================================================
+2025-12-19 02:12:20 | INFO     | backend.server:lifespan:169 - 🎯 Server running at http://0.0.0.0:8000
+2025-12-19 02:12:20 | INFO     | backend.server:lifespan:170 - ==================================================
+2025-12-19 02:12:23 | INFO     | backend.api.websocket:connect:57 - 📡 Client connected. Total connections: 1
+2025-12-19 02:12:23 | DEBUG    | backend.data.watchlist_store:__init__:78 - 📁 WatchlistStore 초기화 (경로: data\watchlist)
+2025-12-19 02:12:23 | INFO     | backend.data.watchlist_store:load:154 - 📂 Watchlist 로드: 50개 항목 (생성: 2025-12-18T17:41:58.477156)
+2025-12-19 02:12:23 | INFO     | backend.api.routes:get_watchlist:326 - 📋 Watchlist 반환: 50개 항목
+2025-12-19 02:12:23 | INFO     | backend.api.routes:control_engine:195 - 🎮 Control command received: EngineCommand.START
+2025-12-19 02:12:23 | INFO     | backend.api.routes:control_engine:209 - 🚀 Trading Engine Started
+2025-12-19 02:12:26 | INFO     | backend.api.routes:get_intraday_chart:738 - 📊 Intraday 차트 조회: EPSM 15m (2025-12-14 ~ 2025-12-19)
+2025-12-19 02:12:26 | DEBUG    | backend.data.polygon_client:__init__:127 - 🔌 PolygonClient 초기화: rate_limit=5/min
+2025-12-19 02:12:26 | DEBUG    | backend.data.polygon_client:fetch_intraday_bars:450 - 📡 Intraday Bars API 호출: EPSM 15m (2025-12-14 ~ 2025-12-19)
+2025-12-19 02:12:27 | INFO     | backend.data.polygon_client:fetch_intraday_bars:501 - ✅ EPSM 15m: 99개 바 데이터 수신
+2025-12-19 02:12:56 | INFO     | backend.api.routes:get_intraday_chart:738 - 📊 Intraday 차트 조회: EPSM 1m (2025-12-14 ~ 2025-12-19)
+2025-12-19 02:12:56 | DEBUG    | backend.data.polygon_client:__init__:127 - 🔌 PolygonClient 초기화: rate_limit=5/min
+2025-12-19 02:12:56 | DEBUG    | backend.data.polygon_client:fetch_intraday_bars:450 - 📡 Intraday Bars API 호출: EPSM 1m (2025-12-14 ~ 2025-12-19)
+2025-12-19 02:12:57 | INFO     | backend.data.polygon_client:fetch_intraday_bars:501 - ✅ EPSM 1m: 320개 바 데이터 수신
+2025-12-19 02:12:58 | INFO     | backend.api.routes:get_intraday_chart:738 - 📊 Intraday 차트 조회: EPSM 15m (2025-12-14 ~ 2025-12-19)
+2025-12-19 02:12:58 | DEBUG    | backend.data.polygon_client:__init__:127 - 🔌 PolygonClient 초기화: rate_limit=5/min
+2025-12-19 02:12:58 | DEBUG    | backend.data.polygon_client:fetch_intraday_bars:450 - 📡 Intraday Bars API 호출: EPSM 15m (2025-12-14 ~ 2025-12-19)
+2025-12-19 02:12:59 | INFO     | backend.data.polygon_client:fetch_intraday_bars:501 - ✅ EPSM 15m: 99개 바 데이터 수신
+2025-12-19 02:13:08 | INFO     | backend.api.websocket:disconnect:74 - 📡 Client disconnected. Total connections: 0
+2025-12-19 02:13:08 | INFO     | backend.server:websocket_endpoint:261 - WebSocket client disconnected
+2025-12-19 02:16:11 | INFO     | backend.server:lifespan:125 - ✅ Config loaded (debug=True)
+2025-12-19 02:16:11 | DEBUG    | backend.data.database:__init__:341 - 🗄️ MarketDB 초기화: data/market_data.db
+2025-12-19 02:16:11 | INFO     | backend.server:lifespan:131 - ✅ Database connected: data/market_data.db
+2025-12-19 02:16:11 | INFO     | backend.server:lifespan:140 - ✅ Strategy Loader initialized. Found 1 strategies
+2025-12-19 02:16:11 | INFO     | backend.server:lifespan:149 - 📡 IBKR connection will be attempted in background...
+2025-12-19 02:16:11 | WARNING  | backend.core.scheduler:<module>:32 - ⚠️ APScheduler not installed. Run: pip install apscheduler
+2025-12-19 02:16:11 | INFO     | backend.server:lifespan:164 - ℹ️ Scheduler module not found - will be created in Step 4.1.4
+2025-12-19 02:16:11 | INFO     | backend.server:lifespan:168 - ==================================================
+2025-12-19 02:16:11 | INFO     | backend.server:lifespan:169 - 🎯 Server running at http://0.0.0.0:8000
+2025-12-19 02:16:11 | INFO     | backend.server:lifespan:170 - ==================================================
+2025-12-19 02:16:14 | INFO     | backend.api.websocket:connect:57 - 📡 Client connected. Total connections: 1
+2025-12-19 02:16:14 | DEBUG    | backend.data.watchlist_store:__init__:78 - 📁 WatchlistStore 초기화 (경로: data\watchlist)
+2025-12-19 02:16:14 | INFO     | backend.data.watchlist_store:load:154 - 📂 Watchlist 로드: 50개 항목 (생성: 2025-12-18T17:41:58.477156)
+2025-12-19 02:16:14 | INFO     | backend.api.routes:get_watchlist:326 - 📋 Watchlist 반환: 50개 항목
+2025-12-19 02:16:14 | INFO     | backend.api.routes:control_engine:195 - 🎮 Control command received: EngineCommand.START
+2025-12-19 02:16:14 | INFO     | backend.api.routes:control_engine:209 - 🚀 Trading Engine Started
+2025-12-19 02:16:21 | INFO     | backend.api.routes:get_intraday_chart:738 - 📊 Intraday 차트 조회: EPSM 5m (2025-12-14 ~ 2025-12-19)
+2025-12-19 02:16:21 | DEBUG    | backend.data.polygon_client:__init__:127 - 🔌 PolygonClient 초기화: rate_limit=5/min
+2025-12-19 02:16:21 | DEBUG    | backend.data.polygon_client:fetch_intraday_bars:450 - 📡 Intraday Bars API 호출: EPSM 5m (2025-12-14 ~ 2025-12-19)
+2025-12-19 02:16:22 | INFO     | backend.data.polygon_client:fetch_intraday_bars:501 - ✅ EPSM 5m: 194개 바 데이터 수신
+2025-12-19 02:17:40 | INFO     | backend.api.websocket:disconnect:74 - 📡 Client disconnected. Total connections: 0
+2025-12-19 02:17:40 | INFO     | backend.server:websocket_endpoint:261 - WebSocket client disconnected
+2025-12-19 02:18:01 | INFO     | backend.server:lifespan:177 - 🛑 Server Shutting Down...
+2025-12-19 02:18:01 | INFO     | backend.server:lifespan:195 - 👋 Goodbye!
+2025-12-19 02:18:01 | INFO     | backend.server:lifespan:125 - ✅ Config loaded (debug=True)
+2025-12-19 02:18:01 | DEBUG    | backend.data.database:__init__:341 - 🗄️ MarketDB 초기화: data/market_data.db
+2025-12-19 02:18:01 | INFO     | backend.server:lifespan:131 - ✅ Database connected: data/market_data.db
+2025-12-19 02:18:01 | INFO     | backend.server:lifespan:140 - ✅ Strategy Loader initialized. Found 1 strategies
+2025-12-19 02:18:01 | INFO     | backend.server:lifespan:149 - 📡 IBKR connection will be attempted in background...
+2025-12-19 02:18:01 | WARNING  | backend.core.scheduler:<module>:32 - ⚠️ APScheduler not installed. Run: pip install apscheduler
+2025-12-19 02:18:01 | INFO     | backend.server:lifespan:164 - ℹ️ Scheduler module not found - will be created in Step 4.1.4
+2025-12-19 02:18:01 | INFO     | backend.server:lifespan:168 - ==================================================
+2025-12-19 02:18:01 | INFO     | backend.server:lifespan:169 - 🎯 Server running at http://0.0.0.0:8000
+2025-12-19 02:18:01 | INFO     | backend.server:lifespan:170 - ==================================================
+2025-12-19 02:20:02 | INFO     | backend.server:lifespan:177 - 🛑 Server Shutting Down...
+2025-12-19 02:20:02 | INFO     | backend.server:lifespan:195 - 👋 Goodbye!
+2025-12-19 02:20:02 | INFO     | backend.server:lifespan:125 - ✅ Config loaded (debug=True)
+2025-12-19 02:20:03 | DEBUG    | backend.data.database:__init__:341 - 🗄️ MarketDB 초기화: data/market_data.db
+2025-12-19 02:20:03 | INFO     | backend.server:lifespan:131 - ✅ Database connected: data/market_data.db
+2025-12-19 02:20:03 | INFO     | backend.server:lifespan:140 - ✅ Strategy Loader initialized. Found 1 strategies
+2025-12-19 02:20:03 | INFO     | backend.server:lifespan:149 - 📡 IBKR connection will be attempted in background...
+2025-12-19 02:20:03 | WARNING  | backend.core.scheduler:<module>:32 - ⚠️ APScheduler not installed. Run: pip install apscheduler
+2025-12-19 02:20:03 | INFO     | backend.server:lifespan:164 - ℹ️ Scheduler module not found - will be created in Step 4.1.4
+2025-12-19 02:20:03 | INFO     | backend.server:lifespan:168 - ==================================================
+2025-12-19 02:20:03 | INFO     | backend.server:lifespan:169 - 🎯 Server running at http://0.0.0.0:8000
+2025-12-19 02:20:03 | INFO     | backend.server:lifespan:170 - ==================================================
+2025-12-19 02:20:49 | INFO     | backend.server:lifespan:177 - 🛑 Server Shutting Down...
+2025-12-19 02:20:49 | INFO     | backend.server:lifespan:195 - 👋 Goodbye!
+2025-12-19 02:20:50 | INFO     | backend.server:lifespan:125 - ✅ Config loaded (debug=True)
+2025-12-19 02:20:50 | DEBUG    | backend.data.database:__init__:341 - 🗄️ MarketDB 초기화: data/market_data.db
+2025-12-19 02:20:50 | INFO     | backend.server:lifespan:131 - ✅ Database connected: data/market_data.db
+2025-12-19 02:20:50 | INFO     | backend.server:lifespan:140 - ✅ Strategy Loader initialized. Found 1 strategies
+2025-12-19 02:20:50 | INFO     | backend.server:lifespan:149 - 📡 IBKR connection will be attempted in background...
+2025-12-19 02:20:50 | WARNING  | backend.core.scheduler:<module>:32 - ⚠️ APScheduler not installed. Run: pip install apscheduler
+2025-12-19 02:20:50 | INFO     | backend.server:lifespan:164 - ℹ️ Scheduler module not found - will be created in Step 4.1.4
+2025-12-19 02:20:50 | INFO     | backend.server:lifespan:168 - ==================================================
+2025-12-19 02:20:50 | INFO     | backend.server:lifespan:169 - 🎯 Server running at http://0.0.0.0:8000
+2025-12-19 02:20:50 | INFO     | backend.server:lifespan:170 - ==================================================
+2025-12-19 02:21:33 | INFO     | backend.api.websocket:connect:57 - 📡 Client connected. Total connections: 1
+2025-12-19 02:21:33 | DEBUG    | backend.data.watchlist_store:__init__:78 - 📁 WatchlistStore 초기화 (경로: data\watchlist)
+2025-12-19 02:21:33 | INFO     | backend.data.watchlist_store:load:154 - 📂 Watchlist 로드: 50개 항목 (생성: 2025-12-18T17:41:58.477156)
+2025-12-19 02:21:33 | INFO     | backend.api.routes:get_watchlist:326 - 📋 Watchlist 반환: 50개 항목
+2025-12-19 02:21:36 | INFO     | backend.api.routes:get_intraday_chart:738 - 📊 Intraday 차트 조회: EPSM 15m (2025-12-14 ~ 2025-12-19)
+2025-12-19 02:21:36 | DEBUG    | backend.data.polygon_client:__init__:127 - 🔌 PolygonClient 초기화: rate_limit=100/min
+2025-12-19 02:21:36 | DEBUG    | backend.data.polygon_client:fetch_intraday_bars:450 - 📡 Intraday Bars API 호출: EPSM 15m (2025-12-14 ~ 2025-12-19)
+2025-12-19 02:21:37 | INFO     | backend.data.polygon_client:fetch_intraday_bars:501 - ✅ EPSM 15m: 100개 바 데이터 수신
+2025-12-19 02:21:50 | INFO     | backend.api.websocket:disconnect:74 - 📡 Client disconnected. Total connections: 0
+2025-12-19 02:21:50 | INFO     | backend.server:websocket_endpoint:261 - WebSocket client disconnected
+2025-12-19 02:22:55 | INFO     | backend.server:lifespan:125 - ✅ Config loaded (debug=True)
+2025-12-19 02:22:55 | DEBUG    | backend.data.database:__init__:341 - 🗄️ MarketDB 초기화: data/market_data.db
+2025-12-19 02:22:55 | INFO     | backend.server:lifespan:131 - ✅ Database connected: data/market_data.db
+2025-12-19 02:22:55 | INFO     | backend.server:lifespan:140 - ✅ Strategy Loader initialized. Found 1 strategies
+2025-12-19 02:22:55 | INFO     | backend.server:lifespan:149 - 📡 IBKR connection will be attempted in background...
+2025-12-19 02:22:55 | WARNING  | backend.core.scheduler:<module>:32 - ⚠️ APScheduler not installed. Run: pip install apscheduler
+2025-12-19 02:22:55 | INFO     | backend.server:lifespan:164 - ℹ️ Scheduler module not found - will be created in Step 4.1.4
+2025-12-19 02:22:55 | INFO     | backend.server:lifespan:168 - ==================================================
+2025-12-19 02:22:55 | INFO     | backend.server:lifespan:169 - 🎯 Server running at http://0.0.0.0:8000
+2025-12-19 02:22:55 | INFO     | backend.server:lifespan:170 - ==================================================
+2025-12-19 02:22:58 | INFO     | backend.api.websocket:connect:57 - 📡 Client connected. Total connections: 1
+2025-12-19 02:22:58 | DEBUG    | backend.data.watchlist_store:__init__:78 - 📁 WatchlistStore 초기화 (경로: data\watchlist)
+2025-12-19 02:22:58 | INFO     | backend.data.watchlist_store:load:154 - 📂 Watchlist 로드: 50개 항목 (생성: 2025-12-18T17:41:58.477156)
+2025-12-19 02:22:58 | INFO     | backend.api.routes:get_watchlist:326 - 📋 Watchlist 반환: 50개 항목
+2025-12-19 02:22:58 | INFO     | backend.api.routes:control_engine:195 - 🎮 Control command received: EngineCommand.START
+2025-12-19 02:22:58 | INFO     | backend.api.routes:control_engine:209 - 🚀 Trading Engine Started
+2025-12-19 02:23:04 | INFO     | backend.api.routes:get_intraday_chart:738 - 📊 Intraday 차트 조회: EPSM 5m (2025-12-14 ~ 2025-12-19)
+2025-12-19 02:23:04 | DEBUG    | backend.data.polygon_client:__init__:127 - 🔌 PolygonClient 초기화: rate_limit=100/min
+2025-12-19 02:23:04 | DEBUG    | backend.data.polygon_client:fetch_intraday_bars:450 - 📡 Intraday Bars API 호출: EPSM 5m (2025-12-14 ~ 2025-12-19)
+2025-12-19 02:23:05 | INFO     | backend.data.polygon_client:fetch_intraday_bars:501 - ✅ EPSM 5m: 195개 바 데이터 수신
+2025-12-19 02:23:30 | INFO     | backend.api.websocket:disconnect:74 - 📡 Client disconnected. Total connections: 0
+2025-12-19 02:23:30 | INFO     | backend.server:websocket_endpoint:261 - WebSocket client disconnected
+2025-12-19 02:23:46 | INFO     | backend.api.websocket:connect:57 - 📡 Client connected. Total connections: 1
+2025-12-19 02:23:46 | INFO     | backend.data.watchlist_store:load:154 - 📂 Watchlist 로드: 50개 항목 (생성: 2025-12-18T17:41:58.477156)
+2025-12-19 02:23:46 | INFO     | backend.api.routes:get_watchlist:326 - 📋 Watchlist 반환: 50개 항목
+2025-12-19 02:23:52 | INFO     | backend.api.routes:get_intraday_chart:738 - 📊 Intraday 차트 조회: EPSM 5m (2025-12-14 ~ 2025-12-19)
+2025-12-19 02:23:52 | DEBUG    | backend.data.polygon_client:__init__:127 - 🔌 PolygonClient 초기화: rate_limit=100/min
+2025-12-19 02:23:52 | DEBUG    | backend.data.polygon_client:fetch_intraday_bars:450 - 📡 Intraday Bars API 호출: EPSM 5m (2025-12-14 ~ 2025-12-19)
+2025-12-19 02:23:53 | INFO     | backend.data.polygon_client:fetch_intraday_bars:501 - ✅ EPSM 5m: 195개 바 데이터 수신
+2025-12-19 02:24:06 | INFO     | backend.api.websocket:disconnect:74 - 📡 Client disconnected. Total connections: 0
+2025-12-19 02:24:06 | INFO     | backend.server:websocket_endpoint:261 - WebSocket client disconnected
+2025-12-19 02:26:54 | INFO     | backend.server:lifespan:125 - ✅ Config loaded (debug=True)
+2025-12-19 02:26:55 | DEBUG    | backend.data.database:__init__:341 - 🗄️ MarketDB 초기화: data/market_data.db
+2025-12-19 02:26:55 | INFO     | backend.server:lifespan:131 - ✅ Database connected: data/market_data.db
+2025-12-19 02:26:55 | INFO     | backend.server:lifespan:140 - ✅ Strategy Loader initialized. Found 1 strategies
+2025-12-19 02:26:55 | INFO     | backend.server:lifespan:149 - 📡 IBKR connection will be attempted in background...
+2025-12-19 02:26:55 | WARNING  | backend.core.scheduler:<module>:32 - ⚠️ APScheduler not installed. Run: pip install apscheduler
+2025-12-19 02:26:55 | INFO     | backend.server:lifespan:164 - ℹ️ Scheduler module not found - will be created in Step 4.1.4
+2025-12-19 02:26:55 | INFO     | backend.server:lifespan:168 - ==================================================
+2025-12-19 02:26:55 | INFO     | backend.server:lifespan:169 - 🎯 Server running at http://0.0.0.0:8000
+2025-12-19 02:26:55 | INFO     | backend.server:lifespan:170 - ==================================================
+2025-12-19 02:26:57 | INFO     | backend.api.websocket:connect:57 - 📡 Client connected. Total connections: 1
+2025-12-19 02:26:57 | DEBUG    | backend.data.watchlist_store:__init__:78 - 📁 WatchlistStore 초기화 (경로: data\watchlist)
+2025-12-19 02:26:57 | INFO     | backend.data.watchlist_store:load:154 - 📂 Watchlist 로드: 50개 항목 (생성: 2025-12-18T17:41:58.477156)
+2025-12-19 02:26:57 | INFO     | backend.api.routes:get_watchlist:326 - 📋 Watchlist 반환: 50개 항목
+2025-12-19 02:26:57 | INFO     | backend.api.routes:control_engine:195 - 🎮 Control command received: EngineCommand.START
+2025-12-19 02:26:57 | INFO     | backend.api.routes:control_engine:209 - 🚀 Trading Engine Started
+2025-12-19 02:27:02 | INFO     | backend.api.routes:get_intraday_chart:738 - 📊 Intraday 차트 조회: EPSM 15m (2025-12-14 ~ 2025-12-19)
+2025-12-19 02:27:02 | DEBUG    | backend.data.polygon_client:__init__:127 - 🔌 PolygonClient 초기화: rate_limit=100/min
+2025-12-19 02:27:02 | DEBUG    | backend.data.polygon_client:fetch_intraday_bars:450 - 📡 Intraday Bars API 호출: EPSM 15m (2025-12-14 ~ 2025-12-19)
+2025-12-19 02:27:03 | INFO     | backend.data.polygon_client:fetch_intraday_bars:501 - ✅ EPSM 15m: 100개 바 데이터 수신
+2025-12-19 02:27:44 | INFO     | backend.api.websocket:disconnect:74 - 📡 Client disconnected. Total connections: 0
+2025-12-19 02:27:44 | INFO     | backend.server:websocket_endpoint:261 - WebSocket client disconnected
+2025-12-19 02:41:34 | INFO     | backend.server:lifespan:125 - ✅ Config loaded (debug=True)
+2025-12-19 02:41:34 | DEBUG    | backend.data.database:__init__:341 - 🗄️ MarketDB 초기화: data/market_data.db
+2025-12-19 02:41:34 | INFO     | backend.server:lifespan:131 - ✅ Database connected: data/market_data.db
+2025-12-19 02:41:34 | INFO     | backend.server:lifespan:140 - ✅ Strategy Loader initialized. Found 1 strategies
+2025-12-19 02:41:34 | INFO     | backend.server:lifespan:149 - 📡 IBKR connection will be attempted in background...
+2025-12-19 02:41:34 | WARNING  | backend.core.scheduler:<module>:32 - ⚠️ APScheduler not installed. Run: pip install apscheduler
+2025-12-19 02:41:34 | INFO     | backend.server:lifespan:164 - ℹ️ Scheduler module not found - will be created in Step 4.1.4
+2025-12-19 02:41:34 | INFO     | backend.server:lifespan:168 - ==================================================
+2025-12-19 02:41:34 | INFO     | backend.server:lifespan:169 - 🎯 Server running at http://0.0.0.0:8000
+2025-12-19 02:41:34 | INFO     | backend.server:lifespan:170 - ==================================================
+2025-12-19 02:41:37 | INFO     | backend.api.websocket:connect:57 - 📡 Client connected. Total connections: 1
+2025-12-19 02:41:37 | DEBUG    | backend.data.watchlist_store:__init__:78 - 📁 WatchlistStore 초기화 (경로: data\watchlist)
+2025-12-19 02:41:37 | INFO     | backend.data.watchlist_store:load:154 - 📂 Watchlist 로드: 50개 항목 (생성: 2025-12-18T17:41:58.477156)
+2025-12-19 02:41:37 | INFO     | backend.api.routes:get_watchlist:326 - 📋 Watchlist 반환: 50개 항목
+2025-12-19 02:41:37 | INFO     | backend.api.routes:control_engine:195 - 🎮 Control command received: EngineCommand.START
+2025-12-19 02:41:37 | INFO     | backend.api.routes:control_engine:209 - 🚀 Trading Engine Started
+2025-12-19 02:41:40 | INFO     | backend.api.routes:get_intraday_chart:738 - 📊 Intraday 차트 조회: EPSM 5m (2025-12-14 ~ 2025-12-19)
+2025-12-19 02:41:40 | DEBUG    | backend.data.polygon_client:__init__:127 - 🔌 PolygonClient 초기화: rate_limit=100/min
+2025-12-19 02:41:40 | DEBUG    | backend.data.polygon_client:fetch_intraday_bars:450 - 📡 Intraday Bars API 호출: EPSM 5m (2025-12-14 ~ 2025-12-19)
+2025-12-19 02:41:41 | INFO     | backend.data.polygon_client:fetch_intraday_bars:501 - ✅ EPSM 5m: 195개 바 데이터 수신
+2025-12-19 02:42:31 | INFO     | backend.api.websocket:disconnect:74 - 📡 Client disconnected. Total connections: 0
+2025-12-19 02:42:31 | INFO     | backend.server:websocket_endpoint:261 - WebSocket client disconnected
+2025-12-19 02:45:03 | INFO     | backend.server:lifespan:125 - ✅ Config loaded (debug=True)
+2025-12-19 02:45:04 | DEBUG    | backend.data.database:__init__:341 - 🗄️ MarketDB 초기화: data/market_data.db
+2025-12-19 02:45:04 | INFO     | backend.server:lifespan:131 - ✅ Database connected: data/market_data.db
+2025-12-19 02:45:04 | INFO     | backend.server:lifespan:140 - ✅ Strategy Loader initialized. Found 1 strategies
+2025-12-19 02:45:04 | INFO     | backend.server:lifespan:149 - 📡 IBKR connection will be attempted in background...
+2025-12-19 02:45:04 | WARNING  | backend.core.scheduler:<module>:32 - ⚠️ APScheduler not installed. Run: pip install apscheduler
+2025-12-19 02:45:04 | INFO     | backend.server:lifespan:164 - ℹ️ Scheduler module not found - will be created in Step 4.1.4
+2025-12-19 02:45:04 | INFO     | backend.server:lifespan:168 - ==================================================
+2025-12-19 02:45:04 | INFO     | backend.server:lifespan:169 - 🎯 Server running at http://0.0.0.0:8000
+2025-12-19 02:45:04 | INFO     | backend.server:lifespan:170 - ==================================================
+2025-12-19 02:45:06 | INFO     | backend.api.websocket:connect:57 - 📡 Client connected. Total connections: 1
+2025-12-19 02:45:06 | DEBUG    | backend.data.watchlist_store:__init__:78 - 📁 WatchlistStore 초기화 (경로: data\watchlist)
+2025-12-19 02:45:06 | INFO     | backend.data.watchlist_store:load:154 - 📂 Watchlist 로드: 50개 항목 (생성: 2025-12-18T17:41:58.477156)
+2025-12-19 02:45:06 | INFO     | backend.api.routes:get_watchlist:326 - 📋 Watchlist 반환: 50개 항목
+2025-12-19 02:45:06 | INFO     | backend.api.routes:control_engine:195 - 🎮 Control command received: EngineCommand.START
+2025-12-19 02:45:06 | INFO     | backend.api.routes:control_engine:209 - 🚀 Trading Engine Started
+2025-12-19 02:45:10 | INFO     | backend.api.routes:get_intraday_chart:738 - 📊 Intraday 차트 조회: EPSM 5m (2025-12-14 ~ 2025-12-19)
+2025-12-19 02:45:10 | DEBUG    | backend.data.polygon_client:__init__:127 - 🔌 PolygonClient 초기화: rate_limit=100/min
+2025-12-19 02:45:10 | DEBUG    | backend.data.polygon_client:fetch_intraday_bars:450 - 📡 Intraday Bars API 호출: EPSM 5m (2025-12-14 ~ 2025-12-19)
+2025-12-19 02:45:11 | INFO     | backend.data.polygon_client:fetch_intraday_bars:501 - ✅ EPSM 5m: 195개 바 데이터 수신
+2025-12-19 02:45:37 | INFO     | backend.api.routes:get_intraday_chart:738 - 📊 Intraday 차트 조회: LKSP 1m (2025-12-14 ~ 2025-12-19)
+2025-12-19 02:45:37 | DEBUG    | backend.data.polygon_client:__init__:127 - 🔌 PolygonClient 초기화: rate_limit=100/min
+2025-12-19 02:45:38 | DEBUG    | backend.data.polygon_client:fetch_intraday_bars:450 - 📡 Intraday Bars API 호출: LKSP 1m (2025-12-14 ~ 2025-12-19)
+2025-12-19 02:45:38 | INFO     | backend.data.polygon_client:fetch_intraday_bars:501 - ✅ LKSP 1m: 1개 바 데이터 수신
+2025-12-19 02:45:56 | INFO     | backend.api.routes:get_intraday_chart:738 - 📊 Intraday 차트 조회: SGBX 5m (2025-12-14 ~ 2025-12-19)
+2025-12-19 02:45:56 | DEBUG    | backend.data.polygon_client:__init__:127 - 🔌 PolygonClient 초기화: rate_limit=100/min
+2025-12-19 02:45:56 | DEBUG    | backend.data.polygon_client:fetch_intraday_bars:450 - 📡 Intraday Bars API 호출: SGBX 5m (2025-12-14 ~ 2025-12-19)
+2025-12-19 02:45:57 | INFO     | backend.data.polygon_client:fetch_intraday_bars:501 - ✅ SGBX 5m: 439개 바 데이터 수신
+2025-12-19 02:45:58 | INFO     | backend.api.routes:get_intraday_chart:738 - 📊 Intraday 차트 조회: SGBX 1m (2025-12-14 ~ 2025-12-19)
+2025-12-19 02:45:58 | DEBUG    | backend.data.polygon_client:__init__:127 - 🔌 PolygonClient 초기화: rate_limit=100/min
+2025-12-19 02:45:58 | DEBUG    | backend.data.polygon_client:fetch_intraday_bars:450 - 📡 Intraday Bars API 호출: SGBX 1m (2025-12-14 ~ 2025-12-19)
+2025-12-19 02:45:59 | INFO     | backend.data.polygon_client:fetch_intraday_bars:501 - ✅ SGBX 1m: 1230개 바 데이터 수신
+2025-12-19 02:46:20 | INFO     | backend.api.websocket:disconnect:74 - 📡 Client disconnected. Total connections: 0
+2025-12-19 02:46:20 | INFO     | backend.server:websocket_endpoint:261 - WebSocket client disconnected
+2025-12-19 02:47:45 | INFO     | backend.server:lifespan:177 - 🛑 Server Shutting Down...
+2025-12-19 02:47:45 | INFO     | backend.server:lifespan:195 - 👋 Goodbye!
+2025-12-19 02:47:46 | INFO     | backend.server:lifespan:125 - ✅ Config loaded (debug=True)
+2025-12-19 02:47:46 | DEBUG    | backend.data.database:__init__:341 - 🗄️ MarketDB 초기화: data/market_data.db
+2025-12-19 02:47:46 | INFO     | backend.server:lifespan:131 - ✅ Database connected: data/market_data.db
+2025-12-19 02:47:46 | INFO     | backend.server:lifespan:140 - ✅ Strategy Loader initialized. Found 1 strategies
+2025-12-19 02:47:46 | INFO     | backend.server:lifespan:149 - 📡 IBKR connection will be attempted in background...
+2025-12-19 02:47:46 | WARNING  | backend.core.scheduler:<module>:32 - ⚠️ APScheduler not installed. Run: pip install apscheduler
+2025-12-19 02:47:46 | INFO     | backend.server:lifespan:164 - ℹ️ Scheduler module not found - will be created in Step 4.1.4
+2025-12-19 02:47:46 | INFO     | backend.server:lifespan:168 - ==================================================
+2025-12-19 02:47:46 | INFO     | backend.server:lifespan:169 - 🎯 Server running at http://0.0.0.0:8000
+2025-12-19 02:47:46 | INFO     | backend.server:lifespan:170 - ==================================================
+2025-12-19 02:51:46 | INFO     | backend.api.websocket:connect:57 - 📡 Client connected. Total connections: 1
+2025-12-19 02:51:46 | DEBUG    | backend.data.watchlist_store:__init__:78 - 📁 WatchlistStore 초기화 (경로: data\watchlist)
+2025-12-19 02:51:46 | INFO     | backend.data.watchlist_store:load:154 - 📂 Watchlist 로드: 50개 항목 (생성: 2025-12-18T17:41:58.477156)
+2025-12-19 02:51:46 | INFO     | backend.api.routes:get_watchlist:326 - 📋 Watchlist 반환: 50개 항목
+2025-12-19 02:51:48 | INFO     | backend.api.websocket:disconnect:74 - 📡 Client disconnected. Total connections: 0
+2025-12-19 02:51:48 | INFO     | backend.server:websocket_endpoint:261 - WebSocket client disconnected
+2025-12-19 02:52:08 | INFO     | backend.server:lifespan:125 - ✅ Config loaded (debug=True)
+2025-12-19 02:52:08 | DEBUG    | backend.data.database:__init__:341 - 🗄️ MarketDB 초기화: data/market_data.db
+2025-12-19 02:52:08 | INFO     | backend.server:lifespan:131 - ✅ Database connected: data/market_data.db
+2025-12-19 02:52:08 | INFO     | backend.server:lifespan:140 - ✅ Strategy Loader initialized. Found 1 strategies
+2025-12-19 02:52:08 | INFO     | backend.server:lifespan:149 - 📡 IBKR connection will be attempted in background...
+2025-12-19 02:52:08 | WARNING  | backend.core.scheduler:<module>:32 - ⚠️ APScheduler not installed. Run: pip install apscheduler
+2025-12-19 02:52:08 | INFO     | backend.server:lifespan:164 - ℹ️ Scheduler module not found - will be created in Step 4.1.4
+2025-12-19 02:52:08 | INFO     | backend.server:lifespan:168 - ==================================================
+2025-12-19 02:52:08 | INFO     | backend.server:lifespan:169 - 🎯 Server running at http://0.0.0.0:8000
+2025-12-19 02:52:08 | INFO     | backend.server:lifespan:170 - ==================================================
+2025-12-19 02:52:11 | INFO     | backend.api.websocket:connect:57 - 📡 Client connected. Total connections: 1
+2025-12-19 02:52:11 | DEBUG    | backend.data.watchlist_store:__init__:78 - 📁 WatchlistStore 초기화 (경로: data\watchlist)
+2025-12-19 02:52:11 | INFO     | backend.data.watchlist_store:load:154 - 📂 Watchlist 로드: 50개 항목 (생성: 2025-12-18T17:41:58.477156)
+2025-12-19 02:52:11 | INFO     | backend.api.routes:get_watchlist:326 - 📋 Watchlist 반환: 50개 항목
+2025-12-19 02:52:11 | INFO     | backend.api.routes:control_engine:195 - 🎮 Control command received: EngineCommand.START
+2025-12-19 02:52:11 | INFO     | backend.api.routes:control_engine:209 - 🚀 Trading Engine Started
+2025-12-19 02:52:18 | INFO     | backend.api.routes:get_intraday_chart:738 - 📊 Intraday 차트 조회: EPSM 5m (2025-12-14 ~ 2025-12-19)
+2025-12-19 02:52:18 | DEBUG    | backend.data.polygon_client:__init__:127 - 🔌 PolygonClient 초기화: rate_limit=100/min
+2025-12-19 02:52:19 | DEBUG    | backend.data.polygon_client:fetch_intraday_bars:450 - 📡 Intraday Bars API 호출: EPSM 5m (2025-12-14 ~ 2025-12-19)
+2025-12-19 02:52:19 | INFO     | backend.data.polygon_client:fetch_intraday_bars:501 - ✅ EPSM 5m: 196개 바 데이터 수신
+2025-12-19 02:53:43 | INFO     | backend.api.websocket:disconnect:74 - 📡 Client disconnected. Total connections: 0
+2025-12-19 02:53:43 | INFO     | backend.server:websocket_endpoint:261 - WebSocket client disconnected
+2025-12-19 03:04:10 | INFO     | backend.server:lifespan:125 - ✅ Config loaded (debug=True)
+2025-12-19 03:04:10 | DEBUG    | backend.data.database:__init__:341 - 🗄️ MarketDB 초기화: data/market_data.db
+2025-12-19 03:04:10 | INFO     | backend.server:lifespan:131 - ✅ Database connected: data/market_data.db
+2025-12-19 03:04:10 | INFO     | backend.server:lifespan:140 - ✅ Strategy Loader initialized. Found 1 strategies
+2025-12-19 03:04:10 | INFO     | backend.server:lifespan:149 - 📡 IBKR connection will be attempted in background...
+2025-12-19 03:04:10 | WARNING  | backend.core.scheduler:<module>:32 - ⚠️ APScheduler not installed. Run: pip install apscheduler
+2025-12-19 03:04:10 | INFO     | backend.server:lifespan:164 - ℹ️ Scheduler module not found - will be created in Step 4.1.4
+2025-12-19 03:04:10 | INFO     | backend.server:lifespan:168 - ==================================================
+2025-12-19 03:04:10 | INFO     | backend.server:lifespan:169 - 🎯 Server running at http://0.0.0.0:8000
+2025-12-19 03:04:10 | INFO     | backend.server:lifespan:170 - ==================================================
+2025-12-19 03:04:13 | INFO     | backend.api.websocket:connect:57 - 📡 Client connected. Total connections: 1
+2025-12-19 03:04:13 | DEBUG    | backend.data.watchlist_store:__init__:78 - 📁 WatchlistStore 초기화 (경로: data\watchlist)
+2025-12-19 03:04:13 | INFO     | backend.data.watchlist_store:load:154 - 📂 Watchlist 로드: 50개 항목 (생성: 2025-12-18T17:41:58.477156)
+2025-12-19 03:04:13 | INFO     | backend.api.routes:get_watchlist:326 - 📋 Watchlist 반환: 50개 항목
+2025-12-19 03:04:13 | INFO     | backend.api.routes:control_engine:195 - 🎮 Control command received: EngineCommand.START
+2025-12-19 03:04:13 | INFO     | backend.api.routes:control_engine:209 - 🚀 Trading Engine Started
+2025-12-19 03:04:23 | INFO     | backend.api.routes:get_intraday_chart:738 - 📊 Intraday 차트 조회: EPSM 15m (2025-12-14 ~ 2025-12-19)
+2025-12-19 03:04:23 | DEBUG    | backend.data.polygon_client:__init__:127 - 🔌 PolygonClient 초기화: rate_limit=100/min
+2025-12-19 03:04:23 | DEBUG    | backend.data.polygon_client:fetch_intraday_bars:450 - 📡 Intraday Bars API 호출: EPSM 15m (2025-12-14 ~ 2025-12-19)
+2025-12-19 03:04:23 | INFO     | backend.data.polygon_client:fetch_intraday_bars:501 - ✅ EPSM 15m: 101개 바 데이터 수신
+2025-12-19 03:05:05 | INFO     | backend.api.routes:get_intraday_chart:738 - 📊 Intraday 차트 조회: EPSM 1m (2025-12-14 ~ 2025-12-19)
+2025-12-19 03:05:05 | DEBUG    | backend.data.polygon_client:__init__:127 - 🔌 PolygonClient 초기화: rate_limit=100/min
+2025-12-19 03:05:05 | DEBUG    | backend.data.polygon_client:fetch_intraday_bars:450 - 📡 Intraday Bars API 호출: EPSM 1m (2025-12-14 ~ 2025-12-19)
+2025-12-19 03:05:05 | INFO     | backend.data.polygon_client:fetch_intraday_bars:501 - ✅ EPSM 1m: 327개 바 데이터 수신
+2025-12-19 03:06:02 | INFO     | backend.api.websocket:disconnect:74 - 📡 Client disconnected. Total connections: 0
+2025-12-19 03:06:02 | INFO     | backend.server:websocket_endpoint:261 - WebSocket client disconnected
+2025-12-19 03:17:23 | INFO     | backend.server:lifespan:125 - ✅ Config loaded (debug=True)
+2025-12-19 03:17:24 | DEBUG    | backend.data.database:__init__:341 - 🗄️ MarketDB 초기화: data/market_data.db
+2025-12-19 03:17:24 | INFO     | backend.server:lifespan:131 - ✅ Database connected: data/market_data.db
+2025-12-19 03:17:24 | INFO     | backend.server:lifespan:140 - ✅ Strategy Loader initialized. Found 1 strategies
+2025-12-19 03:17:24 | INFO     | backend.server:lifespan:149 - 📡 IBKR connection will be attempted in background...
+2025-12-19 03:17:24 | WARNING  | backend.core.scheduler:<module>:32 - ⚠️ APScheduler not installed. Run: pip install apscheduler
+2025-12-19 03:17:24 | INFO     | backend.server:lifespan:164 - ℹ️ Scheduler module not found - will be created in Step 4.1.4
+2025-12-19 03:17:24 | INFO     | backend.server:lifespan:168 - ==================================================
+2025-12-19 03:17:24 | INFO     | backend.server:lifespan:169 - 🎯 Server running at http://0.0.0.0:8000
+2025-12-19 03:17:24 | INFO     | backend.server:lifespan:170 - ==================================================
+2025-12-19 03:17:26 | INFO     | backend.api.websocket:connect:57 - 📡 Client connected. Total connections: 1
+2025-12-19 03:17:26 | DEBUG    | backend.data.watchlist_store:__init__:78 - 📁 WatchlistStore 초기화 (경로: data\watchlist)
+2025-12-19 03:17:26 | INFO     | backend.data.watchlist_store:load:154 - 📂 Watchlist 로드: 50개 항목 (생성: 2025-12-18T17:41:58.477156)
+2025-12-19 03:17:26 | INFO     | backend.api.routes:get_watchlist:326 - 📋 Watchlist 반환: 50개 항목
+2025-12-19 03:17:26 | INFO     | backend.api.routes:control_engine:195 - 🎮 Control command received: EngineCommand.START
+2025-12-19 03:17:26 | INFO     | backend.api.routes:control_engine:209 - 🚀 Trading Engine Started
+2025-12-19 03:17:40 | INFO     | backend.api.routes:get_intraday_chart:738 - 📊 Intraday 차트 조회: EPSM 15m (2025-12-14 ~ 2025-12-19)
+2025-12-19 03:17:40 | DEBUG    | backend.data.polygon_client:__init__:127 - 🔌 PolygonClient 초기화: rate_limit=100/min
+2025-12-19 03:17:40 | DEBUG    | backend.data.polygon_client:fetch_intraday_bars:450 - 📡 Intraday Bars API 호출: EPSM 15m (2025-12-14 ~ 2025-12-19)
+2025-12-19 03:17:41 | INFO     | backend.data.polygon_client:fetch_intraday_bars:501 - ✅ EPSM 15m: 103개 바 데이터 수신
+2025-12-19 03:17:56 | INFO     | backend.api.websocket:disconnect:74 - 📡 Client disconnected. Total connections: 0
+2025-12-19 03:17:56 | INFO     | backend.server:websocket_endpoint:261 - WebSocket client disconnected
