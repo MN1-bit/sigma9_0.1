@@ -37,7 +37,7 @@ try:
     from PyQt6.QtWidgets import (
         QApplication, QVBoxLayout, QHBoxLayout, QLabel, QFrame, 
         QSlider, QPushButton, QSplitter, QTextEdit, QListWidget,
-        QWidget, QSizePolicy
+        QWidget, QSizePolicy, QComboBox
     )
     from PyQt6.QtCore import Qt
 except ModuleNotFoundError:
@@ -45,7 +45,7 @@ except ModuleNotFoundError:
     from PySide6.QtWidgets import (
         QApplication, QVBoxLayout, QHBoxLayout, QLabel, QFrame,
         QSlider, QPushButton, QSplitter, QTextEdit, QListWidget,
-        QWidget, QSizePolicy
+        QWidget, QSizePolicy, QComboBox
     )
     from PySide6.QtCore import Qt
 
@@ -53,7 +53,8 @@ from .custom_window import CustomWindow
 from .particle_effects import ParticleSystem
 from .theme import theme  # [REFAC] 테마 매니저 임포트
 from .settings_dialog import SettingsDialog
-from .chart_widget import ChartWidget  # Step 2.4.7: 차트 위젯
+from .chart_widget import ChartWidget  # Step 2.4.7: 차트 위젯 (Backup)
+from .chart.pyqtgraph_chart import PyQtGraphChartWidget  # [NEW] PyQtGraph 기반 차트
 from ..config.loader import load_settings, save_settings
 
 
@@ -110,6 +111,9 @@ class Sigma9Dashboard(CustomWindow):
         self.particle_system.setGeometry(0, 0, self.width(), self.height())
         self.particle_system.global_alpha = theme.particle_alpha # [NEW] 초기 투명도 적용
         self.particle_system.raise_()
+        
+        # Step 2.5: StrategyLoader 초기화 및 전략 목록 로드
+        self._init_strategy_loader()
 
     def resizeEvent(self, event):
         """윈도우 크기 변경 시 파티클 시스템 크기도 조절"""
@@ -271,6 +275,73 @@ class Sigma9Dashboard(CustomWindow):
         )
         layout.addWidget(self.stop_btn)
         
+        # ═══════════════════════════════════════════════════════════════
+        # Step 2.5.4: 전략 선택 드롭다운
+        # ═══════════════════════════════════════════════════════════════
+        layout.addWidget(QLabel("|"))  # 구분자
+        
+        strategy_label = QLabel("Strategy:")
+        strategy_label.setStyleSheet(f"""
+            color: {theme.get_color('text_secondary')}; 
+            font-size: 11px;
+            background: transparent;
+            border: none;
+        """)
+        layout.addWidget(strategy_label)
+        
+        self.strategy_combo = QComboBox()
+        self.strategy_combo.setMinimumWidth(120)
+        self.strategy_combo.setStyleSheet(f"""
+            QComboBox {{
+                background-color: {theme.get_color('surface')};
+                border: 1px solid {theme.get_color('border')};
+                border-radius: 4px;
+                color: {theme.get_color('text')};
+                padding: 4px 8px;
+                font-size: 11px;
+            }}
+            QComboBox:hover {{
+                border: 1px solid {theme.get_color('primary')};
+            }}
+            QComboBox::drop-down {{
+                border: none;
+            }}
+            QComboBox::down-arrow {{
+                image: none;
+                width: 12px;
+                height: 12px;
+            }}
+            QComboBox QAbstractItemView {{
+                background-color: {theme.get_color('surface')};
+                border: 1px solid {theme.get_color('border')};
+                color: {theme.get_color('text')};
+                selection-background-color: {theme.get_color('primary')};
+            }}
+        """)
+        self.strategy_combo.currentTextChanged.connect(self._on_strategy_changed)
+        layout.addWidget(self.strategy_combo)
+        
+        # 리로드 버튼
+        self.reload_strategy_btn = QPushButton("🔄")
+        self.reload_strategy_btn.setToolTip("Reload Strategy (Hot Reload)")
+        self.reload_strategy_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: transparent;
+                border: none;
+                color: {theme.get_color('text_secondary')};
+                font-size: 14px;
+                padding: 4px;
+            }}
+            QPushButton:hover {{
+                color: {theme.get_color('primary')};
+            }}
+        """)
+        self.reload_strategy_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.reload_strategy_btn.clicked.connect(self._on_reload_strategy)
+        layout.addWidget(self.reload_strategy_btn)
+        
+        layout.addWidget(QLabel("|"))  # 구분자
+        
         # Kill Switch는 빨간색으로 강조
         self.kill_btn = self._create_control_button(
             "⚡ KILL SWITCH", "danger", self._on_kill
@@ -347,78 +418,116 @@ class Sigma9Dashboard(CustomWindow):
         """
         CENTER PANEL - Chart Area (차트 영역)
         
-        Step 2.4.7: TradingView Lightweight Charts 통합
+        [REFAC] PyQtGraph 기반 차트로 전환 (Acrylic 호환)
         """
         frame, layout = self._create_panel_frame("📈 Chart")
         
-        # [DEBUG] ChartWidget Transparency Test: Revert to placeholder (User Request)
-        chart_placeholder = QLabel("TradingView Chart\n(Coming Soon)")
-        chart_placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        c = theme.colors
-        chart_placeholder.setStyleSheet(f"""
-            color: {c['text_secondary']};
-            font-size: 20px;
-            background-color: transparent;
-            border: 1px dashed {c['border']};
-            border-radius: 8px;
-        """)
-        chart_placeholder.setSizePolicy(
+        # [NEW] PyQtGraph 기반 차트 위젯 (Acrylic 완전 호환)
+        self.chart_widget = PyQtGraphChartWidget()
+        self.chart_widget.setSizePolicy(
             QSizePolicy.Policy.Expanding, 
             QSizePolicy.Policy.Expanding
         )
-        layout.addWidget(chart_placeholder)
-
-        # Step 2.4.7: ChartWidget 통합 (TradingView Lightweight Charts)
-        # self.chart_widget = ChartWidget()
-        # self.chart_widget.setSizePolicy(
-        #     QSizePolicy.Policy.Expanding, 
-        #     QSizePolicy.Policy.Expanding
-        # )
-        # layout.addWidget(self.chart_widget)
         
-        # Step 2.4.8: 시작 시 샘플 데이터 로드 (1초 후)
-        # from PyQt6.QtCore import QTimer
-        # QTimer.singleShot(1500, self._load_sample_chart_data)
+        # 타임프레임 변경 시그널 연결
+        self.chart_widget.timeframe_changed.connect(self._on_timeframe_changed)
+        
+        layout.addWidget(self.chart_widget)
+        
+        # 시작 시 샘플 데이터 로드 (1.5초 후)
+        from PyQt6.QtCore import QTimer
+        QTimer.singleShot(1500, self._load_sample_chart_data)
         
         return frame
     
     def _load_sample_chart_data(self):
         """
-        Step 2.4.8: 샘플 차트 데이터 로드
+        Step 2.4.8: 샘플 차트 데이터 로드 (Volume, MA 포함)
         
         차트 위젯이 정상적으로 표시되는지 확인을 위한 테스트 데이터
         """
-        # 샘플 캨들 데이터
-        sample_candles = [
-            {"time": "2024-12-01", "open": 10.0, "high": 10.5, "low": 9.8, "close": 10.3},
-            {"time": "2024-12-02", "open": 10.3, "high": 10.8, "low": 10.1, "close": 10.6},
-            {"time": "2024-12-03", "open": 10.6, "high": 11.2, "low": 10.4, "close": 10.9},
-            {"time": "2024-12-04", "open": 10.9, "high": 11.5, "low": 10.7, "close": 11.3},
-            {"time": "2024-12-05", "open": 11.3, "high": 12.0, "low": 11.1, "close": 11.8},
-            {"time": "2024-12-06", "open": 11.8, "high": 12.3, "low": 11.5, "close": 12.1},
-            {"time": "2024-12-07", "open": 12.1, "high": 12.8, "low": 12.0, "close": 12.5},
-            {"time": "2024-12-08", "open": 12.5, "high": 13.0, "low": 12.2, "close": 12.7},
-        ]
-        self.chart_widget.set_candlestick_data(sample_candles)
+        import numpy as np
+        import time as time_module
         
-        # 샘플 VWAP
-        sample_vwap = [
-            {"time": "2024-12-01", "value": 10.2},
-            {"time": "2024-12-02", "value": 10.5},
-            {"time": "2024-12-03", "value": 10.8},
-            {"time": "2024-12-04", "value": 11.1},
-            {"time": "2024-12-05", "value": 11.4},
-            {"time": "2024-12-06", "value": 11.8},
-            {"time": "2024-12-07", "value": 12.2},
-            {"time": "2024-12-08", "value": 12.5},
-        ]
-        self.chart_widget.set_vwap_data(sample_vwap)
+        # 100개 캔들 생성 (일봉)
+        base_time = time_module.time() - 86400 * 100
+        candles = []
+        volumes = []
+        price = 10.0
         
-        # 샘플 마커
-        self.chart_widget.add_buy_marker("2024-12-04", 11.3)
-        self.chart_widget.add_ignition_marker("2024-12-04", 85)
+        for i in range(100):
+            o = price
+            delta = np.random.uniform(-0.3, 0.35)  # 약간 상승 편향
+            c = price + delta
+            h = max(o, c) + np.random.uniform(0, 0.2)
+            l = min(o, c) - np.random.uniform(0, 0.2)
+            vol = int(np.random.uniform(100000, 500000))
+            is_up = c >= o
+            
+            timestamp = base_time + i * 86400
+            candles.append({
+                "time": timestamp,
+                "open": round(o, 2),
+                "high": round(h, 2),
+                "low": round(l, 2),
+                "close": round(c, 2),
+            })
+            volumes.append({
+                "time": timestamp,
+                "volume": vol,
+                "is_up": is_up,
+            })
+            price = c
         
-        self.log("[INFO] Chart loaded with sample data")
+        # 캔들스틱 설정
+        self.chart_widget.set_candlestick_data(candles)
+        
+        # Volume 설정
+        self.chart_widget.set_volume_data(volumes)
+        
+        # VWAP (간이 계산)
+        vwap_data = []
+        cumulative = 0
+        for i, c in enumerate(candles):
+            tp = (c["high"] + c["low"] + c["close"]) / 3
+            cumulative = (cumulative * i + tp) / (i + 1) if i > 0 else tp
+            vwap_data.append({"time": c["time"], "value": cumulative})
+        self.chart_widget.set_vwap_data(vwap_data)
+        
+        # SMA 20 (간이 계산)
+        closes = [c["close"] for c in candles]
+        sma_data = []
+        for i in range(19, len(candles)):
+            sma = sum(closes[i-19:i+1]) / 20
+            sma_data.append({"time": candles[i]["time"], "value": sma})
+        self.chart_widget.set_ma_data(sma_data, period=20, color='#3b82f6')
+        
+        # EMA 9 (간이 계산)
+        ema = closes[0]
+        mult = 2 / 10
+        ema_data = []
+        for i, c in enumerate(candles):
+            ema = (closes[i] - ema) * mult + ema
+            if i >= 8:
+                ema_data.append({"time": c["time"], "value": ema})
+        self.chart_widget.set_ma_data(ema_data, period=9, color='#a855f7')
+        
+        # 진입/손절/익절 레벨
+        current_price = candles[-1]["close"]
+        self.chart_widget.set_price_levels(
+            entry=current_price,
+            stop_loss=current_price * 0.95,  # -5%
+            take_profit=current_price * 1.10  # +10%
+        )
+        
+        # Ignition 마커 (80번째 캔들)
+        self.chart_widget.add_ignition_marker(
+            candles[80]["time"], 
+            candles[80]["high"], 
+            score=85
+        )
+        
+        self.log("[INFO] Chart loaded with sample data (Volume, MA, SL/TP)")
 
     def _create_right_panel(self) -> QFrame:
         """
@@ -533,11 +642,96 @@ class Sigma9Dashboard(CustomWindow):
         self.log("[EMERGENCY] ⚡ KILL SWITCH ACTIVATED!")
         self.particle_system.stop_loss()
 
+    def _on_strategy_changed(self, strategy_name: str):
+        """전략 변경 콤보박스 이벤트 핸들러 (Placeholder)"""
+        self.log(f"[INFO] Strategy changed to: {strategy_name}")
+
+    def _on_timeframe_changed(self, timeframe: str):
+        """차트 타임프레임 변경 핸들러"""
+        self.log(f"[INFO] Timeframe changed to: {timeframe}")
+        # TODO: 백엔드에서 해당 타임프레임 데이터 요청
+
     def log(self, message: str):
         """로그 콘솔에 메시지 추가"""
         from datetime import datetime
         timestamp = datetime.now().strftime("%H:%M:%S")
         self.log_console.append(f"[{timestamp}] {message}")
+    
+    # ═══════════════════════════════════════════════════════════════════════
+    # Step 2.5: Strategy Loader 관련 메서드
+    # ═══════════════════════════════════════════════════════════════════════
+    
+    def _init_strategy_loader(self):
+        """
+        StrategyLoader 초기화 및 전략 목록 로드
+        
+        Step 2.5: 전략 플러그인 시스템 GUI 연동
+        """
+        import sys
+        from pathlib import Path
+        
+        # backend 경로를 sys.path에 추가
+        backend_path = Path(__file__).parent.parent.parent / "backend"
+        if str(backend_path) not in sys.path:
+            sys.path.insert(0, str(backend_path))
+        
+        try:
+            from core.strategy_loader import StrategyLoader
+            self.strategy_loader = StrategyLoader()
+            
+            # 사용 가능한 전략 목록 로드
+            strategies = self.strategy_loader.discover_strategies()
+            
+            # 드롭다운에 추가
+            self.strategy_combo.clear()
+            self.strategy_combo.addItems(strategies)
+            
+            self.log(f"[INFO] Found {len(strategies)} strategies: {strategies}")
+            
+            # 첫 번째 전략 자동 로드
+            if strategies:
+                self._load_selected_strategy(strategies[0])
+        except Exception as e:
+            self.log(f"[ERROR] Failed to init StrategyLoader: {e}")
+            self.strategy_loader = None
+    
+    def _load_selected_strategy(self, strategy_name: str):
+        """선택된 전략 로드"""
+        if not self.strategy_loader:
+            return
+        
+        try:
+            strategy = self.strategy_loader.load_strategy(strategy_name)
+            self.current_strategy = strategy
+            self.log(f"[INFO] Loaded: {strategy.name} v{strategy.version}")
+        except Exception as e:
+            self.log(f"[ERROR] Failed to load {strategy_name}: {e}")
+    
+    def _on_strategy_changed(self, strategy_name: str):
+        """전략 드롭다운 변경 이벤트"""
+        if not strategy_name:
+            return
+        self.log(f"[ACTION] Strategy selected: {strategy_name}")
+        self._load_selected_strategy(strategy_name)
+    
+    def _on_reload_strategy(self):
+        """전략 리로드 버튼 클릭"""
+        if not self.strategy_loader:
+            self.log("[ERROR] StrategyLoader not initialized")
+            return
+        
+        strategy_name = self.strategy_combo.currentText()
+        if not strategy_name:
+            self.log("[WARNING] No strategy selected")
+            return
+        
+        try:
+            strategy = self.strategy_loader.reload_strategy(strategy_name)
+            self.current_strategy = strategy
+            self.log(f"[INFO] Hot-reloaded: {strategy.name} v{strategy.version}")
+            self.particle_system.order_created()  # 리로드 성공 시각 피드백
+        except Exception as e:
+            self.log(f"[ERROR] Failed to reload {strategy_name}: {e}")
 
     def _on_settings(self):
         """설정 버튼 클릭"""

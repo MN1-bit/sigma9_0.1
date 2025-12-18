@@ -408,6 +408,97 @@ class TestIntegration:
             assert isinstance(signal, Signal)
             assert signal.action in {"BUY", "SELL", "HOLD"}
 
+# ═══════════════════════════════════════════════════════════════════════════
+# StrategyLoader 테스트 (Step 2.5)
+# ═══════════════════════════════════════════════════════════════════════════
+
+class TestStrategyLoader:
+    """StrategyLoader 플러그인 시스템 테스트"""
+    
+    @pytest.fixture
+    def loader(self):
+        """StrategyLoader 인스턴스 생성"""
+        from core.strategy_loader import StrategyLoader
+        return StrategyLoader()
+    
+    def test_discover_strategies(self, loader):
+        """discover_strategies()가 전략 목록을 반환하는지 확인"""
+        strategies = loader.discover_strategies()
+        
+        assert isinstance(strategies, list)
+        assert "seismograph" in strategies or "random_walker" in strategies
+    
+    def test_discover_excludes_underscore(self, loader):
+        """'_'로 시작하는 파일이 제외되는지 확인"""
+        strategies = loader.discover_strategies()
+        
+        # _template.py는 제외되어야 함
+        for name in strategies:
+            assert not name.startswith("_")
+    
+    def test_load_strategy_success(self, loader):
+        """전략 로드 성공 테스트"""
+        strategies = loader.discover_strategies()
+        if not strategies:
+            pytest.skip("No strategies found")
+        
+        strategy = loader.load_strategy(strategies[0])
+        
+        assert strategy is not None
+        assert hasattr(strategy, 'name')
+        assert hasattr(strategy, 'version')
+        assert isinstance(strategy, StrategyBase)
+    
+    def test_load_strategy_not_found(self, loader):
+        """존재하지 않는 전략 로드 시 FileNotFoundError 발생"""
+        with pytest.raises(FileNotFoundError):
+            loader.load_strategy("nonexistent_strategy_xyz")
+    
+    def test_reload_strategy(self, loader):
+        """전략 리로드 테스트"""
+        strategies = loader.discover_strategies()
+        if not strategies:
+            pytest.skip("No strategies found")
+        
+        # 먼저 로드
+        strategy1 = loader.load_strategy(strategies[0])
+        
+        # 리로드
+        strategy2 = loader.reload_strategy(strategies[0])
+        
+        # 새 인스턴스가 생성되었는지 확인
+        assert strategy2 is not None
+        assert strategy2.name == strategy1.name
+    
+    def test_get_strategy_cached(self, loader):
+        """캐시된 전략 반환 테스트"""
+        strategies = loader.discover_strategies()
+        if not strategies:
+            pytest.skip("No strategies found")
+        
+        # 로드
+        strategy1 = loader.load_strategy(strategies[0])
+        
+        # 캐시에서 가져오기
+        strategy2 = loader.get_strategy(strategies[0])
+        
+        # 같은 인스턴스여야 함
+        assert strategy1 is strategy2
+    
+    def test_list_loaded(self, loader):
+        """로드된 전략 목록 테스트"""
+        strategies = loader.discover_strategies()
+        if not strategies:
+            pytest.skip("No strategies found")
+        
+        loader.load_strategy(strategies[0])
+        loaded = loader.list_loaded()
+        
+        assert isinstance(loaded, list)
+        assert len(loaded) >= 1
+        assert "name" in loaded[0]
+        assert "version" in loaded[0]
+
 
 # ═══════════════════════════════════════════════════════════════════════════
 # 실행
@@ -415,3 +506,4 @@ class TestIntegration:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+

@@ -77,17 +77,17 @@ Based on [Master Plan v2.0](../Plan/masterplan.md) and [@PROJECT_DNA.md](../../@
 - [x] 2.4.8: [Frontend] Add sample data loading on Dashboard startup
 - [x] 2.4.9: [Frontend] Verify complete GUI with chart visualization
 
-### Step 2.5: Strategy Loader & Plugin System (masterplan 13)
-- [ ] 2.5.1: Implement `StrategyLoader` class with `discover_strategies()`
-- [ ] 2.5.2: Implement `load_strategy()` and `reload_strategy()` for hot-reload
-- [ ] 2.5.3: Create `_template.py` for new strategy development
-- [ ] 2.5.4: Add strategy selector dropdown in GUI
+### Step 2.5: Strategy Loader & Plugin System (masterplan 13) ✅ COMPLETED
+- [x] 2.5.1: Implement `StrategyLoader` class with `discover_strategies()`
+- [x] 2.5.2: Implement `load_strategy()` and `reload_strategy()` for hot-reload
+- [x] 2.5.3: Create `_template.py` for new strategy development
+- [x] 2.5.4: Add strategy selector dropdown in GUI
 
-### Step 2.6: Backtesting Framework (Basic)
-- [ ] 2.6.1: Implement `BacktestEngine` (simulated exchange)
-- [ ] 2.6.2: Implement historical data replay using `market_data.db`
-- [ ] 2.6.3: Verify `SeismographStrategy` with 2024 historical data
-- [ ] 2.6.4: Generate Performance Report (CAGR, MDD, Win Rate)
+### Step 2.6: Backtesting Framework (Basic) ✅ COMPLETED
+- [x] 2.6.1: Implement `BacktestEngine` (simulated exchange)
+- [x] 2.6.2: Implement historical data replay using `market_data.db`
+- [x] 2.6.3: Verify `SeismographStrategy` with 2024 historical data
+- [x] 2.6.4: Generate Performance Report (CAGR, MDD, Win Rate)
 
 ---
 

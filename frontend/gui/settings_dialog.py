@@ -32,10 +32,11 @@ class SettingsDialog(QDialog):
         self.setFixedWidth(400)
         self.settings = current_settings or {}
         
-        # 기본값 설정
-        self.initial_opacity = self.settings.get("opacity", 1.0)
-        self.initial_alpha = self.settings.get("acrylic_map_alpha", 150)
-        self.initial_theme = self.settings.get("theme", "dark")
+        # 기본값 설정 - [FIX] gui 섹션에서 읽어야 함 (settings.yaml 구조 반영)
+        self.gui_settings = self.settings.get("gui", {})
+        self.initial_opacity = self.gui_settings.get("opacity", 1.0)
+        self.initial_alpha = self.gui_settings.get("acrylic_map_alpha", 150)
+        self.initial_theme = self.gui_settings.get("theme", "dark")
         
         # [NEW] Acrylic Effect & Frameless
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Dialog)
@@ -116,7 +117,7 @@ class SettingsDialog(QDialog):
         self.alpha_spin.valueChanged.connect(lambda v: self.alpha_slider.setValue(v))
 
         # C. Particle Opacity
-        self.initial_particle_alpha = self.settings.get("particle_alpha", 1.0)
+        self.initial_particle_alpha = self.gui_settings.get("particle_alpha", 1.0)
         self.particle_slider, self.particle_spin = self._create_slider_row(
             appearance_layout, "Particle Opacity:", 0, 100, int(self.initial_particle_alpha * 100), "%",
             color="#9C27B0"
@@ -132,7 +133,7 @@ class SettingsDialog(QDialog):
         color_group = QGroupBox("Acrylic Tint Color")
         color_layout = QHBoxLayout(color_group)
         
-        self.initial_tint_color = self.settings.get("tint_color")
+        self.initial_tint_color = self.gui_settings.get("tint_color")
         if not self.initial_tint_color:
              self.initial_tint_color = f"#{theme.tint_r:02X}{theme.tint_g:02X}{theme.tint_b:02X}"
         

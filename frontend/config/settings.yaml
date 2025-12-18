@@ -10,7 +10,7 @@ gui:
   font_family: Pretendard
   font_size: 12
   opacity: 1.0
-  acrylic_map_alpha: 51
+  acrylic_map_alpha: 5
   particle_alpha: 1.0
   tint_color: '#151520'
 chart:
