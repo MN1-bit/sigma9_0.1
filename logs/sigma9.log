@@ -1,0 +1,12 @@
+2025-12-18 15:53:37 | INFO     | backend.server:lifespan:120 - ✅ Config loaded (debug=True)
+2025-12-18 15:53:38 | DEBUG    | backend.data.database:__init__:260 - 🗄️ MarketDB 초기화: data/market_data.db
+2025-12-18 15:53:38 | INFO     | backend.server:lifespan:126 - ✅ Database connected: data/market_data.db
+2025-12-18 15:53:38 | INFO     | backend.server:lifespan:135 - ✅ Strategy Loader initialized. Found 1 strategies
+2025-12-18 15:53:38 | INFO     | backend.server:lifespan:144 - 📡 IBKR connection will be attempted in background...
+2025-12-18 15:53:38 | WARNING  | backend.core.scheduler:<module>:32 - ⚠️ APScheduler not installed. Run: pip install apscheduler
+2025-12-18 15:53:38 | INFO     | backend.server:lifespan:159 - ℹ️ Scheduler module not found - will be created in Step 4.1.4
+2025-12-18 15:53:38 | INFO     | backend.server:lifespan:163 - ==================================================
+2025-12-18 15:53:38 | INFO     | backend.server:lifespan:164 - 🎯 Server running at http://0.0.0.0:8000
+2025-12-18 15:53:38 | INFO     | backend.server:lifespan:165 - ==================================================
+2025-12-18 15:54:59 | INFO     | backend.server:lifespan:172 - 🛑 Server Shutting Down...
+2025-12-18 15:54:59 | INFO     | backend.server:lifespan:190 - 👋 Goodbye!

@@ -1,44 +1,77 @@
 # ============================================================================
-# Sigma9 Settings Dialog
+# Sigma9 Settings Dialog (Tabbed Layout)
+# ============================================================================
+# Step 4.2.3: Settings Dialog 탭 구조 개편
+#
+# 📌 탭 구조:
+#   - Connection: 서버 연결 설정
+#   - Backend: 스케줄러 설정
+#   - Theme: 외관 설정 (기존 항목)
 # ============================================================================
 try:
-    from PyQt6.QtCore import Qt, pyqtSignal
+    from PyQt6.QtCore import Qt, pyqtSignal, QTime
     from PyQt6.QtWidgets import (
         QDialog, QVBoxLayout, QHBoxLayout, QLabel, QSlider, 
         QRadioButton, QPushButton, QGroupBox, QFrame, QColorDialog,
-        QSpinBox, QDoubleSpinBox
+        QSpinBox, QDoubleSpinBox, QComboBox, QTabWidget, QWidget,
+        QFormLayout, QLineEdit, QCheckBox, QTimeEdit
     )
     from PyQt6.QtGui import QColor
 except ModuleNotFoundError:
-    from PySide6.QtCore import Qt, Signal as pyqtSignal
+    from PySide6.QtCore import Qt, Signal as pyqtSignal, QTime
     from PySide6.QtWidgets import (
         QDialog, QVBoxLayout, QHBoxLayout, QLabel, QSlider,
         QRadioButton, QPushButton, QGroupBox, QFrame, QColorDialog,
-        QSpinBox, QDoubleSpinBox
+        QSpinBox, QDoubleSpinBox, QComboBox, QTabWidget, QWidget,
+        QFormLayout, QLineEdit, QCheckBox, QTimeEdit
     )
     from PySide6.QtGui import QColor
 
 from .theme import theme
-from .window_effects import WindowsEffects # Acrylic Effect
+from .window_effects import WindowsEffects
+
 
 class SettingsDialog(QDialog):
+    """
+    설정 다이얼로그 (탭 구조)
+    
+    📌 탭:
+        - Connection: 서버 Host/Port, Auto-connect, Reconnect, Timeout
+        - Backend: Market Open Scan, Scan Offset, Daily Data Update, Update Time
+        - Theme: Opacity, Acrylic Alpha, Particle Opacity, Tint Color, Background Effect
+    """
+    
     # 설정 변경 시그널 (preview 용)
-    # dict: {ikey: value}
     sig_settings_changed = pyqtSignal(dict)
 
     def __init__(self, parent=None, current_settings=None):
         super().__init__(parent)
         self.setWindowTitle("Settings")
-        self.setFixedWidth(400)
+        self.setFixedSize(450, 500)
         self.settings = current_settings or {}
         
-        # 기본값 설정 - [FIX] gui 섹션에서 읽어야 함 (settings.yaml 구조 반영)
+        # 섹션별 기본값 로드
         self.gui_settings = self.settings.get("gui", {})
-        self.initial_opacity = self.gui_settings.get("opacity", 1.0)
-        self.initial_alpha = self.gui_settings.get("acrylic_map_alpha", 150)
-        self.initial_theme = self.gui_settings.get("theme", "dark")
+        self.server_settings = self.settings.get("server", {})
+        self.connection_settings = self.settings.get("connection", {})
+        self.scheduler_settings = self.settings.get("scheduler", {})
         
-        # [NEW] Acrylic Effect & Frameless
+        # Theme 기본값
+        self.initial_opacity = self.gui_settings.get("window_opacity", self.gui_settings.get("opacity", 1.0))
+        self.initial_alpha = self.gui_settings.get("acrylic_alpha", self.gui_settings.get("acrylic_map_alpha", 150))
+        self.initial_theme = self.gui_settings.get("theme", "dark")
+        self.initial_particle_alpha = self.gui_settings.get("particle_opacity", self.gui_settings.get("particle_alpha", 1.0))
+        
+        # Tint Color
+        self.initial_tint_color = self.gui_settings.get("tint_color")
+        if not self.initial_tint_color:
+            self.initial_tint_color = f"#{theme.tint_r:02X}{theme.tint_g:02X}{theme.tint_b:02X}"
+        c = self.initial_tint_color.lstrip("#")
+        self.current_tint_r = int(c[0:2], 16) if len(c) >= 2 else 26
+        self.current_tint_g = int(c[2:4], 16) if len(c) >= 4 else 26
+        self.current_tint_b = int(c[4:6], 16) if len(c) >= 6 else 46
+        
+        # Frameless + Acrylic
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Dialog)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         
@@ -47,43 +80,214 @@ class SettingsDialog(QDialog):
         
         # Apply Acrylic
         self.window_effects = WindowsEffects()
-        # Use tint color from settings or theme
-        tint_color = self.settings.get("tint_color")
-        if not tint_color:
-             tint_color = f"{theme.tint_r:02X}{theme.tint_g:02X}{theme.tint_b:02X}"
-        else:
-            tint_color = tint_color.lstrip("#")
-            
-        # Add alpha to color string for acrylic
-        # Note: SettingsDialog opacity might be separate from acrylic tint
-        # Here we use a fixed high alpha for the dialog background itself to ensure readability
-        self.window_effects.add_acrylic_effect(self.winId(), f"{tint_color}CC") # CC = 80% opacity for dialog bg
+        tint_hex = self.initial_tint_color.lstrip("#")
+        self.window_effects.add_acrylic_effect(self.winId(), f"{tint_hex}CC")
 
     def _init_ui(self):
-        # Create a main frame to hold content and sensitive borders if needed
-        # For simple dialog, just layout on self is fine but we need to ensure text is readable
+        """UI 초기화 (탭 구조)"""
         layout = QVBoxLayout(self)
-        layout.setSpacing(15)
-        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(10)
+        layout.setContentsMargins(15, 15, 15, 15)
         
-        # Title Bar (Custom since frameless)
+        # 타이틀 바 (Frameless이므로 커스텀)
         title_layout = QHBoxLayout()
-        title_label = QLabel("Settings")
-        title_label.setStyleSheet("font-size: 18px; font-weight: bold; color: white;")
+        title_label = QLabel("⚙️ Settings")
+        title_label.setStyleSheet("font-size: 16px; font-weight: bold; color: white;")
         title_layout.addWidget(title_label)
         title_layout.addStretch()
         layout.addLayout(title_layout)
+        
+        # ═══════════════════════════════════════════════════════════
+        # QTabWidget (메인 탭)
+        # ═══════════════════════════════════════════════════════════
+        self.tab_widget = QTabWidget()
+        self.tab_widget.setStyleSheet("""
+            QTabWidget::pane { 
+                border: 1px solid rgba(255,255,255,0.1); 
+                border-radius: 6px;
+                background: rgba(0,0,0,0.2);
+            }
+            QTabBar::tab {
+                background: rgba(255,255,255,0.1);
+                color: white;
+                padding: 8px 16px;
+                margin: 2px;
+                border-radius: 4px;
+            }
+            QTabBar::tab:selected {
+                background: #2196F3;
+            }
+            QTabBar::tab:hover:!selected {
+                background: rgba(255,255,255,0.2);
+            }
+        """)
+        
+        # 탭 추가
+        self.tab_widget.addTab(self._create_connection_tab(), "Connection")
+        self.tab_widget.addTab(self._create_backend_tab(), "Backend")
+        self.tab_widget.addTab(self._create_theme_tab(), "Theme")
+        
+        layout.addWidget(self.tab_widget)
+        
+        # ═══════════════════════════════════════════════════════════
+        # 버튼 영역
+        # ═══════════════════════════════════════════════════════════
+        btn_layout = QHBoxLayout()
+        btn_layout.addStretch()
+        
+        self.btn_cancel = QPushButton("Cancel")
+        self.btn_cancel.clicked.connect(self.reject)
+        self.btn_save = QPushButton("Save")
+        self.btn_save.clicked.connect(self.accept)
+        
+        btn_style = """
+            QPushButton {
+                border-radius: 6px;
+                padding: 8px 20px;
+                font-weight: bold;
+            }
+        """
+        self.btn_save.setStyleSheet(btn_style + "QPushButton { background-color: #2196F3; color: white; } QPushButton:hover { background-color: #1976D2; }")
+        self.btn_cancel.setStyleSheet(btn_style + "QPushButton { background-color: rgba(255,255,255,0.1); color: white; border: 1px solid rgba(255,255,255,0.2); } QPushButton:hover { background-color: rgba(255,255,255,0.2); }")
+        
+        btn_layout.addWidget(self.btn_cancel)
+        btn_layout.addWidget(self.btn_save)
+        layout.addLayout(btn_layout)
 
-        # 1. Appearance Group
-        appearance_group = QGroupBox("Appearance")
-        appearance_layout = QVBoxLayout(appearance_group)
-        appearance_layout.setSpacing(15)
+    # ═══════════════════════════════════════════════════════════════════════════
+    # Connection Tab (Step 4.2.3.3)
+    # ═══════════════════════════════════════════════════════════════════════════
+    
+    def _create_connection_tab(self) -> QWidget:
+        """Connection 탭: 서버 연결 설정"""
+        widget = QWidget()
+        layout = QFormLayout(widget)
+        layout.setSpacing(12)
+        layout.setContentsMargins(15, 20, 15, 15)
+        
+        # Server Host
+        self.host_edit = QLineEdit()
+        self.host_edit.setText(self.server_settings.get("host", "localhost"))
+        self.host_edit.setPlaceholderText("localhost or IP address")
+        self._style_input(self.host_edit)
+        layout.addRow("Server Host:", self.host_edit)
+        
+        # Server Port
+        self.port_spin = QSpinBox()
+        self.port_spin.setRange(1, 65535)
+        self.port_spin.setValue(self.server_settings.get("port", 8000))
+        self._style_input(self.port_spin)
+        layout.addRow("Server Port:", self.port_spin)
+        
+        # Auto-connect
+        self.auto_connect_check = QCheckBox("Connect on startup")
+        self.auto_connect_check.setChecked(self.connection_settings.get("auto_connect", True))
+        self.auto_connect_check.setStyleSheet("color: white;")
+        layout.addRow("Auto Connect:", self.auto_connect_check)
+        
+        # Reconnect Interval
+        self.reconnect_spin = QSpinBox()
+        self.reconnect_spin.setRange(1, 60)
+        self.reconnect_spin.setValue(self.connection_settings.get("reconnect_interval", 5))
+        self.reconnect_spin.setSuffix(" sec")
+        self._style_input(self.reconnect_spin)
+        layout.addRow("Reconnect Interval:", self.reconnect_spin)
+        
+        # Timeout
+        self.timeout_spin = QSpinBox()
+        self.timeout_spin.setRange(5, 120)
+        self.timeout_spin.setValue(self.connection_settings.get("timeout", 30))
+        self.timeout_spin.setSuffix(" sec")
+        self._style_input(self.timeout_spin)
+        layout.addRow("Timeout:", self.timeout_spin)
+        
+        # 연결 테스트 버튼
+        self.test_btn = QPushButton("Test Connection")
+        self.test_btn.setStyleSheet("""
+            QPushButton {
+                background: rgba(76, 175, 80, 0.3);
+                color: #4CAF50;
+                border: 1px solid #4CAF50;
+                border-radius: 4px;
+                padding: 6px 12px;
+            }
+            QPushButton:hover {
+                background: rgba(76, 175, 80, 0.5);
+            }
+        """)
+        self.test_btn.clicked.connect(self._on_test_connection)
+        layout.addRow("", self.test_btn)
+        
+        return widget
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # Backend Tab (Step 4.2.3.4)
+    # ═══════════════════════════════════════════════════════════════════════════
+    
+    def _create_backend_tab(self) -> QWidget:
+        """Backend 탭: 스케줄러 설정"""
+        widget = QWidget()
+        layout = QFormLayout(widget)
+        layout.setSpacing(12)
+        layout.setContentsMargins(15, 20, 15, 15)
+        
+        # Market Open Scan 활성화
+        self.market_scan_check = QCheckBox("Enable")
+        self.market_scan_check.setChecked(self.scheduler_settings.get("market_open_scan", True))
+        self.market_scan_check.setStyleSheet("color: white;")
+        layout.addRow("Market Open Scan:", self.market_scan_check)
+        
+        # Scan Offset (분)
+        self.scan_offset_spin = QSpinBox()
+        self.scan_offset_spin.setRange(0, 60)
+        self.scan_offset_spin.setValue(self.scheduler_settings.get("market_open_offset_minutes", 15))
+        self.scan_offset_spin.setSuffix(" min after open")
+        self._style_input(self.scan_offset_spin)
+        layout.addRow("Scan Offset:", self.scan_offset_spin)
+        
+        # Daily Data Update 활성화
+        self.daily_update_check = QCheckBox("Enable")
+        self.daily_update_check.setChecked(self.scheduler_settings.get("daily_data_update", True))
+        self.daily_update_check.setStyleSheet("color: white;")
+        layout.addRow("Daily Data Update:", self.daily_update_check)
+        
+        # Update Time
+        self.update_time_edit = QTimeEdit()
+        time_str = self.scheduler_settings.get("data_update_time", "16:30")
+        parts = time_str.split(":")
+        hour = int(parts[0]) if parts else 16
+        minute = int(parts[1]) if len(parts) > 1 else 30
+        self.update_time_edit.setTime(QTime(hour, minute))
+        self.update_time_edit.setDisplayFormat("HH:mm")
+        self._style_input(self.update_time_edit)
+        layout.addRow("Update Time (ET):", self.update_time_edit)
+        
+        # Info Label
+        info_label = QLabel("⚠️ Changes require server restart to take effect")
+        info_label.setStyleSheet("color: #FFA726; font-size: 11px; margin-top: 10px;")
+        layout.addRow("", info_label)
+        
+        return widget
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # Theme Tab (Step 4.2.3.2 - 기존 항목 마이그레이션)
+    # ═══════════════════════════════════════════════════════════════════════════
+    
+    def _create_theme_tab(self) -> QWidget:
+        """Theme 탭: 외관 설정 (기존 항목 마이그레이션)"""
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        layout.setSpacing(12)
+        layout.setContentsMargins(10, 15, 10, 10)
         
         # Theme Selection
         theme_layout = QHBoxLayout()
         theme_label = QLabel("Theme Mode:")
+        theme_label.setStyleSheet("color: #DDD;")
         self.radio_dark = QRadioButton("Dark")
         self.radio_light = QRadioButton("Light")
+        self.radio_dark.setStyleSheet("color: white;")
+        self.radio_light.setStyleSheet("color: white;")
         
         if self.initial_theme == "light":
             self.radio_light.setChecked(True)
@@ -94,113 +298,101 @@ class SettingsDialog(QDialog):
         theme_layout.addWidget(self.radio_dark)
         theme_layout.addWidget(self.radio_light)
         theme_layout.addStretch()
-        appearance_layout.addLayout(theme_layout)
+        layout.addLayout(theme_layout)
         
-        # ════════════════════════════════════════════════════════════════════
-        # Sliders Group (Opacity, Acrylic Alpha, Particle Alpha)
-        # ════════════════════════════════════════════════════════════════════
+        # Background Effect
+        effect_layout = QHBoxLayout()
+        effect_label = QLabel("Background Effect:")
+        effect_label.setStyleSheet("color: #DDD;")
+        self.effect_combo = QComboBox()
+        self.effect_combo.addItems([
+            "None", "Constellation", "Digital Dust", 
+            "Bokeh", "Vector Field", "Matrix Rain"
+        ])
+        self._style_input(self.effect_combo)
         
-        # A. Window Opacity
+        current_effect = self.gui_settings.get("background_effect", "constellation").lower()
+        for i in range(self.effect_combo.count()):
+            if self.effect_combo.itemText(i).lower() == current_effect:
+                self.effect_combo.setCurrentIndex(i)
+                break
+        self.effect_combo.currentTextChanged.connect(self._on_effect_changed)
+        
+        effect_layout.addWidget(effect_label)
+        effect_layout.addWidget(self.effect_combo)
+        effect_layout.addStretch()
+        layout.addLayout(effect_layout)
+        
+        # Sliders
         self.opacity_slider, self.opacity_spin = self._create_slider_row(
-            appearance_layout, "Window Opacity:", 20, 100, int(self.initial_opacity * 100), "%",
-            color="#00BCD4"
+            layout, "Window Opacity:", 20, 100, int(self.initial_opacity * 100), "%", "#00BCD4"
         )
         self.opacity_slider.valueChanged.connect(self._on_opacity_changed)
         self.opacity_spin.valueChanged.connect(lambda v: self.opacity_slider.setValue(v))
-
-        # B. Acrylic Tint Alpha
+        
         self.alpha_slider, self.alpha_spin = self._create_slider_row(
-            appearance_layout, "Acrylic Alpha:", 0, 255, self.initial_alpha, "",
-            color="#2196F3"
+            layout, "Acrylic Alpha:", 0, 255, int(self.initial_alpha), "", "#2196F3"
         )
         self.alpha_slider.valueChanged.connect(self._on_alpha_changed)
         self.alpha_spin.valueChanged.connect(lambda v: self.alpha_slider.setValue(v))
-
-        # C. Particle Opacity
-        self.initial_particle_alpha = self.gui_settings.get("particle_alpha", 1.0)
+        
         self.particle_slider, self.particle_spin = self._create_slider_row(
-            appearance_layout, "Particle Opacity:", 0, 100, int(self.initial_particle_alpha * 100), "%",
-            color="#9C27B0"
+            layout, "Particle Opacity:", 0, 100, int(self.initial_particle_alpha * 100), "%", "#9C27B0"
         )
         self.particle_slider.valueChanged.connect(self._on_particle_changed)
         self.particle_spin.valueChanged.connect(lambda v: self.particle_slider.setValue(v))
         
-        layout.addWidget(appearance_group)
-
-        # ════════════════════════════════════════════════════════════════════
-        # Acrylic Color Section (Bottom)
-        # ════════════════════════════════════════════════════════════════════
-        color_group = QGroupBox("Acrylic Tint Color")
-        color_layout = QHBoxLayout(color_group)
+        # Tint Color
+        color_layout = QHBoxLayout()
+        color_label = QLabel("Tint Color:")
+        color_label.setStyleSheet("color: #DDD;")
+        color_label.setFixedWidth(100)
         
-        self.initial_tint_color = self.gui_settings.get("tint_color")
-        if not self.initial_tint_color:
-             self.initial_tint_color = f"#{theme.tint_r:02X}{theme.tint_g:02X}{theme.tint_b:02X}"
+        self.color_preview = QFrame()
+        self.color_preview.setFixedSize(24, 24)
+        self._update_preview()
         
-        c = self.initial_tint_color.lstrip("#")
-        self.current_tint_r = int(c[0:2], 16)
-        self.current_tint_g = int(c[2:4], 16)
-        self.current_tint_b = int(c[4:6], 16)
-
-        # Color Button
-        self.color_btn = QPushButton("Select Color")
-        self.color_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.color_btn.setFixedHeight(30)
+        self.color_hex_label = QLabel(self.initial_tint_color)
+        self.color_hex_label.setStyleSheet("color: white; font-family: monospace;")
+        self.color_hex_label.setFixedWidth(70)
+        
+        self.color_btn = QPushButton("Choose")
+        self.color_btn.setFixedWidth(80)
         self.color_btn.clicked.connect(self._on_color_picker)
         self._update_color_btn_style()
         
-        # Hex Label
-        self.color_hex_label = QLabel(self.initial_tint_color)
-        self.color_hex_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.color_hex_label.setFixedWidth(80)
-        self.color_hex_label.setStyleSheet("color: white; font-family: monospace; font-weight: bold;")
-        
-        # Preview
-        self.color_preview = QFrame()
-        self.color_preview.setFixedSize(30, 30)
-        self._update_preview()
-        
+        color_layout.addWidget(color_label)
         color_layout.addWidget(self.color_preview)
         color_layout.addWidget(self.color_hex_label)
         color_layout.addWidget(self.color_btn)
+        color_layout.addStretch()
+        layout.addLayout(color_layout)
         
-        layout.addWidget(color_group)
+        layout.addStretch()
+        return widget
 
-        # 2. Action Buttons (Save/Cancel)
-        btn_layout = QHBoxLayout()
-        btn_layout.addStretch()
-        
-        self.btn_cancel = QPushButton("Cancel")
-        self.btn_cancel.clicked.connect(self.reject)
-        self.btn_save = QPushButton("Save")
-        self.btn_save.clicked.connect(self.accept)
-        
-        # Custom button style for Acrylic Dialog
-        style_base = """
-            QPushButton {
-                border-radius: 6px;
-                padding: 6px 16px;
-                font-weight: bold;
-            }
-        """
-        self.btn_save.setStyleSheet(style_base + "QPushButton { background-color: #2196F3; color: white; } QPushButton:hover { background-color: #1976D2; }")
-        self.btn_cancel.setStyleSheet(style_base + "QPushButton { background-color: rgba(255,255,255,0.1); color: white; border: 1px solid rgba(255,255,255,0.2); } QPushButton:hover { background-color: rgba(255,255,255,0.2); }")
-        
-        btn_layout.addWidget(self.btn_cancel)
-        btn_layout.addWidget(self.btn_save)
-        
-        layout.addLayout(btn_layout)
+    # ═══════════════════════════════════════════════════════════════════════════
+    # Helper Methods
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    def _style_input(self, widget):
+        """입력 위젯 스타일링"""
+        widget.setStyleSheet("""
+            background: rgba(0,0,0,0.3);
+            color: white;
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 4px;
+            padding: 4px 8px;
+        """)
 
     def _create_slider_row(self, parent_layout, label_text, min_val, max_val, init_val, suffix, color):
-        """Helper to create a unified slider row with SpinBox"""
+        """슬라이더 행 생성"""
         row_layout = QHBoxLayout()
         
-        # Label
         label = QLabel(label_text)
         label.setFixedWidth(100)
         label.setStyleSheet("color: #DDD;")
         
-        # Slider
         slider = QSlider(Qt.Orientation.Horizontal)
         slider.setRange(min_val, max_val)
         slider.setValue(init_val)
@@ -209,21 +401,12 @@ class SettingsDialog(QDialog):
             QSlider::handle:horizontal {{ background: {color}; width: 14px; margin: -4px 0; border-radius: 7px; }}
         """)
         
-        # SpinBox (Editable Value)
         spin = QSpinBox()
         spin.setRange(min_val, max_val)
         spin.setValue(init_val)
         spin.setSuffix(suffix)
-        spin.setFixedWidth(70)
-        spin.setStyleSheet("""
-            QSpinBox {
-                background: rgba(0,0,0,0.3);
-                color: white;
-                border: 1px solid rgba(255,255,255,0.2);
-                border-radius: 4px;
-                padding: 4px;
-            }
-        """)
+        spin.setFixedWidth(65)
+        self._style_input(spin)
         
         row_layout.addWidget(label)
         row_layout.addWidget(slider)
@@ -240,40 +423,39 @@ class SettingsDialog(QDialog):
                 background-color: {c['background']};
                 color: {c['text']};
             }}
-            QGroupBox {{
-                color: {c['primary']};
-                font-weight: bold;
-                border: 1px solid {c['border']};
-                border-radius: 6px;
-                margin-top: 10px;
-                padding-top: 15px;
-            }}
-            QGroupBox::title {{
-                subcontrol-origin: margin;
-                subcontrol-position: top left;
-                padding: 0 5px;
-                left: 10px;
-            }}
             QLabel {{
                 color: {c['text']};
             }}
-            QRadioButton {{
-                color: {c['text']};
-            }}
-            QRadioButton::indicator:checked {{
-                background-color: {c['primary']};
-                border: 2px solid {c['primary']};
-                border-radius: 6px;
-                width: 8px;
-                height: 8px;
-            }}
-            QRadioButton::indicator:unchecked {{
-                border: 2px solid {c['text_secondary']};
-                border-radius: 6px;
-                width: 8px;
-                height: 8px;
-            }}
         """)
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # Event Handlers
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    def _on_test_connection(self):
+        """연결 테스트"""
+        host = self.host_edit.text()
+        port = self.port_spin.value()
+        self.test_btn.setText("Testing...")
+        self.test_btn.setEnabled(False)
+        
+        # TODO: 실제 연결 테스트 구현
+        from PyQt6.QtCore import QTimer
+        QTimer.singleShot(1000, lambda: self._test_connection_result(True))
+    
+    def _test_connection_result(self, success: bool):
+        """연결 테스트 결과"""
+        self.test_btn.setEnabled(True)
+        if success:
+            self.test_btn.setText("✅ Connected!")
+            self.test_btn.setStyleSheet("""
+                QPushButton { background: rgba(76, 175, 80, 0.5); color: white; border: 1px solid #4CAF50; border-radius: 4px; padding: 6px 12px; }
+            """)
+        else:
+            self.test_btn.setText("❌ Failed")
+            self.test_btn.setStyleSheet("""
+                QPushButton { background: rgba(244, 67, 54, 0.5); color: white; border: 1px solid #F44336; border-radius: 4px; padding: 6px 12px; }
+            """)
 
     def _on_opacity_changed(self, value):
         if self.opacity_spin.value() != value:
@@ -287,7 +469,6 @@ class SettingsDialog(QDialog):
             self.alpha_spin.blockSignals(True)
             self.alpha_spin.setValue(value)
             self.alpha_spin.blockSignals(False)
-            
         self._update_preview()
         self.sig_settings_changed.emit({
             "acrylic_map_alpha": value,
@@ -306,24 +487,20 @@ class SettingsDialog(QDialog):
         new_color = QColorDialog.getColor(color, self, "Select Acrylic Tint Color")
         
         if new_color.isValid():
-            self.initial_tint_color = new_color.name().upper() # #RRGGBB
+            self.initial_tint_color = new_color.name().upper()
             self.color_hex_label.setText(self.initial_tint_color)
-            
-            # Update internal RGB
             self.current_tint_r = new_color.red()
             self.current_tint_g = new_color.green()
             self.current_tint_b = new_color.blue()
-
             self._update_color_btn_style()
             self._update_preview()
-
             self.sig_settings_changed.emit({
                 "tint_color": self.initial_tint_color,
                 "acrylic_map_alpha": self.alpha_slider.value()
             })
 
     def _update_preview(self):
-        alpha = self.alpha_slider.value()
+        alpha = self.alpha_slider.value() if hasattr(self, 'alpha_slider') else 150
         self.color_preview.setStyleSheet(f"""
             QFrame {{
                 background-color: rgba({self.current_tint_r}, {self.current_tint_g}, {self.current_tint_b}, {alpha});
@@ -333,15 +510,46 @@ class SettingsDialog(QDialog):
         """)
 
     def _update_color_btn_style(self):
-         self.color_btn.setStyleSheet(f"""
+        brightness = self.current_tint_r + self.current_tint_g + self.current_tint_b
+        text_color = 'white' if brightness < 400 else 'black'
+        self.color_btn.setStyleSheet(f"""
             QPushButton {{
                 background-color: {self.initial_tint_color};
                 border: 1px solid rgba(255, 255, 255, 0.3);
-                border-radius: 6px;
-                color: {'white' if (self.current_tint_r + self.current_tint_g + self.current_tint_b) < 400 else 'black'};
-                font-weight: bold;
+                border-radius: 4px;
+                color: {text_color};
             }}
-            QPushButton:hover {{
-                border: 2px solid white;
-            }}
-         """)
+            QPushButton:hover {{ border: 2px solid white; }}
+        """)
+
+    def _on_effect_changed(self, text):
+        self.sig_settings_changed.emit({"background_effect": text.lower()})
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # Get All Settings
+    # ═══════════════════════════════════════════════════════════════════════════
+    
+    def get_all_settings(self) -> dict:
+        """모든 설정값 반환"""
+        return {
+            # Connection
+            "server_host": self.host_edit.text(),
+            "server_port": self.port_spin.value(),
+            "auto_connect": self.auto_connect_check.isChecked(),
+            "reconnect_interval": self.reconnect_spin.value(),
+            "timeout": self.timeout_spin.value(),
+            
+            # Backend (Scheduler)
+            "market_open_scan": self.market_scan_check.isChecked(),
+            "scan_offset_minutes": self.scan_offset_spin.value(),
+            "daily_data_update": self.daily_update_check.isChecked(),
+            "data_update_time": self.update_time_edit.time().toString("HH:mm"),
+            
+            # Theme
+            "theme": "light" if self.radio_light.isChecked() else "dark",
+            "background_effect": self.effect_combo.currentText().lower(),
+            "opacity": self.opacity_slider.value() / 100.0,
+            "acrylic_map_alpha": self.alpha_slider.value(),
+            "particle_alpha": self.particle_slider.value() / 100.0,
+            "tint_color": self.initial_tint_color
+        }

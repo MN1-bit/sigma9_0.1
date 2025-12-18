@@ -77,6 +77,7 @@ class ThemeManager:
         self.opacity = get_setting("gui.opacity", 1.0)
         self.acrylic_map_alpha = get_setting("gui.acrylic_map_alpha", 150)
         self.particle_alpha = get_setting("gui.particle_alpha", 1.0)
+        self.background_effect = get_setting("gui.background_effect", "constellation")
         self.tint_color = get_setting("gui.tint_color", None)
         
         # Acrylic 틴트 컬러 (RGB Hex)

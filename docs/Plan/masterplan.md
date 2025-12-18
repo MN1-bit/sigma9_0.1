@@ -31,7 +31,7 @@
 | **Market Data** | `polygon-api-client` | **Universe Data Source (Grouped Daily)** |
 | **Database** | `SQLAlchemy` (SQLite) | Historical Data Persistence |
 | **Data Analysis** | `pandas` + `pandas_ta` | OBV, ATR, VWAP 계산 |
-| **LLM** | `openai` / `anthropic` | 해설 및 분석 리포트 |
+| **LLM** | `openai(chatGPT)` / `anthropic(claude)` / `google(Gemini)` | 해설 및 분석 리포트 (Multi-Model Support) |
 | **Logging** | `loguru` | 컬러 로깅 |
 | **Task Queue** | `asyncio` | 비동기 작업 처리 |
 
@@ -324,7 +324,7 @@ flowchart TB
 | **Top** | 🔴 KILL SWITCH, IBKR 연결 상태, Strategy ON/OFF |
 | **Left** | Watchlist 50 (매집점수, 클릭 시 차트 전환) |
 | **Center** | Lightweight Charts (VWAP, Stop 라인, 매매 마커) |
-| **Right** | P&L, Active Positions, Force Sell |
+| **Right** | **Tabbed Panel**: [Trading] (Positions, P&L) / [Oracle] (LLM Chat & Reports) |
 | **Bottom** | 실시간 로그 콘솔 |
 
 ### 7.2 Chart Features
@@ -390,11 +390,25 @@ LLM은 현재 세대(v2.0)에서 **읽기 전용 해설자** 역할을 담당:
 | **v4.0** | 실시간 파라미터 미세 조정 | 🟠 Adjust (Bounded) |
 | **v5.0** | 백테스팅 자동화 + 전략 A/B 테스트 | 🔴 Execute (Supervised) |
 
-### 8.4 Extensible Architecture
+### 8.4 Extensible Architecture (Multi-Model Strategy)
 
 **LLMOracle 클래스 구조**:
 
-`LLMOracle`은 확장 가능한 플러그인 아키텍처로 설계된 LLM Intelligence Layer이다. 초기화 시 권한 레벨(`read_only`, `suggest`, `adjust`, `execute`)을 설정하며, 내부적으로 `ContextBuilder`와 `ExternalDataAggregator`를 사용해 분석 컨텍스트를 구축한다.
+`LLMOracle`은 **Provider Agnostic**한 설계를 따르며, OpenAI, Anthropic, Google (Gemini) 등 다양한 모델을 런타임에 교체하여 사용할 수 있다.
+
+**Provider Strategy Pattern**:
+- `LLMProvider` (Interface): `generate_text()`, `list_models()`
+- `OpenAIProvider`: GPT-4o, GPT-3.5-turbo 등
+- `AnthropicProvider`: Claude 3.5 Sonnet, Haiku 등
+- `GoogleProvider`: Gemini 1.5 Pro, Flash 등
+
+**Dynamic Model Discovery**:
+- 각 Provider API의 Models Endpoint를 호출하여 현재 사용 가능한 모델 리스트를 동적으로 가져온다.
+- `GET /api/oracle/models`: 통합된 모델 리스트 반환 (예: `["gpt-4o", "claude-3-5-sonnet", "gemini-1.5-pro"]`)
+- GUI 설정창에서 사용자가 선호하는 모델을 드롭다운으로 선택 가능.
+
+**Fallback Mechanism**:
+- 주 모델 API 장애 시 2순위 모델로 자동 절체하는 회로 차단기(Circuit Breaker) 패턴 적용.
 
 **v2.0 (현재) 메서드**:
 - `explain_selection(ticker)`: 종목 선정 이유 해설 → 문자열 반환
@@ -407,14 +421,24 @@ LLM은 현재 세대(v2.0)에서 **읽기 전용 해설자** 역할을 담당:
 - `adjust_params(adjustments)`: 실시간 파라미터 조정 (v4.0)
 - `run_backtest(strategy_variant)`: 백테스팅 자동화 (v5.0)
 
-### 8.5 GUI Integration
+### 8.5 GUI Integration (Dedicated Oracle Panel)
 
-| Panel | LLM Feature |
-|-------|-------------|
-| **Left (Watchlist)** | 종목 클릭 시 "Why Selected?" 팝업 해설 |
-| **Center (Chart)** | 지표 호버 시 기술적 분석 툴팁 |
-| **Right (Positions)** | 청산 후 Trade Journal 자동 생성 |
-| **Bottom (Log)** | "📡 Market Pulse" 섹션 - 실시간 뉴스 요약 |
+> 📌 **Design Change**: 기존의 분산형(툴팁) 방식 대신, **우측 패널(Right Panel)**을 탭(Tab) 구조로 변경하여 독립된 "오라클 대화창"을 신설한다.
+
+**우측 패널 구조**:
+- **Tab 1: Trading (기존)**: 포지션 현황, P&L, Force Sell 버튼
+- **Tab 2: Oracle (신규)**: LLM과의 대화 및 리포트 출력 전용 패널
+
+**Oracle Panel 기능 (4대 핵심)**:
+1.  **[Scanner Question] 선정 사유 & 재료**: "A종목이 왜 선정되었으며, 상승 재료는 무엇인가?"
+2.  **[Deep Dive] 펀더멘탈 분석**: "이 기업의 재무 상태와 섹터 현황 분석해줘."
+3.  **[Reflection] 매매 반성**: "오늘의 모든 매매를 복기하고, 잘한 점과 못한 점을 반성해줘." (DB 저장 → 전략 수정 데이터로 활용)
+4.  **[General] 지능화 질의응답**: 트레이딩 관련 자유 질문.
+
+**워크플로우**:
+1.  Watchlist 종목 클릭 → Oracle 탭의 `[Why?]` 버튼 클릭 → 분석 리포트 확인
+2.  Trading 탭으로 전환하여 진입/청산 수행
+3.  장 마감 후 Oracle 탭의 `[Daily Reflection]` 클릭 → 일일 반성문 생성
 
 ---
 

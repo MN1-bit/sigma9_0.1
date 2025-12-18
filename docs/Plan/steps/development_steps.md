@@ -131,30 +131,36 @@ Based on [Master Plan v2.0](../Plan/masterplan.md) and [@PROJECT_DNA.md](../../@
 
 ## Phase 4: Intelligence & Refinement
 
-### Step 4.1: LLM Oracle Integration
-- [ ] 4.1.1: Implement `LLMOracle` class
-- [ ] 4.1.2: Connect to OpenAI/Anthropic API
-- [ ] 4.1.3: Implement `explain_selection()` and `technical_analysis()` features
-- [ ] 4.1.4: Display LLM insights in GUI (Tooltip/Panel)
+> 📌 **Strategic Shift**: "Architecture First" 접근법 채택. 기능 추가 전 Client-Server 구조 분리를 선행하여 기술 부채 방지.
 
-### Step 4.2: Logging & Persistence (masterplan 15)
-- [ ] 4.2.1: Setup `loguru` with structured JSON logging
-- [ ] 4.2.2: Implement SQLite database for trade history and journal
-- [ ] 4.2.3: Ensure valid logs are generated for every major action
-- [ ] 4.2.4: Setup Alembic for schema migration
+### Step 4.1: Architecture Transition (Client-Server Split) ✅ COMPLETED
+- [x] 4.1.1: **Refactor Config**: Split `settings.yaml` into `server_config.yaml` and `client_config.yaml`
+- [x] 4.1.2: **Server Core**: Create `backend/server.py` with FastAPI + uvicorn
+- [x] 4.1.3: **API Endpoints**: Implement `/api/status`, `/api/control`, `/ws/feed`
+- [x] 4.1.4: **Job Scheduler**: Implement `APScheduler` for auto-scanning at market open (AWS Ready)
+- [x] 4.1.5: **Verify Independent Server**: Ensure Server runs without GUI dependency
 
-### Step 4.3: FastAPI Server & API Layer (masterplan 2.3)
-- [ ] 4.3.1: Implement `server.py` with FastAPI + uvicorn
-- [ ] 4.3.2: Implement REST endpoints (`/api/watchlist`, `/api/positions`, `/api/order`)
-- [ ] 4.3.3: Implement WebSocket handlers (`/ws/market`, `/ws/trade`)
-- [ ] 4.3.4: Implement `/api/kill-switch` endpoint
-- [ ] 4.3.5: Add JWT/API Key authentication
+### Step 4.2: Frontend Integration (Client Adapter) ✅ COMPLETED
+- [x] 4.2.1: **BackendClient Refactor**: Replace direct imports with `RestAdapter` and `WsAdapter`
+- [x] 4.2.2: **State Sync**: Implement `sync_initial_state()` logic on connection
+- [x] 4.2.3: **Settings Dialog Restructure**: Reorganize Settings into tabbed layout
+  - [x] 4.2.3.1: Create `QTabWidget` structure with 3 tabs: **Connection**, **Backend**, **Theme**
+  - [x] 4.2.3.2: **Theme Tab**: Migrate existing settings (Window Opacity, Acrylic Alpha, Particle Opacity, Tint Color)
+  - [x] 4.2.3.3: **Connection Tab**: Server Host/Port, Auto-connect toggle, Reconnect interval, Timeout settings
+  - [x] 4.2.3.4: **Backend Tab**: Scheduler controls (Market Open Scan toggle, Scan offset minutes, Daily Data Update toggle, Update time picker)
+- [x] 4.2.4: **Verify Decoupling**: Run GUI with remote Server (localhost)
+- [x] 4.2.5: **Right Panel Oracle Section**: Trading + Oracle sections in Right Panel
 
-### Step 4.4: GUI Panel Integration (masterplan 7.1)
-- [ ] 4.4.1: Implement Watchlist panel (Left) with score display
-- [ ] 4.4.2: Implement Positions panel (Right) with P&L and Force Sell
-- [ ] 4.4.3: Implement Log console panel (Bottom) with real-time streaming
-- [ ] 4.4.4: Connect panels to Backend via WebSocket
+### Step 4.3: Reliability & Logging
+- [ ] 4.3.1: **Structured Logging**: Setup `loguru` on Server with JSON rotation
+- [ ] 4.3.2: **Log Streaming**: Stream `INFO`+ logs via WebSocket to Client Console
+- [ ] 4.3.3: **Trade Journal DB**: Persist trade history to SQLite (Server-side)
+
+### Step 4.4: Intelligence (Oracle Panel)
+- [ ] 4.4.1: **Oracle Service**: Implement `LLMOracle` on Server side (OpenAI/Anthropic)
+- [ ] 4.4.2: **Analysis Endpoints**: `/api/oracle/analyze/{ticker}` & `/api/oracle/reflection`
+- [ ] 4.4.3: **Oracle UI Integration**: Implement `OracleWidget` in Right Panel (Chat Interface + Markdown View)
+- [ ] 4.4.4: **Feature Implementation**: Coding for [Why?], [Fundamental], [Reflection] buttons
 
 ---
 
