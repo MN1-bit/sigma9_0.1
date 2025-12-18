@@ -152,12 +152,56 @@ class ChartDataService:
                 "is_up": is_up,
             })
         
-        return {
+        result = {
             "ticker": ticker,
             "timeframe": timeframe,
             "candles": candles,
             "volume": volumes,
         }
+        
+        # ═══════════════════════════════════════════════════════════════
+        # 지표 계산 (Intraday도 동일하게 적용)
+        # ═══════════════════════════════════════════════════════════════
+        if candles and len(candles) > 20:
+            closes = [c.get("close", 0) for c in candles]
+            highs = [c.get("high", 0) for c in candles]
+            lows = [c.get("low", 0) for c in candles]
+            bar_volumes = [c.get("volume", 0) for c in candles]
+            times = [c.get("time", 0) for c in candles]
+            
+            # Rolling VWAP
+            vwap_data = []
+            cumulative_tp_vol = 0
+            cumulative_vol = 0
+            for i, candle in enumerate(candles):
+                tp = (highs[i] + lows[i] + closes[i]) / 3
+                cumulative_tp_vol += tp * bar_volumes[i]
+                cumulative_vol += bar_volumes[i]
+                vwap = cumulative_tp_vol / cumulative_vol if cumulative_vol > 0 else closes[i]
+                vwap_data.append({"time": times[i], "value": vwap})
+            result["vwap"] = vwap_data
+            
+            # SMA 20
+            sma_data = []
+            for i in range(19, len(candles)):
+                sma = sum(closes[i-19:i+1]) / 20
+                sma_data.append({"time": times[i], "value": sma})
+            result["sma_20"] = sma_data
+            
+            # EMA 9
+            ema_data = []
+            if len(closes) >= 9:
+                ema = sum(closes[:9]) / 9
+                multiplier = 2 / 10
+                for i in range(8, len(candles)):
+                    if i == 8:
+                        ema = sum(closes[:9]) / 9
+                    else:
+                        ema = (closes[i] - ema) * multiplier + ema
+                    ema_data.append({"time": times[i], "value": ema})
+            result["ema_9"] = ema_data
+        
+        return result
     
     async def _get_daily_data(
         self,

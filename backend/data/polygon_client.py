@@ -91,7 +91,7 @@ class PolygonClient:
         self,
         api_key: str,
         base_url: str = "https://api.massive.com",  # polygon.io → massive.com (deprecated)
-        rate_limit: int = 5,  # requests per minute
+        rate_limit: int = 100,  # requests per minute (유료 플랜 기준)
         retry_count: int = 3,
         retry_delay: float = 2.0,
     ):
@@ -101,7 +101,7 @@ class PolygonClient:
         Args:
             api_key: Massive.com API 키 (환경변수 MASSIVE_API_KEY 권장)
             base_url: API 기본 URL
-            rate_limit: 분당 최대 요청 수 (Free Tier: 5)
+            rate_limit: 분당 최대 요청 수 (Free: 5, 유료: 100+)
             retry_count: 실패 시 재시도 횟수
             retry_delay: 첫 번째 재시도 대기 시간 (Exponential Backoff)
         """
@@ -443,7 +443,7 @@ class PolygonClient:
         url = f"{self.base_url}/v2/aggs/ticker/{ticker}/range/{multiplier}/minute/{from_date}/{to_date}"
         params = {
             "adjusted": "true",
-            "sort": "asc",
+            "sort": "desc",  # 최신부터 반환 (청크 로딩에 적합)
             "limit": str(limit),
         }
         
@@ -499,6 +499,9 @@ class PolygonClient:
                 continue
         
         logger.info(f"✅ {ticker} {multiplier}m: {len(bars)}개 바 데이터 수신")
+        
+        # sort=desc로 받았으므로 시간순(오래된→최신)으로 정렬
+        bars.reverse()
         return bars
     
     async def fetch_day_gainers(self, include_otc: bool = False) -> list[dict]:

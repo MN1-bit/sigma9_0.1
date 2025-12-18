@@ -491,6 +491,9 @@ class Sigma9Dashboard(CustomWindow):
         # 타임프레임 변경 시그널 연결
         self.chart_widget.timeframe_changed.connect(self._on_timeframe_changed)
         
+        # [Step 2.7.4] Viewport 변경 시 동적 데이터 로딩 시그널 연결
+        self.chart_widget.viewport_data_needed.connect(self._on_viewport_data_needed)
+        
         layout.addWidget(self.chart_widget)
         
         # 시작 시 샘플 데이터 로드 (1.5초 후)
@@ -1378,6 +1381,308 @@ class Sigma9Dashboard(CustomWindow):
 
         if "background_effect" in changes:
             self.particle_system.set_background_effect(changes["background_effect"])
+    
+    # ═══════════════════════════════════════════════════════════════════════
+    # Step 2.7.4: Dynamic Data Loading on Pan/Zoom
+    # ═══════════════════════════════════════════════════════════════════════
+    
+    _viewport_loading = False  # 중복 로딩 방지 플래그
+    
+    def _on_viewport_data_needed(self, start_idx: int, end_idx: int):
+        """
+        차트 Pan/Zoom 시 추가 데이터 필요 핸들러
+        
+        왼쪽(과거) 방향으로 스크롤하여 현재 로드된 데이터 범위를 벗어났을 때 호출됩니다.
+        
+        Data Flow:
+            1. L2(SQLite) 먼저 조회
+            2. L2 Miss → L3(API) 호출
+            3. API 데이터 → L2 저장
+            4. chart_widget에 prepend
+        """
+        # 중복 요청 방지 / 차트 업데이트 중 시그널 무시
+        if self._viewport_loading or getattr(self, '_updating_chart', False):
+            return
+        
+        # 1D(Daily)는 이미 전체 로드됨, Intraday만 동적 로딩
+        if not hasattr(self, '_current_timeframe') or self._current_timeframe == "1D":
+            return
+        
+        # 현재 선택된 종목 확인
+        current_item = self.watchlist.currentItem()
+        if not current_item:
+            return
+        
+        ticker = current_item.text().split()[0].strip()
+        timeframe = self._current_timeframe
+        
+        # 차트의 현재 첫 번째 타임스탬프 가져오기
+        before_timestamp = None
+        if hasattr(self.chart_widget, '_candle_data') and self.chart_widget._candle_data:
+            first_time = self.chart_widget._candle_data[0].get("time", 0)
+            if first_time > 0:
+                before_timestamp = int(first_time * 1000)  # seconds → ms
+        
+        self.log(f"[INFO] 📊 Loading more data: {ticker} {timeframe} (idx={start_idx})")
+        self._viewport_loading = True
+        
+        # 비동기 데이터 로드 (별도 스레드)
+        import threading
+        from PyQt6.QtCore import QTimer
+        
+        def load_in_thread():
+            try:
+                self._fetch_historical_bars(ticker, timeframe, abs(start_idx) + 100, before_timestamp)
+            finally:
+                self._viewport_loading = False
+        
+        thread = threading.Thread(target=load_in_thread, daemon=True)
+        thread.start()
+    
+    def _fetch_historical_bars(self, ticker: str, timeframe: str, extra_bars: int, before_timestamp: int = None):
+        """
+        과거 Bar 데이터 조회 (L2 → L3)
+        
+        Args:
+            ticker: 종목 심볼
+            timeframe: 타임프레임 (1m, 5m, 15m, 1h)
+            extra_bars: 추가로 필요한 바 수
+            before_timestamp: 이 시점 이전 데이터를 가져옴 (ms, None이면 현재 시간 기준)
+        """
+        import asyncio
+        from datetime import datetime, timedelta
+        from PyQt6.QtCore import QTimer
+        
+        async def fetch_async():
+            from backend.data.database import MarketDB
+            from backend.data.polygon_client import PolygonClient
+            from loguru import logger
+            
+            # 타임프레임 → multiplier 변환
+            tf_map = {"1m": 1, "5m": 5, "15m": 15, "1h": 60}
+            multiplier = tf_map.get(timeframe.lower(), 5)
+            
+            # ═══════════════════════════════════════════════════════════
+            # 날짜 범위 계산 (차트의 첫 타임스탬프 기준으로 더 과거)
+            # ═══════════════════════════════════════════════════════════
+            if before_timestamp:
+                # 차트의 첫 타임스탬프 이전 데이터를 가져옴
+                ref_time = datetime.fromtimestamp(before_timestamp / 1000)
+            else:
+                # 기준 없으면 현재 시간
+                ref_time = datetime.now()
+            
+            days_back = max(5, extra_bars // (78 // multiplier) + 2)  # 하루 78개 1분봉 기준
+            from_date = (ref_time - timedelta(days=days_back)).strftime("%Y-%m-%d")
+            to_date = (ref_time - timedelta(days=1)).strftime("%Y-%m-%d")  # ref_time 하루 전까지
+            
+            # 타임스탬프 범위 (ms)
+            start_ts = int((ref_time - timedelta(days=days_back)).timestamp() * 1000)
+            end_ts = int((ref_time - timedelta(days=1)).timestamp() * 1000)
+            
+            logger.debug(f"📆 Date range: {from_date} ~ {to_date} (before {ref_time.strftime('%Y-%m-%d %H:%M')})")
+            
+            # ═══════════════════════════════════════════════════════════
+            # L2: SQLite 조회
+            # ═══════════════════════════════════════════════════════════
+            db = MarketDB()
+            await db.initialize()
+            
+            db_bars = await db.get_intraday_bars(
+                ticker=ticker,
+                timeframe=timeframe.lower(),
+                start_timestamp=start_ts,
+                end_timestamp=end_ts
+            )
+            
+            if db_bars and len(db_bars) >= extra_bars * 0.8:
+                # L2 Hit - DB에서 충분한 데이터 발견
+                logger.info(f"📥 L2 Hit: {len(db_bars)} bars from SQLite")
+                return [bar.to_dict() for bar in db_bars]
+            
+            # ═══════════════════════════════════════════════════════════
+            # L3: API 호출 (청크 기반 순차 요청)
+            # ═══════════════════════════════════════════════════════════
+            import os
+            from dotenv import load_dotenv
+            load_dotenv()
+            
+            api_key = os.getenv("MASSIVE_API_KEY", "")
+            if not api_key:
+                logger.error("MASSIVE_API_KEY not set in environment")
+                return []
+            
+            MAX_BARS_PER_CHUNK = 500
+            all_api_bars = []
+            current_end_ts = end_ts  # 시작: before_timestamp 기준
+            chunk_count = 0
+            max_chunks = 10  # 무한 루프 방지
+            
+            client = PolygonClient(api_key=api_key)
+            
+            try:
+                while len(all_api_bars) < extra_bars and chunk_count < max_chunks:
+                    chunk_count += 1
+                    
+                    # 타임스탬프 → 날짜 변환
+                    chunk_end_date = datetime.fromtimestamp(current_end_ts / 1000).strftime("%Y-%m-%d")
+                    
+                    # 청크 날짜 범위 계산 (타임프레임별 바 개수 추정)
+                    # 1분봉: 하루 390개, 5분봉: 78개, 15분봉: 26개, 1시간봉: 6.5개
+                    bars_per_day = {1: 390, 5: 78, 15: 26, 60: 7}.get(multiplier, 78)
+                    chunk_days = max(3, MAX_BARS_PER_CHUNK // bars_per_day + 1)
+                    chunk_start_date = (datetime.fromtimestamp(current_end_ts / 1000) - timedelta(days=chunk_days)).strftime("%Y-%m-%d")
+                    
+                    logger.info(f"📡 L3 Chunk {chunk_count}: {chunk_start_date} ~ {chunk_end_date}")
+                    
+                    chunk_bars = await client.fetch_intraday_bars(
+                        ticker=ticker,
+                        multiplier=multiplier,
+                        from_date=chunk_start_date,
+                        to_date=chunk_end_date,
+                        limit=MAX_BARS_PER_CHUNK
+                    )
+                    
+                    if not chunk_bars:
+                        logger.info(f"📭 No more data available (chunk {chunk_count})")
+                        break
+                    
+                    # 청크 데이터를 앞에 추가 (과거 → 현재 순서 유지)
+                    all_api_bars = chunk_bars + all_api_bars
+                    logger.info(f"📦 Chunk {chunk_count}: {len(chunk_bars)} bars (total: {len(all_api_bars)})")
+                    
+                    # 다음 청크의 끝점 = 이 청크의 첫 번째 타임스탬프
+                    current_end_ts = chunk_bars[0]["timestamp"]
+            finally:
+                await client.close()
+            
+            if not all_api_bars:
+                logger.warning(f"No historical data from API")
+                return []
+            
+            api_bars = all_api_bars
+            
+            # ═══════════════════════════════════════════════════════════
+            # L2에 저장 (완성된 Bar만)
+            # ═══════════════════════════════════════════════════════════
+            bars_to_save = []
+            for bar in api_bars:
+                bars_to_save.append({
+                    "ticker": ticker,
+                    "timeframe": timeframe.lower(),
+                    "timestamp": bar["timestamp"],
+                    "open": bar["open"],
+                    "high": bar["high"],
+                    "low": bar["low"],
+                    "close": bar["close"],
+                    "volume": bar["volume"],
+                    "vwap": bar.get("vwap", 0),
+                })
+            
+            if bars_to_save:
+                saved_count = await db.upsert_intraday_bulk(bars_to_save)
+                logger.info(f"💾 {saved_count} bars saved to L2 (SQLite)")
+            
+            return api_bars
+        
+        try:
+            bars = asyncio.run(fetch_async())
+            
+            if bars:
+                # 차트에 적용할 데이터 준비
+                self._pending_prepend_data = bars
+                # Worker thread에서 main thread로 안전하게 호출
+                from PyQt6.QtCore import QMetaObject, Qt, Q_ARG
+                QMetaObject.invokeMethod(
+                    self, "_apply_prepend_data",
+                    Qt.ConnectionType.QueuedConnection
+                )
+                
+        except Exception as e:
+            self.log(f"[ERROR] Historical data fetch failed: {e}")
+    
+    from PyQt6.QtCore import pyqtSlot
+    @pyqtSlot()
+    def _apply_prepend_data(self):
+        """과거 데이터를 차트에 prepend (메인 스레드)"""
+        if not hasattr(self, '_pending_prepend_data') or not self._pending_prepend_data:
+            self.log("[DEBUG] No pending prepend data")
+            return
+        
+        bars = self._pending_prepend_data
+        self._pending_prepend_data = None
+        
+        self.log(f"[DEBUG] _apply_prepend_data called with {len(bars)} bars")
+        
+        # 기존 데이터와 병합
+        candle_data = []
+        volume_data = []
+        
+        for bar in bars:
+            # timestamp(ms) 또는 time(sec) 둘 다 지원
+            ts = bar.get("time") or (bar.get("timestamp", 0) / 1000)
+            candle_data.append({
+                "time": ts,
+                "open": bar["open"],
+                "high": bar["high"],
+                "low": bar["low"],
+                "close": bar["close"],
+            })
+            volume_data.append({
+                "time": ts,
+                "volume": bar["volume"],
+                "is_up": bar["close"] >= bar["open"],
+            })
+        
+        # 기존 데이터 앞에 추가 (prepend)
+        if hasattr(self.chart_widget, '_candle_data') and self.chart_widget._candle_data:
+            first_existing_time = self.chart_widget._candle_data[0].get("time", 0)
+            self.log(f"[DEBUG] First existing time: {first_existing_time}, new data range: {candle_data[0]['time']} ~ {candle_data[-1]['time']}")
+            
+            # 중복 제거: 기존 첫 타임스탬프보다 작은 것만 추가
+            new_candles = [c for c in candle_data if c["time"] < first_existing_time]
+            new_volumes = [v for v in volume_data if v["time"] < first_existing_time]
+            
+            self.log(f"[DEBUG] New candles to prepend: {len(new_candles)}")
+            
+            if new_candles:
+                prepend_count = len(new_candles)
+                combined_candles = new_candles + self.chart_widget._candle_data
+                combined_volumes = new_volumes + self.chart_widget._volume_data
+                
+                # 현재 뷰포트 범위 저장
+                vb = self.chart_widget.price_plot.getViewBox()
+                current_x_range = vb.viewRange()[0]
+                
+                # 차트 업데이트 (viewport 시그널 차단)
+                self._updating_chart = True
+                try:
+                    self.chart_widget.set_candlestick_data(combined_candles)
+                    self.chart_widget.set_volume_data(combined_volumes)
+                    
+                    # 뷰포트 X 범위를 prepend된 수만큼 이동 (기존 위치 유지)
+                    new_x_min = current_x_range[0] + prepend_count
+                    new_x_max = current_x_range[1] + prepend_count
+                    vb.setXRange(new_x_min, new_x_max, padding=0)
+                    
+                    # _last_requested_start도 리셋 (새 인덱스 체계)
+                    if hasattr(self.chart_widget, '_last_requested_start'):
+                        self.chart_widget._last_requested_start = 0
+                finally:
+                    self._updating_chart = False
+                
+                self.log(f"[INFO] ✅ {prepend_count} bars prepended, viewport shifted")
+            else:
+                self.log(f"[INFO] No new data to prepend (already loaded or same timerange)")
+        else:
+            # 기존 데이터 없으면 그냥 설정
+            self._updating_chart = True
+            try:
+                self.chart_widget.set_candlestick_data(candle_data)
+                self.chart_widget.set_volume_data(volume_data)
+            finally:
+                self._updating_chart = False
+            self.log(f"[INFO] ✅ {len(candle_data)} bars loaded (no existing data)")
 
 
 
