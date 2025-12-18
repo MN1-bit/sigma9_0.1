@@ -497,10 +497,10 @@ async def create_and_update(
     
     # API 키 확인
     if api_key is None:
-        api_key = os.getenv("POLYGON_API_KEY")
+        api_key = os.getenv("MASSIVE_API_KEY")
     
     if not api_key:
-        raise ValueError("POLYGON_API_KEY 환경변수를 설정하거나 api_key를 전달하세요.")
+        raise ValueError("MASSIVE_API_KEY 환경변수를 설정하거나 api_key를 전달하세요.")
     
     # DB 초기화
     db = MarketDB(db_path)
@@ -534,7 +534,7 @@ if __name__ == "__main__":
         python polygon_loader.py
     
     환경변수:
-        POLYGON_API_KEY: Polygon.io API 키
+        MASSIVE_API_KEY: Polygon.io API 키
     """
     import os
     import sys
@@ -543,9 +543,9 @@ if __name__ == "__main__":
     logger.remove()
     logger.add(sys.stderr, level="DEBUG")
     
-    api_key = os.getenv("POLYGON_API_KEY")
+    api_key = os.getenv("MASSIVE_API_KEY")
     if not api_key:
-        print("❌ POLYGON_API_KEY 환경변수를 설정하세요.")
+        print("❌ MASSIVE_API_KEY 환경변수를 설정하세요.")
         sys.exit(1)
     
     async def main():

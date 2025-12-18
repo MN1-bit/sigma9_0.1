@@ -11,7 +11,7 @@
 #   - SIGMA9_IBKR_PORT: IBKR Gateway/TWS 포트
 #
 # ⚠️ 주의: 민감한 정보(API 키 등)는 환경변수로 관리하세요.
-#   - POLYGON_API_KEY
+#   - MASSIVE_API_KEY
 #   - OPENAI_API_KEY
 #   - ANTHROPIC_API_KEY
 # ============================================================================

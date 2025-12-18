@@ -165,10 +165,52 @@ class SettingsDialog(QDialog):
         layout.setSpacing(12)
         layout.setContentsMargins(15, 20, 15, 15)
         
+        # ═══════════════════════════════════════════════════════════
+        # 서버 프리셋 선택 (Local/AWS)
+        # ═══════════════════════════════════════════════════════════
+        preset_label = QLabel("🌐 Server Preset")
+        preset_label.setStyleSheet("color: #2196F3; font-weight: bold; font-size: 12px;")
+        layout.addRow(preset_label)
+        
+        self.server_preset_combo = QComboBox()
+        self.server_preset_combo.addItem("🖥️ Local (localhost:8000)", "local")
+        self.server_preset_combo.addItem("☁️ AWS (configure below)", "aws")
+        self.server_preset_combo.addItem("🔧 Custom", "custom")
+        self.server_preset_combo.setStyleSheet("""
+            QComboBox {
+                background: rgba(255,255,255,0.1);
+                border: 1px solid rgba(255,255,255,0.2);
+                border-radius: 4px;
+                padding: 6px;
+                color: white;
+            }
+            QComboBox:hover {
+                border: 1px solid #2196F3;
+            }
+            QComboBox QAbstractItemView {
+                background: #1e1e1e;
+                border: 1px solid #333;
+                color: white;
+                selection-background-color: #2196F3;
+            }
+        """)
+        self.server_preset_combo.currentIndexChanged.connect(self._on_preset_changed)
+        layout.addRow("Server:", self.server_preset_combo)
+        
+        # 구분선
+        separator = QFrame()
+        separator.setFrameShape(QFrame.Shape.HLine)
+        separator.setStyleSheet("background-color: rgba(255,255,255,0.1);")
+        layout.addRow(separator)
+        
+        # ═══════════════════════════════════════════════════════════
+        # 서버 주소 설정
+        # ═══════════════════════════════════════════════════════════
+        
         # Server Host
         self.host_edit = QLineEdit()
         self.host_edit.setText(self.server_settings.get("host", "localhost"))
-        self.host_edit.setPlaceholderText("localhost or IP address")
+        self.host_edit.setPlaceholderText("localhost or IP/hostname")
         self._style_input(self.host_edit)
         layout.addRow("Server Host:", self.host_edit)
         
@@ -219,17 +261,167 @@ class SettingsDialog(QDialog):
         layout.addRow("", self.test_btn)
         
         return widget
+    
+    def _on_preset_changed(self, index: int):
+        """서버 프리셋 변경 시 호스트/포트 자동 설정"""
+        preset = self.server_preset_combo.currentData()
+        
+        if preset == "local":
+            self.host_edit.setText("localhost")
+            self.port_spin.setValue(8000)
+            self.host_edit.setEnabled(False)
+            self.port_spin.setEnabled(False)
+        elif preset == "aws":
+            # AWS 기본값 (나중에 실제 EC2 주소로 변경)
+            self.host_edit.setText("ec2-xxx.amazonaws.com")
+            self.port_spin.setValue(8000)
+            self.host_edit.setEnabled(True)
+            self.port_spin.setEnabled(True)
+        else:  # custom
+            self.host_edit.setEnabled(True)
+            self.port_spin.setEnabled(True)
+    
+    def _on_test_connection(self):
+        """연결 테스트 수행"""
+        import httpx
+        
+        host = self.host_edit.text()
+        port = self.port_spin.value()
+        url = f"http://{host}:{port}/health"
+        
+        self.test_btn.setText("Testing...")
+        self.test_btn.setEnabled(False)
+        
+        try:
+            # 동기 요청 (간단한 테스트)
+            response = httpx.get(url, timeout=5.0)
+            if response.status_code == 200:
+                self.test_btn.setText("✅ Connected!")
+                self.test_btn.setStyleSheet("""
+                    QPushButton {
+                        background: rgba(76, 175, 80, 0.5);
+                        color: white;
+                        border: 1px solid #4CAF50;
+                        border-radius: 4px;
+                        padding: 6px 12px;
+                    }
+                """)
+            else:
+                self.test_btn.setText(f"❌ Error: {response.status_code}")
+                self._reset_test_btn_error()
+        except httpx.ConnectError:
+            self.test_btn.setText("❌ Connection refused")
+            self._reset_test_btn_error()
+        except httpx.TimeoutException:
+            self.test_btn.setText("❌ Timeout")
+            self._reset_test_btn_error()
+        except Exception as e:
+            self.test_btn.setText(f"❌ {str(e)[:20]}")
+            self._reset_test_btn_error()
+        finally:
+            self.test_btn.setEnabled(True)
+            # 3초 후 버튼 텍스트 리셋
+            from PyQt6.QtCore import QTimer
+            QTimer.singleShot(3000, lambda: self.test_btn.setText("Test Connection"))
+    
+    def _reset_test_btn_error(self):
+        """테스트 버튼 에러 스타일"""
+        self.test_btn.setStyleSheet("""
+            QPushButton {
+                background: rgba(244, 67, 54, 0.3);
+                color: #F44336;
+                border: 1px solid #F44336;
+                border-radius: 4px;
+                padding: 6px 12px;
+            }
+        """)
 
     # ═══════════════════════════════════════════════════════════════════════════
-    # Backend Tab (Step 4.2.3.4)
+    # Backend Tab (Step 4.2.3.4 + 4.2.6)
     # ═══════════════════════════════════════════════════════════════════════════
     
     def _create_backend_tab(self) -> QWidget:
-        """Backend 탭: 스케줄러 설정"""
+        """Backend 탭: 스케줄러 설정 + 로컬 서버 구동"""
         widget = QWidget()
         layout = QFormLayout(widget)
         layout.setSpacing(12)
         layout.setContentsMargins(15, 20, 15, 15)
+        
+        # ═══════════════════════════════════════════════════════════
+        # Step 4.2.6: 로컬 서버 구동 섹션
+        # ═══════════════════════════════════════════════════════════
+        server_section_label = QLabel("🖥️ Local Server")
+        server_section_label.setStyleSheet("color: #2196F3; font-weight: bold; font-size: 12px;")
+        layout.addRow(server_section_label)
+        
+        # 서버 상태 표시
+        self.server_status_label = QLabel("⚫ Not Running")
+        self.server_status_label.setStyleSheet("color: #888; font-size: 11px;")
+        layout.addRow("Server Status:", self.server_status_label)
+        
+        # 로컬 서버 구동 버튼
+        server_btn_layout = QHBoxLayout()
+        
+        self.start_server_btn = QPushButton("▶️ Start Local Server")
+        self.start_server_btn.setToolTip("Windows에서 로컬 Backend 서버 시작 (AWS 아님)")
+        self.start_server_btn.setStyleSheet("""
+            QPushButton {
+                background: rgba(76, 175, 80, 0.3);
+                color: #4CAF50;
+                border: 1px solid #4CAF50;
+                border-radius: 4px;
+                padding: 8px 16px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background: rgba(76, 175, 80, 0.5);
+            }
+            QPushButton:disabled {
+                background: rgba(100, 100, 100, 0.3);
+                color: #666;
+                border: 1px solid #666;
+            }
+        """)
+        self.start_server_btn.clicked.connect(self._on_start_local_server)
+        server_btn_layout.addWidget(self.start_server_btn)
+        
+        self.stop_server_btn = QPushButton("⏹️ Shutdown")
+        self.stop_server_btn.setToolTip("로컬 Backend 서버 종료")
+        self.stop_server_btn.setEnabled(False)
+        self.stop_server_btn.setStyleSheet("""
+            QPushButton {
+                background: rgba(244, 67, 54, 0.3);
+                color: #F44336;
+                border: 1px solid #F44336;
+                border-radius: 4px;
+                padding: 8px 12px;
+            }
+            QPushButton:hover {
+                background: rgba(244, 67, 54, 0.5);
+            }
+            QPushButton:disabled {
+                background: rgba(100, 100, 100, 0.3);
+                color: #666;
+                border: 1px solid #666;
+            }
+        """)
+        self.stop_server_btn.clicked.connect(self._on_stop_local_server)
+        server_btn_layout.addWidget(self.stop_server_btn)
+        
+        layout.addRow("", server_btn_layout)
+        
+        # 구분선
+        separator = QFrame()
+        separator.setFrameShape(QFrame.Shape.HLine)
+        separator.setStyleSheet("background-color: rgba(255,255,255,0.1);")
+        layout.addRow(separator)
+        
+        # ═══════════════════════════════════════════════════════════
+        # 스케줄러 설정 섹션
+        # ═══════════════════════════════════════════════════════════
+        scheduler_label = QLabel("📅 Scheduler")
+        scheduler_label.setStyleSheet("color: #2196F3; font-weight: bold; font-size: 12px; margin-top: 8px;")
+        layout.addRow(scheduler_label)
         
         # Market Open Scan 활성화
         self.market_scan_check = QCheckBox("Enable")
@@ -263,11 +455,64 @@ class SettingsDialog(QDialog):
         layout.addRow("Update Time (ET):", self.update_time_edit)
         
         # Info Label
-        info_label = QLabel("⚠️ Changes require server restart to take effect")
-        info_label.setStyleSheet("color: #FFA726; font-size: 11px; margin-top: 10px;")
+        info_label = QLabel("⚠️ Scheduler changes require server restart")
+        info_label.setStyleSheet("color: #FFA726; font-size: 10px; margin-top: 8px;")
         layout.addRow("", info_label)
         
+        # 서버 프로세스 핸들
+        self._server_process = None
+        
         return widget
+    
+    def _on_start_local_server(self):
+        """로컬 서버 시작 (Windows subprocess)"""
+        import subprocess
+        import sys
+        import os
+        
+        # 프로젝트 루트 찾기
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        venv_python = os.path.join(project_root, ".venv", "Scripts", "python.exe")
+        
+        if not os.path.exists(venv_python):
+            self.server_status_label.setText("❌ Python not found")
+            self.server_status_label.setStyleSheet("color: #F44336; font-size: 11px;")
+            return
+        
+        try:
+            # 새 콘솔 창에서 서버 실행 (CREATE_NEW_CONSOLE)
+            self._server_process = subprocess.Popen(
+                [venv_python, "-m", "backend"],
+                cwd=project_root,
+                creationflags=subprocess.CREATE_NEW_CONSOLE
+            )
+            
+            self.server_status_label.setText("🟢 Running (PID: {})".format(self._server_process.pid))
+            self.server_status_label.setStyleSheet("color: #4CAF50; font-size: 11px;")
+            
+            self.start_server_btn.setEnabled(False)
+            self.stop_server_btn.setEnabled(True)
+            
+        except Exception as e:
+            self.server_status_label.setText(f"❌ Error: {str(e)[:30]}")
+            self.server_status_label.setStyleSheet("color: #F44336; font-size: 11px;")
+    
+    def _on_stop_local_server(self):
+        """로컬 서버 중지"""
+        if self._server_process:
+            try:
+                self._server_process.terminate()
+                self._server_process.wait(timeout=5)
+            except:
+                self._server_process.kill()
+            
+            self._server_process = None
+        
+        self.server_status_label.setText("⚫ Not Running")
+        self.server_status_label.setStyleSheet("color: #888; font-size: 11px;")
+        
+        self.start_server_btn.setEnabled(True)
+        self.stop_server_btn.setEnabled(False)
 
     # ═══════════════════════════════════════════════════════════════════════════
     # Theme Tab (Step 4.2.3.2 - 기존 항목 마이그레이션)

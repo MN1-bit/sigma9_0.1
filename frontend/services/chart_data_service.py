@@ -69,6 +69,7 @@ class ChartDataService:
     async def get_chart_data(
         self,
         ticker: str,
+        timeframe: str = "1D",  # "1m", "5m", "15m", "1h", "1D"
         days: int = 100,
         calculate_indicators: bool = True
     ) -> Dict:
@@ -77,12 +78,14 @@ class ChartDataService:
         
         Args:
             ticker: 종목 심볼 (예: "AAPL")
+            timeframe: 타임프레임 ("1m", "5m", "15m", "1h", "1D")
             days: 조회할 일수
             calculate_indicators: 지표 계산 여부
         
         Returns:
             {
                 "ticker": str,
+                "timeframe": str,
                 "candles": [{"time": timestamp, "open": float, ...}, ...],
                 "volume": [{"time": timestamp, "volume": int, "is_up": bool}, ...],
                 "vwap": [{"time": timestamp, "value": float}, ...],
@@ -90,13 +93,88 @@ class ChartDataService:
                 "ema_9": [{"time": timestamp, "value": float}, ...],
             }
         """
+        # Intraday 타임프레임 처리 (API 호출)
+        if timeframe != "1D":
+            return await self._get_intraday_data(ticker, timeframe, days)
+        
+        # Daily 타임프레임 처리 (DB 조회)
+        return await self._get_daily_data(ticker, days, calculate_indicators)
+    
+    async def _get_intraday_data(
+        self,
+        ticker: str,
+        timeframe: str,
+        days: int = 2
+    ) -> Dict:
+        """
+        Intraday 차트 데이터 조회 (API 호출)
+        
+        Args:
+            ticker: 종목 심볼
+            timeframe: 타임프레임 ("1m", "5m", "15m", "1h")
+            days: 조회 일수 (최대 10일)
+        """
+        import os
+        import httpx
+        
+        # API days 제한 (최대 10일)
+        days = min(days, 10)
+        
+        # 타임프레임 매핑
+        tf_map = {"1m": 1, "5m": 5, "15m": 15, "1h": 60}
+        multiplier = tf_map.get(timeframe, 5)
+        
+        # Backend API 호출
+        api_url = os.getenv("BACKEND_API_URL", "http://localhost:8000")
+        url = f"{api_url}/api/chart/intraday/{ticker}"
+        
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.get(url, params={
+                    "timeframe": multiplier,
+                    "days": days
+                })
+                response.raise_for_status()
+                data = response.json()
+        except Exception as e:
+            print(f"⚠️ Intraday API 호출 실패: {e}")
+            return {"ticker": ticker, "timeframe": timeframe, "candles": [], "volume": []}
+        
+        candles = data.get("candles", [])
+        
+        # Volume 데이터 생성
+        volumes = []
+        for i, candle in enumerate(candles):
+            is_up = candle.get("close", 0) >= candle.get("open", 0)
+            volumes.append({
+                "time": candle.get("time"),
+                "volume": candle.get("volume", 0),
+                "is_up": is_up,
+            })
+        
+        return {
+            "ticker": ticker,
+            "timeframe": timeframe,
+            "candles": candles,
+            "volume": volumes,
+        }
+    
+    async def _get_daily_data(
+        self,
+        ticker: str,
+        days: int = 100,
+        calculate_indicators: bool = True
+    ) -> Dict:
+        """
+        Daily 차트 데이터 조회 (DB 조회)
+        """
         db = await self._get_db()
         
         # 1. DB에서 일봉 데이터 조회
         bars = await db.get_daily_bars(ticker, days=days)
         
         if not bars:
-            return {"ticker": ticker, "candles": [], "volume": []}
+            return {"ticker": ticker, "timeframe": "1D", "candles": [], "volume": []}
         
         # 날짜 오름차순 정렬 (DB는 내림차순으로 반환)
         bars = list(reversed(bars))
@@ -107,6 +185,7 @@ class ChartDataService:
         
         result = {
             "ticker": ticker,
+            "timeframe": "1D",
             "candles": candles,
             "volume": volumes,
         }
@@ -237,19 +316,35 @@ class ChartDataService:
 # 동기 래퍼 (GUI용)
 # ═══════════════════════════════════════════════════════════════════════════
 
-def get_chart_data_sync(ticker: str, days: int = 100, db_path: str = "data/market_data.db") -> Dict:
+def get_chart_data_sync(
+    ticker: str, 
+    timeframe: str = "1D",  # Step 2.7: timeframe 지원
+    days: int = 100, 
+    db_path: str = "data/market_data.db"
+) -> Dict:
     """
     동기 방식으로 차트 데이터 조회 (GUI에서 간단히 사용)
+    
+    Args:
+        ticker: 종목 심볼
+        timeframe: 타임프레임 ("1m", "5m", "15m", "1h", "1D")
+        days: 조회 일수 (Intraday는 자동으로 5일로 제한됨)
+        db_path: DB 파일 경로
     
     Note:
         이 함수는 새 이벤트 루프를 생성하므로 이미 실행 중인 루프가 있으면
         asyncio.run_coroutine_threadsafe를 사용하세요.
     """
+    # Intraday는 days 제한 (API 제한)
+    if timeframe != "1D":
+        days = min(days, 5)  # 최대 5일
+    
     async def _fetch():
         service = ChartDataService(db_path)
         try:
-            return await service.get_chart_data(ticker, days)
+            return await service.get_chart_data(ticker, timeframe=timeframe, days=days)
         finally:
             await service.close()
     
     return asyncio.run(_fetch())
+

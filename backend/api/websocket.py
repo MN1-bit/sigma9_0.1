@@ -9,6 +9,7 @@ Sigma9 WebSocket Manager
     - TRADE:xxx     - 거래 이벤트 (JSON)
     - WATCHLIST:xxx - Watchlist 업데이트 (JSON)
     - STATUS:xxx    - 상태 변경 (JSON)
+    - IGNITION:xxx  - Ignition Score 업데이트 (JSON)
 """
 
 import json
@@ -25,6 +26,7 @@ class MessageType(str, Enum):
     TRADE = "TRADE"
     WATCHLIST = "WATCHLIST"
     STATUS = "STATUS"
+    IGNITION = "IGNITION"  # Phase 2: 실시간 Ignition Score
     ERROR = "ERROR"
     PONG = "PONG"
 
@@ -201,6 +203,28 @@ class ConnectionManager:
         await self.broadcast_typed(MessageType.STATUS, {
             "event": event,
             **data
+        })
+    
+    async def broadcast_ignition(self, ticker: str, score: float, passed_filter: bool = True, reason: str = ""):
+        """
+        Ignition Score 업데이트 브로드캐스트 (Phase 2)
+        
+        실시간 틱 데이터 기반 Ignition Score를 GUI에 푸시합니다.
+        Score ≥ 70 이면 진입 신호로 간주됩니다.
+        
+        Args:
+            ticker: 종목 코드
+            score: Ignition Score (0~100)
+            passed_filter: Anti-Trap 필터 통과 여부
+            reason: 필터 미통과 시 사유
+        """
+        from datetime import datetime
+        await self.broadcast_typed(MessageType.IGNITION, {
+            "ticker": ticker,
+            "score": round(score, 1),
+            "passed_filter": passed_filter,
+            "reason": reason,
+            "timestamp": datetime.now().isoformat()
         })
 
 

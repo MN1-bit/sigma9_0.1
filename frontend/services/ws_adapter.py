@@ -17,6 +17,7 @@ WebSocket 기반 실시간 스트리밍 클라이언트.
     - TRADE:xxx     - 거래 이벤트 (JSON)
     - WATCHLIST:xxx - Watchlist 업데이트 (JSON)
     - STATUS:xxx    - 상태 변경 (JSON)
+    - IGNITION:xxx  - Ignition Score 업데이트 (JSON)
 """
 
 import asyncio
@@ -51,6 +52,7 @@ class MessageType(str, Enum):
     TRADE = "TRADE"
     WATCHLIST = "WATCHLIST"
     STATUS = "STATUS"
+    IGNITION = "IGNITION"  # Phase 2: 실시간 Ignition Score
     ERROR = "ERROR"
     PONG = "PONG"
 
@@ -84,6 +86,7 @@ class WsAdapter(QObject):
     trade_received = pyqtSignal(dict)
     watchlist_updated = pyqtSignal(list)
     status_changed = pyqtSignal(dict)
+    ignition_updated = pyqtSignal(dict)  # {"ticker": str, "score": float, ...}
     error_occurred = pyqtSignal(str)
     
     def __init__(
@@ -274,6 +277,13 @@ class WsAdapter(QObject):
             elif msg_type == MessageType.PONG:
                 # 하트비트 응답 - 무시
                 pass
+            
+            elif msg_type == MessageType.IGNITION:
+                try:
+                    ignition_data = json.loads(data)
+                    self.ignition_updated.emit(ignition_data)
+                except json.JSONDecodeError:
+                    logger.warning(f"Invalid IGNITION JSON: {data[:50]}")
                 
             elif msg_type == MessageType.ERROR:
                 self.error_occurred.emit(data)

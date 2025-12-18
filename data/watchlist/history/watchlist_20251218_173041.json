@@ -1,0 +1,757 @@
+{
+  "version": "1.0",
+  "generated_at": "2025-12-18T17:30:41.309121",
+  "item_count": 50,
+  "watchlist": [
+    {
+      "ticker": "EPSM",
+      "score": 100.0,
+      "stage": "Stage 4 (폭발 임박 🔥)",
+      "stage_number": 4,
+      "signals": {
+        "tight_range": true,
+        "accumulation_bar": false,
+        "obv_divergence": true,
+        "volume_dryout": true
+      },
+      "can_trade": true,
+      "last_close": 2.35,
+      "avg_volume": 3622884.8
+    },
+    {
+      "ticker": "LKSP",
+      "score": 100.0,
+      "stage": "Stage 4 (폭발 임박 🔥)",
+      "stage_number": 4,
+      "signals": {
+        "tight_range": true,
+        "accumulation_bar": false,
+        "obv_divergence": true,
+        "volume_dryout": false
+      },
+      "can_trade": true,
+      "last_close": 9.92,
+      "avg_volume": 68705.1
+    },
+    {
+      "ticker": "NNOX",
+      "score": 100.0,
+      "stage": "Stage 4 (폭발 임박 🔥)",
+      "stage_number": 4,
+      "signals": {
+        "tight_range": true,
+        "accumulation_bar": false,
+        "obv_divergence": true,
+        "volume_dryout": false
+      },
+      "can_trade": true,
+      "last_close": 3.21,
+      "avg_volume": 2688759.15
+    },
+    {
+      "ticker": "SGBX",
+      "score": 100.0,
+      "stage": "Stage 4 (폭발 임박 🔥)",
+      "stage_number": 4,
+      "signals": {
+        "tight_range": true,
+        "accumulation_bar": false,
+        "obv_divergence": true,
+        "volume_dryout": true
+      },
+      "can_trade": true,
+      "last_close": 2.8,
+      "avg_volume": 14415663.4
+    },
+    {
+      "ticker": "TWG",
+      "score": 100.0,
+      "stage": "Stage 4 (폭발 임박 🔥)",
+      "stage_number": 4,
+      "signals": {
+        "tight_range": true,
+        "accumulation_bar": false,
+        "obv_divergence": true,
+        "volume_dryout": true
+      },
+      "can_trade": true,
+      "last_close": 3.53,
+      "avg_volume": 1928440.8
+    },
+    {
+      "ticker": "AACI",
+      "score": 80.0,
+      "stage": "Stage 4 (Tight Range)",
+      "stage_number": 4,
+      "signals": {
+        "tight_range": true,
+        "accumulation_bar": false,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true,
+      "last_close": 10.29,
+      "avg_volume": 310464.0
+    },
+    {
+      "ticker": "AGRZ",
+      "score": 80.0,
+      "stage": "Stage 4 (Tight Range)",
+      "stage_number": 4,
+      "signals": {
+        "tight_range": true,
+        "accumulation_bar": false,
+        "obv_divergence": false,
+        "volume_dryout": true
+      },
+      "can_trade": true,
+      "last_close": 2.1,
+      "avg_volume": 244098.85
+    },
+    {
+      "ticker": "BMNZ",
+      "score": 80.0,
+      "stage": "Stage 4 (Tight Range)",
+      "stage_number": 4,
+      "signals": {
+        "tight_range": true,
+        "accumulation_bar": false,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true,
+      "last_close": 19.22,
+      "avg_volume": 4240746.15
+    },
+    {
+      "ticker": "CHN",
+      "score": 80.0,
+      "stage": "Stage 4 (Tight Range)",
+      "stage_number": 4,
+      "signals": {
+        "tight_range": true,
+        "accumulation_bar": true,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true,
+      "last_close": 18.19,
+      "avg_volume": 67036.55
+    },
+    {
+      "ticker": "CIO",
+      "score": 80.0,
+      "stage": "Stage 4 (Tight Range)",
+      "stage_number": 4,
+      "signals": {
+        "tight_range": true,
+        "accumulation_bar": false,
+        "obv_divergence": false,
+        "volume_dryout": true
+      },
+      "can_trade": true,
+      "last_close": 6.95,
+      "avg_volume": 514807.8
+    },
+    {
+      "ticker": "DTST",
+      "score": 80.0,
+      "stage": "Stage 4 (Tight Range)",
+      "stage_number": 4,
+      "signals": {
+        "tight_range": true,
+        "accumulation_bar": false,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true,
+      "last_close": 5.02,
+      "avg_volume": 139820.95
+    },
+    {
+      "ticker": "EB",
+      "score": 80.0,
+      "stage": "Stage 4 (Tight Range)",
+      "stage_number": 4,
+      "signals": {
+        "tight_range": true,
+        "accumulation_bar": false,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true,
+      "last_close": 4.43,
+      "avg_volume": 2709125.95
+    },
+    {
+      "ticker": "HERE",
+      "score": 80.0,
+      "stage": "Stage 4 (Tight Range)",
+      "stage_number": 4,
+      "signals": {
+        "tight_range": true,
+        "accumulation_bar": false,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true,
+      "last_close": 5.14,
+      "avg_volume": 338645.3
+    },
+    {
+      "ticker": "JACS",
+      "score": 80.0,
+      "stage": "Stage 4 (Tight Range)",
+      "stage_number": 4,
+      "signals": {
+        "tight_range": true,
+        "accumulation_bar": true,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true,
+      "last_close": 10.42,
+      "avg_volume": 57964.35
+    },
+    {
+      "ticker": "JANX",
+      "score": 80.0,
+      "stage": "Stage 4 (Tight Range)",
+      "stage_number": 4,
+      "signals": {
+        "tight_range": true,
+        "accumulation_bar": false,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true,
+      "last_close": 14.65,
+      "avg_volume": 2658130.9
+    },
+    {
+      "ticker": "NA",
+      "score": 80.0,
+      "stage": "Stage 4 (Tight Range)",
+      "stage_number": 4,
+      "signals": {
+        "tight_range": true,
+        "accumulation_bar": false,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true,
+      "last_close": 3.01,
+      "avg_volume": 174832.5
+    },
+    {
+      "ticker": "OBA",
+      "score": 80.0,
+      "stage": "Stage 4 (Tight Range)",
+      "stage_number": 4,
+      "signals": {
+        "tight_range": true,
+        "accumulation_bar": false,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true,
+      "last_close": 10.02,
+      "avg_volume": 89173.45
+    },
+    {
+      "ticker": "PC",
+      "score": 80.0,
+      "stage": "Stage 4 (Tight Range)",
+      "stage_number": 4,
+      "signals": {
+        "tight_range": true,
+        "accumulation_bar": false,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true,
+      "last_close": 9.4,
+      "avg_volume": 629060.95
+    },
+    {
+      "ticker": "QYLD",
+      "score": 80.0,
+      "stage": "Stage 4 (Tight Range)",
+      "stage_number": 4,
+      "signals": {
+        "tight_range": true,
+        "accumulation_bar": false,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true,
+      "last_close": 17.57,
+      "avg_volume": 5455059.75
+    },
+    {
+      "ticker": "RYLD",
+      "score": 80.0,
+      "stage": "Stage 4 (Tight Range)",
+      "stage_number": 4,
+      "signals": {
+        "tight_range": true,
+        "accumulation_bar": false,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true,
+      "last_close": 15.385,
+      "avg_volume": 703214.0
+    },
+    {
+      "ticker": "SEMR",
+      "score": 80.0,
+      "stage": "Stage 4 (Tight Range)",
+      "stage_number": 4,
+      "signals": {
+        "tight_range": true,
+        "accumulation_bar": false,
+        "obv_divergence": false,
+        "volume_dryout": true
+      },
+      "can_trade": true,
+      "last_close": 11.86,
+      "avg_volume": 4314641.9
+    },
+    {
+      "ticker": "SNCR",
+      "score": 80.0,
+      "stage": "Stage 4 (Tight Range)",
+      "stage_number": 4,
+      "signals": {
+        "tight_range": true,
+        "accumulation_bar": false,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true,
+      "last_close": 8.36,
+      "avg_volume": 290310.2
+    },
+    {
+      "ticker": "SUPX",
+      "score": 80.0,
+      "stage": "Stage 4 (Tight Range)",
+      "stage_number": 4,
+      "signals": {
+        "tight_range": true,
+        "accumulation_bar": false,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true,
+      "last_close": 16.57,
+      "avg_volume": 458108.6
+    },
+    {
+      "ticker": "TITN",
+      "score": 80.0,
+      "stage": "Stage 4 (Tight Range)",
+      "stage_number": 4,
+      "signals": {
+        "tight_range": true,
+        "accumulation_bar": false,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true,
+      "last_close": 16.22,
+      "avg_volume": 237345.45
+    },
+    {
+      "ticker": "WKHS",
+      "score": 80.0,
+      "stage": "Stage 4 (Tight Range)",
+      "stage_number": 4,
+      "signals": {
+        "tight_range": true,
+        "accumulation_bar": false,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true,
+      "last_close": 5.72,
+      "avg_volume": 560915.05
+    },
+    {
+      "ticker": "DAPP",
+      "score": 70.0,
+      "stage": "Stage 3 (관심 대상)",
+      "stage_number": 3,
+      "signals": {
+        "tight_range": false,
+        "accumulation_bar": true,
+        "obv_divergence": true,
+        "volume_dryout": false
+      },
+      "can_trade": true,
+      "last_close": 17.1,
+      "avg_volume": 1108024.4
+    },
+    {
+      "ticker": "ETNB",
+      "score": 70.0,
+      "stage": "Stage 3 (관심 대상)",
+      "stage_number": 3,
+      "signals": {
+        "tight_range": false,
+        "accumulation_bar": true,
+        "obv_divergence": true,
+        "volume_dryout": false
+      },
+      "can_trade": true,
+      "last_close": 14.84,
+      "avg_volume": 6202283.75
+    },
+    {
+      "ticker": "NLSP",
+      "score": 70.0,
+      "stage": "Stage 3 (관심 대상)",
+      "stage_number": 3,
+      "signals": {
+        "tight_range": false,
+        "accumulation_bar": true,
+        "obv_divergence": true,
+        "volume_dryout": false
+      },
+      "can_trade": true,
+      "last_close": 7.62,
+      "avg_volume": 344516.15
+    },
+    {
+      "ticker": "ODYS",
+      "score": 70.0,
+      "stage": "Stage 3 (관심 대상)",
+      "stage_number": 3,
+      "signals": {
+        "tight_range": false,
+        "accumulation_bar": true,
+        "obv_divergence": true,
+        "volume_dryout": false
+      },
+      "can_trade": true,
+      "last_close": 3.1,
+      "avg_volume": 57242.1
+    },
+    {
+      "ticker": "AMWL",
+      "score": 50.0,
+      "stage": "Stage 3 (Accum Bar)",
+      "stage_number": 3,
+      "signals": {
+        "tight_range": false,
+        "accumulation_bar": true,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true,
+      "last_close": 4.7,
+      "avg_volume": 143320.3
+    },
+    {
+      "ticker": "ATMC",
+      "score": 50.0,
+      "stage": "Stage 3 (Accum Bar)",
+      "stage_number": 3,
+      "signals": {
+        "tight_range": false,
+        "accumulation_bar": true,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true,
+      "last_close": 15.6,
+      "avg_volume": 39107.45
+    },
+    {
+      "ticker": "ATMV",
+      "score": 50.0,
+      "stage": "Stage 3 (Accum Bar)",
+      "stage_number": 3,
+      "signals": {
+        "tight_range": false,
+        "accumulation_bar": true,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true,
+      "last_close": 10.3,
+      "avg_volume": 711898.15
+    },
+    {
+      "ticker": "CEPO",
+      "score": 50.0,
+      "stage": "Stage 3 (Accum Bar)",
+      "stage_number": 3,
+      "signals": {
+        "tight_range": false,
+        "accumulation_bar": true,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true,
+      "last_close": 10.58,
+      "avg_volume": 340923.85
+    },
+    {
+      "ticker": "DNMX",
+      "score": 50.0,
+      "stage": "Stage 3 (Accum Bar)",
+      "stage_number": 3,
+      "signals": {
+        "tight_range": false,
+        "accumulation_bar": true,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true,
+      "last_close": 9.89,
+      "avg_volume": 62177.75
+    },
+    {
+      "ticker": "EFTY",
+      "score": 50.0,
+      "stage": "Stage 3 (Accum Bar)",
+      "stage_number": 3,
+      "signals": {
+        "tight_range": false,
+        "accumulation_bar": true,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true,
+      "last_close": 15.02,
+      "avg_volume": 699650.2
+    },
+    {
+      "ticker": "EQV",
+      "score": 50.0,
+      "stage": "Stage 3 (Accum Bar)",
+      "stage_number": 3,
+      "signals": {
+        "tight_range": false,
+        "accumulation_bar": true,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true,
+      "last_close": 10.455,
+      "avg_volume": 56067.55
+    },
+    {
+      "ticker": "EVCM",
+      "score": 50.0,
+      "stage": "Stage 3 (Accum Bar)",
+      "stage_number": 3,
+      "signals": {
+        "tight_range": false,
+        "accumulation_bar": true,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true,
+      "last_close": 13.4,
+      "avg_volume": 381215.85
+    },
+    {
+      "ticker": "EVM",
+      "score": 50.0,
+      "stage": "Stage 3 (Accum Bar)",
+      "stage_number": 3,
+      "signals": {
+        "tight_range": false,
+        "accumulation_bar": true,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true,
+      "last_close": 9.46,
+      "avg_volume": 65479.25
+    },
+    {
+      "ticker": "FLBR",
+      "score": 50.0,
+      "stage": "Stage 3 (Accum Bar)",
+      "stage_number": 3,
+      "signals": {
+        "tight_range": false,
+        "accumulation_bar": true,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true,
+      "last_close": 19.92,
+      "avg_volume": 91884.0
+    },
+    {
+      "ticker": "GIG",
+      "score": 50.0,
+      "stage": "Stage 3 (Accum Bar)",
+      "stage_number": 3,
+      "signals": {
+        "tight_range": false,
+        "accumulation_bar": true,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true,
+      "last_close": 10.52,
+      "avg_volume": 94534.65
+    },
+    {
+      "ticker": "GSRF",
+      "score": 50.0,
+      "stage": "Stage 3 (Accum Bar)",
+      "stage_number": 3,
+      "signals": {
+        "tight_range": false,
+        "accumulation_bar": true,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true,
+      "last_close": 9.96,
+      "avg_volume": 69151.6
+    },
+    {
+      "ticker": "HBI",
+      "score": 50.0,
+      "stage": "Stage 3 (Accum Bar)",
+      "stage_number": 3,
+      "signals": {
+        "tight_range": false,
+        "accumulation_bar": true,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true,
+      "last_close": 6.47,
+      "avg_volume": 12863215.95
+    },
+    {
+      "ticker": "KCHV",
+      "score": 50.0,
+      "stage": "Stage 3 (Accum Bar)",
+      "stage_number": 3,
+      "signals": {
+        "tight_range": false,
+        "accumulation_bar": true,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true,
+      "last_close": 10.11,
+      "avg_volume": 85239.4
+    },
+    {
+      "ticker": "LWLG",
+      "score": 50.0,
+      "stage": "Stage 3 (Accum Bar)",
+      "stage_number": 3,
+      "signals": {
+        "tight_range": false,
+        "accumulation_bar": true,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true,
+      "last_close": 3.0,
+      "avg_volume": 1494996.5
+    },
+    {
+      "ticker": "MFG",
+      "score": 50.0,
+      "stage": "Stage 3 (Accum Bar)",
+      "stage_number": 3,
+      "signals": {
+        "tight_range": false,
+        "accumulation_bar": true,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true,
+      "last_close": 7.38,
+      "avg_volume": 3420672.2
+    },
+    {
+      "ticker": "MGRM",
+      "score": 50.0,
+      "stage": "Stage 3 (Accum Bar)",
+      "stage_number": 3,
+      "signals": {
+        "tight_range": false,
+        "accumulation_bar": true,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true,
+      "last_close": 6.0,
+      "avg_volume": 190420.0
+    },
+    {
+      "ticker": "NRK",
+      "score": 50.0,
+      "stage": "Stage 3 (Accum Bar)",
+      "stage_number": 3,
+      "signals": {
+        "tight_range": false,
+        "accumulation_bar": true,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true,
+      "last_close": 9.89,
+      "avg_volume": 486609.95
+    },
+    {
+      "ticker": "OCFT",
+      "score": 50.0,
+      "stage": "Stage 3 (Accum Bar)",
+      "stage_number": 3,
+      "signals": {
+        "tight_range": false,
+        "accumulation_bar": true,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true,
+      "last_close": 7.89,
+      "avg_volume": 44744.65
+    },
+    {
+      "ticker": "PCEF",
+      "score": 50.0,
+      "stage": "Stage 3 (Accum Bar)",
+      "stage_number": 3,
+      "signals": {
+        "tight_range": false,
+        "accumulation_bar": true,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true,
+      "last_close": 19.7,
+      "avg_volume": 179469.65
+    },
+    {
+      "ticker": "PHLT",
+      "score": 50.0,
+      "stage": "Stage 3 (Accum Bar)",
+      "stage_number": 3,
+      "signals": {
+        "tight_range": false,
+        "accumulation_bar": true,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true,
+      "last_close": 7.75,
+      "avg_volume": 828778.05
+    }
+  ]
+}

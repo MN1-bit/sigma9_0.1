@@ -89,7 +89,7 @@ polygon:
   rate_limit: 5               # Free Tier: 5 req/min
   retry_count: 3              # API 실패 시 재시도 횟수
   retry_delay: 2.0            # 재시도 대기 시간 (초)
-  # API 키는 환경변수로 설정: POLYGON_API_KEY
+  # API 키는 환경변수로 설정: MASSIVE_API_KEY
 
 # ═══════════════════════════════════════════════════════════════════════════
 # Market Data Settings (시장 데이터)

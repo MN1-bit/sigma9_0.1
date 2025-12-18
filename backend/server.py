@@ -14,6 +14,11 @@ FastAPI 기반 백엔드 서버.
 import asyncio
 import sys
 from pathlib import Path
+from dotenv import load_dotenv  # 환경변수 로드
+
+# .env 파일 로드 (최상위 레벨에서 실행)
+load_dotenv()
+
 from contextlib import asynccontextmanager
 from typing import Optional
 

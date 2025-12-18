@@ -100,6 +100,7 @@ class BackendClient(QObject):
     log_message = pyqtSignal(str)
     watchlist_updated = pyqtSignal(list)
     positions_updated = pyqtSignal(list)
+    ignition_updated = pyqtSignal(dict)  # {"ticker": str, "score": float, "passed_filter": bool}
     
     @classmethod
     def instance(cls):
@@ -147,7 +148,39 @@ class BackendClient(QObject):
         self.ws.status_changed.connect(self._on_status_changed)
         self.ws.error_occurred.connect(self.error_occurred.emit)
         
+        # Ignition 시그널 연결 (존재하는 경우)
+        if hasattr(self.ws, 'ignition_updated'):
+            self.ws.ignition_updated.connect(self.ignition_updated.emit)
+        
         logger.info(f"BackendClient initialized: {self._base_url}")
+    
+    def set_server(self, host: str, port: int):
+        """
+        서버 주소 변경 (로컬/AWS 전환용)
+        
+        Args:
+            host: 새 서버 호스트 (예: "localhost" 또는 "ec2-xxx.amazonaws.com")
+            port: 새 서버 포트
+        """
+        self.host = host
+        self.port = port
+        self._base_url = f"http://{host}:{port}"
+        self._ws_url = f"ws://{host}:{port}/ws/feed"
+        
+        # Adapters 재생성
+        self.rest = RestAdapter(self._base_url)
+        self.ws = WsAdapter(self._ws_url)
+        
+        # WebSocket Signal 재연결
+        self.ws.connected.connect(self._on_ws_connected)
+        self.ws.disconnected.connect(self._on_ws_disconnected)
+        self.ws.log_received.connect(self.log_message.emit)
+        self.ws.watchlist_updated.connect(self._on_watchlist_updated)
+        self.ws.status_changed.connect(self._on_status_changed)
+        self.ws.error_occurred.connect(self.error_occurred.emit)
+        
+        self.log_message.emit(f"🔄 Server changed to: {self._base_url}")
+        logger.info(f"Server changed to: {self._base_url}")
     
     def _set_state(self, state: ConnectionState):
         """상태 변경 및 Signal 발생"""
@@ -155,6 +188,103 @@ class BackendClient(QObject):
             self.state = state
             self.state_changed.emit(state)
             logger.debug(f"State changed: {state.value}")
+    
+    # ─────────────────────────────────────────────────────────────
+    # Background Event Loop (영구 이벤트 루프)
+    # ─────────────────────────────────────────────────────────────
+    
+    _bg_loop = None
+    _bg_thread = None
+    
+    @classmethod
+    def _get_event_loop(cls):
+        """
+        백그라운드 스레드에서 실행되는 영구 이벤트 루프 반환
+        
+        매번 새 루프를 생성/종료하면 httpx.AsyncClient에서 문제가 발생하므로
+        하나의 영구 루프를 백그라운드 스레드에서 유지합니다.
+        """
+        import threading
+        import asyncio
+        
+        if cls._bg_loop is None or not cls._bg_loop.is_running():
+            cls._bg_loop = asyncio.new_event_loop()
+            
+            def run_loop():
+                asyncio.set_event_loop(cls._bg_loop)
+                cls._bg_loop.run_forever()
+            
+            cls._bg_thread = threading.Thread(target=run_loop, daemon=True)
+            cls._bg_thread.start()
+        
+        return cls._bg_loop
+    
+    def _run_async(self, coro):
+        """
+        코루틴을 백그라운드 이벤트 루프에서 실행하고 결과를 동기적으로 대기
+        """
+        import asyncio
+        loop = self._get_event_loop()
+        future = asyncio.run_coroutine_threadsafe(coro, loop)
+        return future.result(timeout=30)  # 30초 타임아웃
+    
+    # ─────────────────────────────────────────────────────────────
+    # Synchronous Wrappers (PyQt 호출용)
+    # ─────────────────────────────────────────────────────────────
+    
+    def connect_sync(self) -> bool:
+        """
+        동기 연결 메서드 (PyQt 콜백에서 사용)
+        """
+        try:
+            # 이미 연결된 경우
+            if self.state in (ConnectionState.CONNECTED, ConnectionState.RUNNING):
+                return True
+            
+            return self._run_async(self.connect())
+        except Exception as e:
+            logger.error(f"connect_sync failed: {e}")
+            self.log_message.emit(f"❌ Connection failed: {e}")
+            self._set_state(ConnectionState.ERROR)
+            return False
+    
+    def disconnect_sync(self):
+        """동기 연결 해제 메서드"""
+        try:
+            self._run_async(self.disconnect())
+        except Exception as e:
+            logger.error(f"disconnect_sync failed: {e}")
+    
+    def start_engine_sync(self):
+        """동기 엔진 시작"""
+        try:
+            self._run_async(self.start_engine())
+        except Exception as e:
+            logger.error(f"start_engine_sync failed: {e}")
+            self.log_message.emit(f"❌ Engine start failed: {e}")
+    
+    def stop_engine_sync(self):
+        """동기 엔진 정지"""
+        try:
+            self._run_async(self.stop_engine())
+        except Exception as e:
+            logger.error(f"stop_engine_sync failed: {e}")
+    
+    def kill_switch_sync(self):
+        """동기 킬 스위치"""
+        try:
+            self._run_async(self.kill_switch())
+        except Exception as e:
+            logger.error(f"kill_switch_sync failed: {e}")
+            self.log_message.emit(f"❌ Kill switch failed: {e}")
+    
+    def run_scanner_sync(self, strategy_name: str = "seismograph"):
+        """동기 스캐너 실행"""
+        try:
+            self._run_async(self.run_scanner(strategy_name))
+        except Exception as e:
+            logger.error(f"run_scanner_sync failed: {e}")
+            self.log_message.emit(f"❌ Scanner failed: {e}")
     
     # ─────────────────────────────────────────────────────────────
     # Connection Management
@@ -326,14 +456,22 @@ class BackendClient(QObject):
         """
         Scanner 실행 요청
         
-        Note: 실제 스캔은 서버에서 수행됨.
-              여기서는 스케줄러 트리거만 요청.
+        서버의 /api/scanner/run 엔드포인트를 호출하여
+        지정된 전략으로 시장 스캔을 실행합니다.
         """
-        self.log_message.emit(f"🔍 Requesting scan for {strategy_name}...")
+        self.log_message.emit(f"🔍 Running scanner: {strategy_name}...")
         
-        # TODO: 서버에 스캔 트리거 API 호출
-        # 현재는 Watchlist 새로고침으로 대체
-        await self.refresh_watchlist()
+        result = await self.rest.run_scanner(strategy_name)
+        
+        if result.get("status") == "success":
+            item_count = result.get("item_count", 0)
+            self.log_message.emit(f"✅ Scanner complete: {item_count} stocks found")
+            
+            # Watchlist 새로고침
+            await self.refresh_watchlist()
+        else:
+            msg = result.get("message", "Unknown error")
+            self.log_message.emit(f"❌ Scanner failed: {msg}")
     
     async def refresh_watchlist(self):
         """Watchlist 새로고침"""

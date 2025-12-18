@@ -308,17 +308,27 @@ async def get_watchlist():
         - last_close: 최근 종가
         - change_pct: 변동률 (%)
     """
-    # TODO: 실제 Watchlist 조회 로직
-    # from backend.server import app_state
-    # if app_state.engine:
-    #     return app_state.engine.get_watchlist()
+    from backend.data.watchlist_store import load_watchlist
     
-    # 임시 Mock 데이터
-    return [
-        WatchlistItem(ticker="AAPL", score=85.0, stage="Stage 4", last_close=175.50, change_pct=1.2),
-        WatchlistItem(ticker="MSFT", score=72.0, stage="Stage 3", last_close=378.20, change_pct=-0.5),
-        WatchlistItem(ticker="NVDA", score=68.0, stage="Stage 2", last_close=495.00, change_pct=2.1),
-    ]
+    # WatchlistStore에서 실제 데이터 로드
+    raw_watchlist = load_watchlist()
+    
+    if raw_watchlist:
+        result = []
+        for item in raw_watchlist:
+            result.append(WatchlistItem(
+                ticker=item.get("ticker", ""),
+                score=item.get("score", 0.0),
+                stage=item.get("stage", "Unknown"),
+                last_close=item.get("last_close", 0.0),
+                change_pct=item.get("change_pct", 0.0)
+            ))
+        logger.info(f"📋 Watchlist 반환: {len(result)}개 항목")
+        return result
+    
+    # 데이터가 없으면 빈 리스트 반환
+    logger.warning("⚠️ Watchlist 비어 있음")
+    return []
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -426,6 +436,354 @@ async def reload_strategy(name: str):
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+# Scanner Endpoints
+# ═══════════════════════════════════════════════════════════════════════════
+
+@router.post("/scanner/run", summary="Scanner 실행")
+async def run_scanner(strategy_name: str = "seismograph"):
+    """
+    Scanner를 실행하여 Watchlist를 생성합니다.
+    
+    📌 동작:
+        1. MarketDB에서 시장 데이터 조회
+        2. 전략의 스캔 로직 실행 (Seismograph)
+        3. Watchlist 저장 및 반환
+    """
+    from backend.data.database import MarketDB
+    from backend.core.scanner import Scanner
+    from backend.data.watchlist_store import get_watchlist_store
+    
+    logger.info(f"🔍 Scanner 실행 요청: {strategy_name}")
+    
+    try:
+        # MarketDB 초기화
+        db = MarketDB("data/market_data.db")
+        await db.initialize()
+        
+        # Scanner 생성 및 실행
+        scanner = Scanner(db, watchlist_size=50)
+        watchlist = await scanner.run_daily_scan(
+            min_price=2.0,
+            max_price=20.0,
+            min_volume=100_000,
+            lookback_days=20
+        )
+        
+        # Watchlist 저장
+        if watchlist:
+            store = get_watchlist_store()
+            store.save(watchlist)
+            logger.info(f"✅ Scanner 완료: {len(watchlist)}개 종목")
+        else:
+            logger.warning("⚠️ Scanner: 조건에 맞는 종목 없음")
+        
+        return {
+            "status": "success",
+            "strategy": strategy_name,
+            "item_count": len(watchlist) if watchlist else 0,
+            "timestamp": _get_timestamp()
+        }
+        
+    except Exception as e:
+        logger.error(f"Scanner 실행 실패: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Day Gainers Endpoints (실시간 급등주)
+# ═══════════════════════════════════════════════════════════════════════════
+
+@router.get("/gainers", summary="당일 급등주 조회")
+async def get_day_gainers():
+    """
+    Polygon.io API를 통해 당일 급등주 상위 20개를 조회합니다.
+    
+    📌 데이터:
+        - 실시간 (장중)
+        - 전일 종가 대비 상승률 기준
+        - 거래량 10,000 이상만 포함
+    
+    Returns:
+        list: 급등주 리스트 [{ticker, change_pct, last_price, volume}, ...]
+    """
+    import os
+    from backend.data.polygon_client import PolygonClient
+    
+    api_key = os.getenv("MASSIVE_API_KEY", "")
+    if not api_key:
+        raise HTTPException(status_code=500, detail="MASSIVE_API_KEY not configured")
+    
+    try:
+        async with PolygonClient(api_key) as client:
+            gainers = await client.fetch_day_gainers()
+        
+        return {
+            "status": "success",
+            "count": len(gainers),
+            "gainers": gainers,
+            "timestamp": _get_timestamp()
+        }
+    except Exception as e:
+        logger.error(f"Day Gainers 조회 실패: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/gainers/add-to-watchlist", summary="급등주를 Watchlist에 추가")
+async def add_gainers_to_watchlist():
+    """
+    당일 급등주를 현재 Watchlist에 병합합니다.
+    
+    📌 동작:
+        1. Polygon Gainers API로 급등주 조회
+        2. 현재 Watchlist와 병합 (중복 제거)
+        3. score=0 (급등주)으로 표시
+    """
+    import os
+    from backend.data.polygon_client import PolygonClient
+    from backend.data.watchlist_store import get_watchlist_store
+    
+    api_key = os.getenv("MASSIVE_API_KEY", "")
+    if not api_key:
+        raise HTTPException(status_code=500, detail="MASSIVE_API_KEY not configured")
+    
+    try:
+        # 급등주 조회
+        async with PolygonClient(api_key) as client:
+            gainers = await client.fetch_day_gainers()
+        
+        if not gainers:
+            return {"status": "no_gainers", "added": 0}
+        
+        # 현재 Watchlist 로드
+        store = get_watchlist_store()
+        watchlist = store.load()
+        existing_tickers = {item.get("ticker") for item in watchlist}
+        
+        # 급등주 중 Watchlist에 없는 것만 추가
+        added_count = 0
+        for g in gainers:
+            ticker = g.get("ticker", "")
+            if ticker and ticker not in existing_tickers:
+                watchlist.append({
+                    "ticker": ticker,
+                    "score": 0,  # 급등주 표시 (점수 없음)
+                    "stage": "🚀 Day Gainer",
+                    "stage_number": 0,
+                    "signals": {},
+                    "can_trade": False,  # 분석 전이므로 거래 불가
+                    "last_close": g.get("last_price", 0),
+                    "change_pct": g.get("change_pct", 0),
+                    "avg_volume": g.get("volume", 0),
+                })
+                added_count += 1
+                existing_tickers.add(ticker)
+        
+        # 저장
+        store.save(watchlist)
+        
+        logger.info(f"✅ 급등주 {added_count}개 Watchlist에 추가")
+        
+        return {
+            "status": "success",
+            "added": added_count,
+            "total": len(watchlist),
+            "timestamp": _get_timestamp()
+        }
+    except Exception as e:
+        logger.error(f"급등주 추가 실패: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Ignition Endpoints (Phase 2 실시간 모니터링)
+# ═══════════════════════════════════════════════════════════════════════════
+
+@router.post("/ignition/start", summary="Ignition 모니터링 시작")
+async def start_ignition_monitor():
+    """
+    Ignition Score 모니터링을 시작합니다.
+    
+    📌 동작:
+        1. 현재 Watchlist 로드
+        2. IgnitionMonitor 시작
+        3. 실시간 틱 수신 → Ignition Score 계산 → WebSocket 브로드캐스트
+    """
+    from backend.core.ignition_monitor import get_ignition_monitor
+    from backend.data.watchlist_store import load_watchlist
+    
+    monitor = get_ignition_monitor()
+    
+    if not monitor:
+        raise HTTPException(status_code=500, detail="IgnitionMonitor not initialized")
+    
+    if monitor.is_running:
+        return {
+            "status": "already_running",
+            "ticker_count": monitor.ticker_count,
+            "timestamp": _get_timestamp()
+        }
+    
+    # Watchlist 로드
+    watchlist = load_watchlist()
+    
+    if not watchlist:
+        raise HTTPException(status_code=400, detail="Watchlist is empty. Run scanner first.")
+    
+    # 모니터링 시작
+    success = await monitor.start(watchlist)
+    
+    return {
+        "status": "started" if success else "failed",
+        "ticker_count": monitor.ticker_count,
+        "timestamp": _get_timestamp()
+    }
+
+
+@router.post("/ignition/stop", summary="Ignition 모니터링 중지")
+async def stop_ignition_monitor():
+    """
+    Ignition Score 모니터링을 중지합니다.
+    """
+    from backend.core.ignition_monitor import get_ignition_monitor
+    
+    monitor = get_ignition_monitor()
+    
+    if not monitor:
+        raise HTTPException(status_code=500, detail="IgnitionMonitor not initialized")
+    
+    await monitor.stop()
+    
+    return {
+        "status": "stopped",
+        "timestamp": _get_timestamp()
+    }
+
+
+@router.get("/ignition/scores", summary="현재 Ignition Score 조회")
+async def get_ignition_scores():
+    """
+    모든 Watchlist 종목의 현재 Ignition Score를 조회합니다.
+    
+    📌 반환값:
+        - running: 모니터링 실행 중 여부
+        - ticker_count: 모니터링 종목 수
+        - scores: 종목별 Ignition Score (ticker -> score)
+    """
+    from backend.core.ignition_monitor import get_ignition_monitor
+    
+    monitor = get_ignition_monitor()
+    
+    if not monitor:
+        return {
+            "running": False,
+            "ticker_count": 0,
+            "scores": {},
+            "timestamp": _get_timestamp()
+        }
+    
+    return {
+        "running": monitor.is_running,
+        "ticker_count": monitor.ticker_count,
+        "scores": monitor.get_all_scores(),
+        "timestamp": _get_timestamp()
+    }
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Chart Data Endpoints (Multi-Timeframe Support)
+# ═══════════════════════════════════════════════════════════════════════════
+
+@router.get("/chart/intraday/{ticker}", summary="Intraday 차트 데이터 조회")
+async def get_intraday_chart(
+    ticker: str,
+    timeframe: int = 5,  # 1, 5, 15, 60 (분 단위)
+    days: int = 2,  # 조회 일수 (1-10)
+):
+    """
+    특정 종목의 Intraday 차트 데이터를 조회합니다.
+    
+    📌 타임프레임:
+        - 1: 1분봉
+        - 5: 5분봉
+        - 15: 15분봉
+        - 60: 1시간봉
+    
+    📌 반환값:
+        - candles: OHLCV 데이터 리스트
+        - ticker: 종목 심볼
+        - timeframe: 타임프레임 (분)
+        - count: 데이터 개수
+    
+    Example:
+        GET /api/chart/intraday/AAPL?timeframe=5&days=2
+    """
+    import os
+    from datetime import datetime, timedelta
+    from backend.data.polygon_client import PolygonClient
+    
+    # API Key 확인
+    api_key = os.getenv("MASSIVE_API_KEY", "")
+    if not api_key:
+        raise HTTPException(status_code=500, detail="MASSIVE_API_KEY not configured")
+    
+    # 파라미터 검증
+    if timeframe not in [1, 5, 15, 60]:
+        raise HTTPException(status_code=400, detail="Invalid timeframe. Use 1, 5, 15, or 60")
+    if days < 1 or days > 10:
+        raise HTTPException(status_code=400, detail="Days must be between 1 and 10")
+    
+    # 날짜 범위 계산
+    to_date = datetime.now().strftime("%Y-%m-%d")
+    from_date = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+    
+    logger.info(f"📊 Intraday 차트 조회: {ticker} {timeframe}m ({from_date} ~ {to_date})")
+    
+    try:
+        async with PolygonClient(api_key) as client:
+            bars = await client.fetch_intraday_bars(
+                ticker=ticker.upper(),
+                multiplier=timeframe,
+                from_date=from_date,
+                to_date=to_date,
+                limit=5000
+            )
+        
+        if not bars:
+            return {
+                "status": "no_data",
+                "ticker": ticker.upper(),
+                "timeframe": timeframe,
+                "count": 0,
+                "candles": [],
+                "timestamp": _get_timestamp()
+            }
+        
+        # 차트 위젯 포맷으로 변환 (timestamp -> time)
+        candles = []
+        for bar in bars:
+            candles.append({
+                "time": bar["timestamp"] // 1000,  # ms -> seconds (TradingView 포맷)
+                "open": bar["open"],
+                "high": bar["high"],
+                "low": bar["low"],
+                "close": bar["close"],
+                "volume": bar["volume"],
+            })
+        
+        return {
+            "status": "success",
+            "ticker": ticker.upper(),
+            "timeframe": timeframe,
+            "count": len(candles),
+            "candles": candles,
+            "timestamp": _get_timestamp()
+        }
+        
+    except Exception as e:
+        logger.error(f"Intraday 차트 조회 실패: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 # Oracle (LLM) Endpoints
 # ═══════════════════════════════════════════════════════════════════════════
 
@@ -463,3 +821,4 @@ async def analyze_ticker(request: AnalysisRequest):
     except Exception as e:
         logger.error(f"Oracle analysis failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+

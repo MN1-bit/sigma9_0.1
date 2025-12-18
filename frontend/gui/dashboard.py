@@ -140,6 +140,9 @@ class Sigma9Dashboard(CustomWindow):
         # Watchlist 업데이트 (Step 3.4.8)
         self.backend_client.watchlist_updated.connect(self._update_watchlist_panel)
         
+        # Ignition Score 업데이트 (Phase 2)
+        self.backend_client.ignition_updated.connect(self._on_ignition_update)
+        
         # 에러 발생
         self.backend_client.error_occurred.connect(
             lambda msg: self.log(f"[ERROR] {msg}")
@@ -147,6 +150,9 @@ class Sigma9Dashboard(CustomWindow):
         
         # 로그 메시지
         self.backend_client.log_message.connect(self.log)
+        
+        # Ignition Score 캐시 초기화 (ticker -> score)
+        self._ignition_cache: dict = {}
     
     def _auto_connect_backend(self):
         """
@@ -156,7 +162,8 @@ class Sigma9Dashboard(CustomWindow):
         연결 성공 시 현재 선택된 전략으로 Scanner를 자동 실행합니다.
         """
         self.log("[INFO] Auto-connecting to backend...")
-        if self.backend_client.connect():
+        # [FIX] async → sync 래퍼 사용
+        if self.backend_client.connect_sync():
             # 연결 성공 시 Scanner 자동 실행 (Step 3.4.7)
             current_strategy = self.control_panel.get_selected_strategy()
             if current_strategy:
@@ -784,35 +791,148 @@ class Sigma9Dashboard(CustomWindow):
         self.control_panel.strategy_selected.connect(self._on_strategy_changed)
         self.control_panel.strategy_reload_clicked.connect(self._on_reload_strategy)
         self.control_panel.settings_clicked.connect(self._on_settings)
+    
+    # ═══════════════════════════════════════════════════════════════════════
+    # 로컬 서버 프로세스 관리
+    # ═══════════════════════════════════════════════════════════════════════
+    _local_server_process = None
 
     def _on_connect(self):
-        """Connect 버튼 클릭 (Step 3.4.1)"""
-        self.log("[ACTION] Connect button clicked")
+        """
+        Connect 버튼 클릭 - 스마트 자동 연결
+        
+        순서:
+        1. AWS 서버 연결 시도
+        2. 실패 시 → 로컬 서버 연결 시도
+        3. 로컬 서버도 없으면 → 자동으로 로컬 서버 시작
+        4. 연결 성공 시 → 엔진 자동 시작
+        """
+        self.log("[ACTION] 🔌 Smart Connect initiated...")
         self.particle_system.order_created()
-        self.backend_client.connect()
+        
+        import httpx
+        import subprocess
+        import os
+        import time
+        
+        # 설정에서 서버 정보 가져오기
+        settings = load_settings()
+        aws_host = settings.get("server", {}).get("aws_host", "")
+        local_host = "localhost"
+        port = settings.get("server", {}).get("port", 8000)
+        
+        # ═══════════════════════════════════════════════════════════
+        # Step 1: AWS 서버 연결 시도
+        # ═══════════════════════════════════════════════════════════
+        if aws_host and aws_host != "localhost" and aws_host != "ec2-xxx.amazonaws.com":
+            self.log(f"[INFO] 1️⃣ Trying AWS server: {aws_host}:{port}...")
+            try:
+                resp = httpx.get(f"http://{aws_host}:{port}/health", timeout=5.0)
+                if resp.status_code == 200:
+                    self.log(f"[INFO] ✅ AWS server found!")
+                    self.backend_client.set_server(aws_host, port)
+                    if self.backend_client.connect_sync():
+                        self._auto_start_engine()
+                        return
+            except Exception as e:
+                self.log(f"[WARN] AWS connection failed: {e}")
+        
+        # ═══════════════════════════════════════════════════════════
+        # Step 2: 로컬 서버 연결 시도
+        # ═══════════════════════════════════════════════════════════
+        self.log(f"[INFO] 2️⃣ Trying local server: {local_host}:{port}...")
+        try:
+            resp = httpx.get(f"http://{local_host}:{port}/health", timeout=3.0)
+            if resp.status_code == 200:
+                self.log(f"[INFO] ✅ Local server found!")
+                self.backend_client.set_server(local_host, port)
+                if self.backend_client.connect_sync():
+                    self._auto_start_engine()
+                    return
+        except httpx.ConnectError:
+            self.log("[WARN] Local server not running")
+        except Exception as e:
+            self.log(f"[WARN] Local server check failed: {e}")
+        
+        # ═══════════════════════════════════════════════════════════
+        # Step 3: 로컬 서버 자동 시작
+        # ═══════════════════════════════════════════════════════════
+        self.log("[INFO] 3️⃣ Starting local server automatically...")
+        
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        venv_python = os.path.join(project_root, ".venv", "Scripts", "python.exe")
+        
+        if not os.path.exists(venv_python):
+            self.log("[ERROR] ❌ Python not found in .venv")
+            return
+        
+        try:
+            # 새 콘솔 창에서 서버 실행
+            self._local_server_process = subprocess.Popen(
+                [venv_python, "-m", "backend"],
+                cwd=project_root,
+                creationflags=subprocess.CREATE_NEW_CONSOLE
+            )
+            self.log(f"[INFO] 🖥️ Local server started (PID: {self._local_server_process.pid})")
+            
+            # 서버 시작 대기 (최대 10초)
+            for i in range(20):
+                time.sleep(0.5)
+                try:
+                    resp = httpx.get(f"http://{local_host}:{port}/health", timeout=2.0)
+                    if resp.status_code == 200:
+                        self.log("[INFO] ✅ Local server is now ready!")
+                        break
+                except:
+                    pass
+                if i % 4 == 0:
+                    self.log(f"[INFO] Waiting for server... ({i//2}s)")
+            
+            # ═══════════════════════════════════════════════════════════
+            # Step 4: 연결 및 엔진 시작
+            # ═══════════════════════════════════════════════════════════
+            self.backend_client.set_server(local_host, port)
+            if self.backend_client.connect_sync():
+                self._auto_start_engine()
+            else:
+                self.log("[ERROR] ❌ Failed to connect after starting server")
+                
+        except Exception as e:
+            self.log(f"[ERROR] ❌ Failed to start local server: {e}")
+    
+    def _auto_start_engine(self):
+        """연결 후 자동으로 엔진 시작"""
+        self.log("[INFO] 4️⃣ Auto-starting engine...")
+        self.backend_client.start_engine_sync()
+        
+        # Scanner 자동 실행
+        current_strategy = self.control_panel.get_selected_strategy()
+        if current_strategy:
+            self.log(f"[INFO] 5️⃣ Running scanner with strategy: {current_strategy}")
+            self._run_scanner_for_strategy(current_strategy)
     
     def _on_disconnect(self):
         """Disconnect 버튼 클릭 (Step 3.4.1)"""
         self.log("[ACTION] Disconnect button clicked")
-        self.backend_client.disconnect()
+        self.backend_client.disconnect_sync()
 
     def _on_start(self):
         """Start Engine 버튼 클릭 (Step 3.4.2)"""
         self.log("[ACTION] Start Engine clicked")
         self.particle_system.order_filled()
-        self.backend_client.start_engine()
+        self.backend_client.start_engine_sync()
 
     def _on_stop(self):
         """Stop 버튼 클릭 (Step 3.4.2)"""
         self.log("[ACTION] Stop clicked")
         self.particle_system.stop_loss()
-        self.backend_client.stop_engine()
+        self.backend_client.stop_engine_sync()  # [FIX] async → sync
 
     def _on_kill(self):
         """Kill Switch 버튼 클릭 (Step 3.2.4 연동)"""
         self.log("[EMERGENCY] ⚡ KILL SWITCH ACTIVATED!")
         self.particle_system.stop_loss()
-        self.backend_client.kill_switch()
+        self.backend_client.kill_switch_sync()  # [FIX] async → sync
     
     def _on_backend_state_changed(self, state: ConnectionState):
         """
@@ -820,14 +940,18 @@ class Sigma9Dashboard(CustomWindow):
         
         Step 3.4.4: 상태 인디케이터 업데이트
         """
-        # ControlPanel의 상태 인디케이터 업데이트
-        self.control_panel.update_connection_status(state == ConnectionState.CONNECTED)
-        
-        # 파티클 이펙트
+        # 연결 상태 업데이트
         if state == ConnectionState.CONNECTED:
+            self.control_panel.update_connection_status(True)
             self.particle_system.order_created()
         elif state == ConnectionState.RUNNING:
+            # RUNNING은 파란색으로 별도 표시
+            self.control_panel.update_engine_status(True)
             self.particle_system.order_filled()
+        elif state == ConnectionState.DISCONNECTED or state == ConnectionState.ERROR:
+            self.control_panel.update_connection_status(False)
+        elif state == ConnectionState.STOPPING:
+            self.control_panel.update_engine_status(False)
 
     def _on_strategy_changed(self, strategy_name: str):
         """
@@ -872,24 +996,145 @@ class Sigma9Dashboard(CustomWindow):
         
         for item in items:
             if isinstance(item, WatchlistItem):
-                display_text = item.to_display_string()
+                ticker = item.ticker
+                change_pct = item.change_pct
+                score = item.score
             else:
                 # dict 형태인 경우
                 ticker = item.get("ticker", "UNKNOWN")
                 change_pct = item.get("change_pct", 0.0)
                 score = item.get("score", 0)
-                sign = "+" if change_pct >= 0 else ""
-                display_text = f"{ticker:6s} {sign}{change_pct:.1f}%  [{score}]"
             
-            self.watchlist.addItem(display_text)
+            # Ignition Score 조회 (캐시에서)
+            ignition_score = self._ignition_cache.get(ticker, 0.0)
+            
+            # 표시 형식: "AAPL  +2.3%  [85] 🔥72" 또는 "AAPL  +2.3%  [85]  -"
+            sign = "+" if change_pct >= 0 else ""
+            
+            # Ignition 칸럼 항상 표시 (값이 있으면 표시, 없으면 빈칸)
+            if ignition_score > 0:
+                display_text = f"{ticker:6s} {sign}{change_pct:.1f}%  [{score:.0f}] 🔥{ignition_score:.0f}"
+            else:
+                display_text = f"{ticker:6s} {sign}{change_pct:.1f}%  [{score:.0f}]  -"
+            
+            list_item = self.watchlist.addItem(display_text)
+            
+            # Score ≥ 70 강조 표시 (노란색)
+            if ignition_score >= 70:
+                idx = self.watchlist.count() - 1
+                widget_item = self.watchlist.item(idx)
+                if widget_item:
+                    widget_item.setBackground(QColor(255, 193, 7, 80))  # 노란색 반투명
         
         self.log(f"[INFO] Watchlist updated: {len(items)} stocks")
         self.particle_system.order_created()  # 시각적 피드백
+    
+    def _on_ignition_update(self, data: dict):
+        """
+        Ignition Score 실시간 업데이트 핸들러 (Phase 2)
+        
+        WebSocket으로 수신된 Ignition Score를 캐시에 저장하고
+        해당 종목의 Watchlist 표시를 업데이트합니다.
+        
+        Args:
+            data: {"ticker": str, "score": float, "passed_filter": bool, "reason": str}
+        """
+        ticker = data.get("ticker", "")
+        score = data.get("score", 0.0)
+        passed_filter = data.get("passed_filter", True)
+        
+        if not ticker:
+            return
+        
+        # Ignition 모니터링 활성화 플래그 설정
+        self._ignition_monitoring = True
+        
+        # 캐시 업데이트
+        self._ignition_cache[ticker] = score
+        
+        # Watchlist에서 해당 종목 찾아서 업데이트
+        for i in range(self.watchlist.count()):
+            item = self.watchlist.item(i)
+            if item and item.text().split()[0] == ticker:
+                # 기존 텍스트 파싱 후 Ignition Score 업데이트
+                text = item.text()
+                parts = text.split()
+                if len(parts) >= 3:
+                    # 새 텍스트 생성 (🔥 이모지 사용)
+                    base_text = " ".join(parts[:3])  # "AAPL +2.3% [85]"
+                    new_text = f"{base_text} 🔥{score:.0f}"
+                    item.setText(new_text)
+                    
+                    # 70점 이상 강조 + 사운드 + 파티클
+                    if score >= 70:
+                        item.setBackground(QColor(255, 193, 7, 80))
+                        if passed_filter:
+                            # 파티클 이펙트
+                            self.particle_system.take_profit()
+                            # 사운드 알림
+                            self._play_ignition_sound()
+                            self.log(f"[IGNITION] 🔥 {ticker} Score={score:.0f} - READY!")
+                    else:
+                        item.setBackground(QColor(0, 0, 0, 0))  # 투명
+                break
+    
+    def _play_ignition_sound(self):
+        """Ignition Alert 사운드 재생"""
+        try:
+            import winsound
+            # 시스템 알림음 (비프음)
+            winsound.MessageBeep(winsound.MB_ICONEXCLAMATION)
+        except Exception:
+            pass  # 사운드 재생 실패 시 무시
 
     def _on_timeframe_changed(self, timeframe: str):
-        """차트 타임프레임 변경 핸들러"""
+        """
+        차트 타임프레임 변경 핸들러 (Step 2.7)
+        
+        타임프레임 변경 시 해당 타임프레임의 데이터를 로드합니다.
+        - 1D: DB에서 Daily bar 로드
+        - 1m/5m/15m/1h: Massive API에서 Intraday bar 로드
+        """
         self.log(f"[INFO] Timeframe changed to: {timeframe}")
-        # TODO: 백엔드에서 해당 타임프레임 데이터 요청
+        
+        # 현재 타임프레임 저장
+        self._current_timeframe = timeframe
+        
+        # 현재 선택된 종목 가져오기
+        current_item = self.watchlist.currentItem()
+        if not current_item:
+            self.log("[WARN] No stock selected")
+            return
+        
+        ticker = current_item.text().split()[0].strip()
+        self.log(f"[INFO] Reloading {ticker} data for {timeframe}...")
+        
+        # 비동기 데이터 로드
+        import threading
+        from PyQt6.QtCore import QTimer
+        
+        def load_in_thread():
+            try:
+                from frontend.services.chart_data_service import ChartDataService
+                import asyncio
+                
+                async def fetch():
+                    service = ChartDataService()
+                    # timeframe 전달: "1D", "5m", "1h" 등
+                    days = 100 if timeframe == "1D" else 5  # Intraday는 5일
+                    data = await service.get_chart_data(ticker, timeframe=timeframe, days=days)
+                    await service.close()
+                    return data
+                
+                data = asyncio.run(fetch())
+                self._pending_chart_data = (ticker, data)
+                QTimer.singleShot(0, self._apply_pending_chart_data)
+                
+            except Exception as e:
+                self.log(f"[ERROR] Failed to load {ticker} ({timeframe}): {e}")
+        
+        thread = threading.Thread(target=load_in_thread, daemon=True)
+        thread.start()
 
     def _on_watchlist_clicked(self, item):
         """
@@ -964,10 +1209,13 @@ class Sigma9Dashboard(CustomWindow):
         self.log(f"[INFO] Chart updated for {ticker} ({len(data['candles'])} bars)")
 
     def log(self, message: str):
-        """로그 콘솔에 메시지 추가"""
+        """로그 콘솔에 메시지 추가 (자동 스크롤)"""
         from datetime import datetime
         timestamp = datetime.now().strftime("%H:%M:%S")
         self.log_console.append(f"[{timestamp}] {message}")
+        # 자동 스크롤 (맨 아래로)
+        scrollbar = self.log_console.verticalScrollBar()
+        scrollbar.setValue(scrollbar.maximum())
     
     # ═══════════════════════════════════════════════════════════════════════
     # Step 2.5: Strategy Loader 관련 메서드

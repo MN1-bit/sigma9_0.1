@@ -76,6 +76,8 @@ class CandlestickItem(pg.GraphicsObject):
         
         # QPicture로 캔들 미리 렌더링 (성능 최적화)
         self.picture = QtGui.QPicture()
+        # [FIX] 도지 캔들은 별도 저장 (paint()에서 픽셀 기반으로 그림)
+        self._doji_candles = []  # [(t, o, w), ...]
         self._generatePicture()
     
     def setData(self, data: List[Tuple[float, float, float, float, float]]):
@@ -98,6 +100,7 @@ class CandlestickItem(pg.GraphicsObject):
         한 번 그려두면 paint() 호출 시 빠르게 재사용할 수 있습니다.
         """
         self.picture = QtGui.QPicture()
+        self._doji_candles = []  # 도지 캔들 데이터 초기화
         
         if not self.data:
             return
@@ -121,30 +124,34 @@ class CandlestickItem(pg.GraphicsObject):
                 color = QtGui.QColor(self.down_color)
             
             # 펜과 브러시 설정
-            p.setPen(pg.mkPen(color, width=1))
+            # [FIX] 펜을 cosmetic으로 설정하여 두께가 픽셀 단위로 고정됨
+            pen = pg.mkPen(color)
+            pen.setCosmetic(True)
+            p.setPen(pen)
             p.setBrush(pg.mkBrush(color))
             
+            # [FIX] QPicture에서 drawLine/drawRect의 길이가 0에 가까우면
+            # 펜 두께가 데이터 좌표($1.00)로 렌더링되는 버그 발생.
+            # 해결: 길이가 매우 작은 선/사각형은 그리지 않음
+            
+            wick_height = h - l
+            body_height = c - o
+            
             # Wick (심지) 그리기 - 고가에서 저가까지의 수직선
-            p.drawLine(
-                QtCore.QPointF(t, l),
-                QtCore.QPointF(t, h)
-            )
+            # 심지 길이가 충분할 때만 그림
+            if wick_height > 0.01:
+                p.drawLine(
+                    QtCore.QPointF(t, l),
+                    QtCore.QPointF(t, h)
+                )
             
-            # Body (몸통) 그리기 - 시가와 종가 사이의 사각형
-            body_top = max(o, c)
-            body_bottom = min(o, c)
-            body_height = body_top - body_bottom
-            
-            # 몸통이 너무 작으면 최소 높이 보장 (도지 캔들 대응)
-            if body_height < 0.001:
-                body_height = 0.001
-            
-            p.drawRect(QtCore.QRectF(
-                t - w,           # left
-                body_bottom,     # top (PyQtGraph는 Y축이 위로 증가)
-                w * 2,           # width
-                body_height      # height
-            ))
+            # Body (몸통) 그리기
+            if abs(body_height) > 0.001:  # 0.1센트 초과면 일반 캔들
+                # 일반 캔들: 사각형으로 그림
+                p.drawRect(QtCore.QRectF(t - w, o, w * 2, body_height))
+            else:
+                # Doji: paint()에서 픽셀 기반으로 그림 (데이터만 저장)
+                self._doji_candles.append((t, o, w))
         
         p.end()
     
@@ -153,9 +160,35 @@ class CandlestickItem(pg.GraphicsObject):
         화면에 캔들스틱 렌더링
         
         이 메서드는 PyQtGraph가 자동으로 호출합니다.
-        미리 생성해둔 QPicture를 그대로 재생합니다.
+        일반 캔들: 미리 생성해둔 QPicture를 재생
+        도지 캔들: 픽셀 기반 최소 높이로 직접 그림
         """
+        # 일반 캔들 그리기 (QPicture)
         p.drawPicture(0, 0, self.picture)
+        
+        # 도지 캔들 그리기 (픽셀 기반 최소 높이)
+        if self._doji_candles:
+            # 뷰 정보를 사용해 픽셀-데이터 변환 비율 계산
+            view = self.getViewBox()
+            if view is not None:
+                view_rect = view.viewRect()
+                pixel_height_view = view.height()
+                data_height = view_rect.height()
+                
+                if pixel_height_view > 0 and data_height > 0:
+                    # 1픽셀을 데이터 좌표로 변환
+                    min_height = (1.0 / pixel_height_view) * data_height
+                else:
+                    min_height = 0.001
+            else:
+                min_height = 0.001
+            
+            # 도지 캔들 그리기 (NoPen + 흰색 브러시)
+            p.setPen(QtCore.Qt.PenStyle.NoPen)
+            p.setBrush(pg.mkBrush('#FFFFFF'))
+            
+            for t, o, w in self._doji_candles:
+                p.drawRect(QtCore.QRectF(t - w, o - min_height/2, w * 2, min_height))
     
     def boundingRect(self) -> QtCore.QRectF:
         """

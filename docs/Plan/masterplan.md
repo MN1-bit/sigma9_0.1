@@ -76,6 +76,43 @@ API Endpoints:
 | **Polygon.io** | **Universe Scan + History** | `Grouped Daily` (전체 시장 일봉) → Local DB |
 | **IBKR** | **Real-time Trigger** | `reqMktData` (Selected Watchlist 50) |
 
+### 3.1.1 실시간 데이터 파이프라인 (Step 4.A.0)
+
+> 📋 **상세 계획**: [step_4.a_plan.md](./steps/step_4.a_plan.md)
+
+Tiered Watchlist 및 실시간 차트를 위한 **데이터 흐름**:
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    REAL-TIME DATA PIPELINE                          │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  [IBKR TWS] ──Tick Stream──▶ [IBKRConnector] ──▶ [IgnitionMonitor] │
+│                                    │                    │          │
+│                                    ▼                    ▼          │
+│                           [WebSocket Server]    [Ignition Score]   │
+│                                    │                    │          │
+│                                    ▼                    ▼          │
+│                             [WsAdapter]          [Tier 2 승격]     │
+│                                    │                               │
+│                                    ▼                               │
+│                    ┌───────────────┴───────────────┐               │
+│                    │                               │               │
+│                    ▼                               ▼               │
+│              [Chart Widget]              [Watchlist Panel]         │
+│              (Tick→Candle)               (실시간 가격/zenV/zenP)   │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+| Component | 데이터 유형 | 갱신 주기 |
+|-----------|-------------|-----------|
+| **Tier 2 Hot Zone** | Tick Data | 1초 |
+| **Tier 1 Watchlist** | 1m/5m Bar | 1분/5분 |
+| **Chart** | Tick → OHLC | 실시간 |
+| **Z-Score (zenV/zenP)** | 20일 통계 기반 | Tick 마다 재계산 |
+
+
 ### 3.2 Universe Filter Logic (Local DB)
 
 | Filter | Value | Rationale |
@@ -349,6 +386,40 @@ flowchart TB
 **Key Libraries**:
 - **PyQt-Fluent-Widgets (`qfluentwidgets`)**: Windows 11 Fluent Design 스타일의 고품질 위젯 라이브러리 사용
 - **Acrylic Integration**: Native API 또는 브릿지 라이브러리를 통해 리얼타임 블러 효과 구현
+
+### 7.4 Tiered Watchlist System (Step 4.A)
+
+> 📋 **상세 계획**: [step_4.a_plan.md](./steps/step_4.a_plan.md)
+
+기존 단일 Watchlist를 **2-Tier 시스템**으로 확장:
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  ⚡ TIER 2 - HOT ZONE (1초 갱신, 상위 5개)               │
+│  ┌─────────────────────────────────────────────────────┐│
+│  │ AAPL  $178.25  1.2M  🔥85  +3.2%  Z:V+2.1 Z:P+0.3 ││
+│  └─────────────────────────────────────────────────────┘│
+├─────────────────────────────────────────────────────────┤
+│  📋 TIER 1 - WATCHLIST (1분/5분 갱신, 최대 50개)         │
+│  ┌─────────────────────────────────────────────────────┐│
+│  │ MSFT   +1.2%  [100]  🔥45   560K                   ││
+│  └─────────────────────────────────────────────────────┘│
+└─────────────────────────────────────────────────────────┘
+```
+
+| 항목 | Tier 1 (Watchlist) | Tier 2 (Hot Zone) |
+|------|--------------------|-------------------|
+| **갱신 주기** | 1분 / 5분 | 1초 (Tick) |
+| **승격 조건** | Scanner 50점 초과 | Ignition 상위 5개 or Day Gainer |
+| **종목 수** | 최대 50개 | 상위 5개 (최대 10개) |
+| **표시 항목** | Ticker, 등락율, Score, Ignition, DollarVol | + Price, zenV, zenP |
+
+**Z-Score 지표**:
+- **zenV** (Normalized Volume): `(current_volume - avg_20d) / std_20d`
+- **zenP** (Normalized Price): `(current_price - avg_20d) / std_20d`
+
+**zenV-zenP Divergence 전략**:
+> "거래량 폭발(zenV > 2.0) + 가격 미반영(zenP < 0.5)" → 진입 시그널
 
 ---
 
