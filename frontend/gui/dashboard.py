@@ -53,9 +53,11 @@ from .custom_window import CustomWindow
 from .particle_effects import ParticleSystem
 from .theme import theme  # [REFAC] 테마 매니저 임포트
 from .settings_dialog import SettingsDialog
-from .chart_widget import ChartWidget  # Step 2.4.7: 차트 위젯 (Backup)
+# from .chart_widget import ChartWidget  # Step 2.4.7: 차트 위젯 (Backup) - REMOVED due to missing dependency
 from .chart.pyqtgraph_chart import PyQtGraphChartWidget  # [NEW] PyQtGraph 기반 차트
+from .control_panel import ControlPanel, StatusIndicator, LoadingOverlay  # [NEW] Step 3.4
 from ..config.loader import load_settings, save_settings
+from ..services.backend_client import BackendClient, ConnectionState, WatchlistItem  # [NEW] Step 3.4
 
 
 class Sigma9Dashboard(CustomWindow):
@@ -112,8 +114,52 @@ class Sigma9Dashboard(CustomWindow):
         self.particle_system.global_alpha = theme.particle_alpha # [NEW] 초기 투명도 적용
         self.particle_system.raise_()
         
+        # ═══════════════════════════════════════════════════════════════════
+        # Step 3.4: BackendClient 초기화
+        # ═══════════════════════════════════════════════════════════════════
+        self.backend_client = BackendClient.instance()
+        self._connect_backend_signals()
+        
         # Step 2.5: StrategyLoader 초기화 및 전략 목록 로드
         self._init_strategy_loader()
+        
+        # Step 3.4.6: GUI 시작 시 자동 연결 (500ms 후)
+        from PyQt6.QtCore import QTimer
+        QTimer.singleShot(500, self._auto_connect_backend)
+
+    def _connect_backend_signals(self):
+        """
+        BackendClient Signal 연결
+        
+        Step 3.4: BackendClient의 시그널을 GUI 핸들러에 연결합니다.
+        """
+        # 연결 상태 변경
+        self.backend_client.state_changed.connect(self._on_backend_state_changed)
+        
+        # Watchlist 업데이트 (Step 3.4.8)
+        self.backend_client.watchlist_updated.connect(self._update_watchlist_panel)
+        
+        # 에러 발생
+        self.backend_client.error_occurred.connect(
+            lambda msg: self.log(f"[ERROR] {msg}")
+        )
+        
+        # 로그 메시지
+        self.backend_client.log_message.connect(self.log)
+    
+    def _auto_connect_backend(self):
+        """
+        Step 3.4.6: GUI 시작 시 Backend 자동 연결
+        
+        500ms 후에 호출되어 Backend에 자동으로 연결을 시도합니다.
+        연결 성공 시 현재 선택된 전략으로 Scanner를 자동 실행합니다.
+        """
+        self.log("[INFO] Auto-connecting to backend...")
+        if self.backend_client.connect():
+            # 연결 성공 시 Scanner 자동 실행 (Step 3.4.7)
+            current_strategy = self.control_panel.get_selected_strategy()
+            if current_strategy:
+                self._run_scanner_for_strategy(current_strategy)
 
     def resizeEvent(self, event):
         """윈도우 크기 변경 시 파티클 시스템 크기도 조절"""
@@ -145,10 +191,11 @@ class Sigma9Dashboard(CustomWindow):
         main_layout.setSpacing(8)
         
         # ═══════════════════════════════════════════════════════════
-        # 1. TOP PANEL - 컨트롤 버튼
+        # 1. TOP PANEL - 컨트롤 패널 (Step 3.4)
         # ═══════════════════════════════════════════════════════════
-        top_panel = self._create_top_panel()
-        main_layout.addWidget(top_panel)
+        self.control_panel = ControlPanel()
+        self._connect_control_panel_signals()
+        main_layout.addWidget(self.control_panel)
         
         # ═══════════════════════════════════════════════════════════
         # 2. MIDDLE AREA - Left, Center, Right (Splitter 사용)
@@ -620,35 +667,124 @@ class Sigma9Dashboard(CustomWindow):
         return frame
 
     # ═══════════════════════════════════════════════════════════════════════
-    # 버튼 이벤트 핸들러 (Placeholder)
+    # Step 3.4: Control Panel & Backend 이벤트 핸들러
     # ═══════════════════════════════════════════════════════════════════════
+    
+    def _connect_control_panel_signals(self):
+        """
+        ControlPanel Signal 연결
+        
+        Step 3.4: ControlPanel의 버튼 시그널을 핸들러에 연결합니다.
+        """
+        self.control_panel.connect_clicked.connect(self._on_connect)
+        self.control_panel.disconnect_clicked.connect(self._on_disconnect)
+        self.control_panel.start_clicked.connect(self._on_start)
+        self.control_panel.stop_clicked.connect(self._on_stop)
+        self.control_panel.kill_clicked.connect(self._on_kill)
+        self.control_panel.strategy_selected.connect(self._on_strategy_changed)
+        self.control_panel.strategy_reload_clicked.connect(self._on_reload_strategy)
+        self.control_panel.settings_btn.clicked.connect(self._on_settings)
 
     def _on_connect(self):
-        """Connect 버튼 클릭"""
+        """Connect 버튼 클릭 (Step 3.4.1)"""
         self.log("[ACTION] Connect button clicked")
         self.particle_system.order_created()
-        self.status_label.setText("🟡 Connecting...")
-        # primary 색상으로 변경
-        self.status_label.setStyleSheet(self.status_label.styleSheet().replace(theme.get_color("danger"), theme.get_color("warning")))
+        self.backend_client.connect()
+    
+    def _on_disconnect(self):
+        """Disconnect 버튼 클릭 (Step 3.4.1)"""
+        self.log("[ACTION] Disconnect button clicked")
+        self.backend_client.disconnect()
 
     def _on_start(self):
-        """Start Engine 버튼 클릭"""
+        """Start Engine 버튼 클릭 (Step 3.4.2)"""
         self.log("[ACTION] Start Engine clicked")
         self.particle_system.order_filled()
+        self.backend_client.start_engine()
 
     def _on_stop(self):
-        """Stop 버튼 클릭"""
+        """Stop 버튼 클릭 (Step 3.4.2)"""
         self.log("[ACTION] Stop clicked")
         self.particle_system.stop_loss()
+        self.backend_client.stop_engine()
 
     def _on_kill(self):
-        """Kill Switch 버튼 클릭"""
+        """Kill Switch 버튼 클릭 (Step 3.2.4 연동)"""
         self.log("[EMERGENCY] ⚡ KILL SWITCH ACTIVATED!")
         self.particle_system.stop_loss()
+        self.backend_client.kill_switch()
+    
+    def _on_backend_state_changed(self, state: ConnectionState):
+        """
+        Backend 상태 변경 핸들러
+        
+        Step 3.4.4: 상태 인디케이터 업데이트
+        """
+        # ControlPanel의 상태 인디케이터 업데이트
+        self.control_panel.update_connection_status(state == ConnectionState.CONNECTED)
+        
+        # 파티클 이펙트
+        if state == ConnectionState.CONNECTED:
+            self.particle_system.order_created()
+        elif state == ConnectionState.RUNNING:
+            self.particle_system.order_filled()
 
     def _on_strategy_changed(self, strategy_name: str):
-        """전략 변경 콤보박스 이벤트 핸들러 (Placeholder)"""
-        self.log(f"[INFO] Strategy changed to: {strategy_name}")
+        """
+        전략 드롭다운 변경 이벤트
+        
+        Step 3.4.7: 전략 변경 시 Scanner 자동 실행
+        """
+        if not strategy_name:
+            return
+        self.log(f"[ACTION] Strategy selected: {strategy_name}")
+        self._load_selected_strategy(strategy_name)
+        
+        # Step 3.4.7: Scanner 자동 실행
+        if self.backend_client.is_connected:
+            self._run_scanner_for_strategy(strategy_name)
+    
+    def _run_scanner_for_strategy(self, strategy_name: str):
+        """
+        Step 3.4.7: 전략에 대한 Scanner 실행
+        
+        BackendClient를 통해 Scanner를 비동기로 실행합니다.
+        결과는 watchlist_updated 시그널로 전달됩니다.
+        """
+        self.log(f"[INFO] Starting scanner for {strategy_name}...")
+        self.backend_client.run_scanner(strategy_name)
+    
+    def _update_watchlist_panel(self, items: list):
+        """
+        Step 3.4.8: Watchlist 패널 자동 업데이트
+        
+        Scanner 결과가 도착하면 Watchlist 위젯을 업데이트합니다.
+        
+        Args:
+            items: List[WatchlistItem] - Scanner 결과
+        """
+        self.watchlist.clear()
+        
+        if not items:
+            self.watchlist.addItem("No stocks found")
+            self.log("[INFO] Watchlist updated: 0 stocks")
+            return
+        
+        for item in items:
+            if isinstance(item, WatchlistItem):
+                display_text = item.to_display_string()
+            else:
+                # dict 형태인 경우
+                ticker = item.get("ticker", "UNKNOWN")
+                change_pct = item.get("change_pct", 0.0)
+                score = item.get("score", 0)
+                sign = "+" if change_pct >= 0 else ""
+                display_text = f"{ticker:6s} {sign}{change_pct:.1f}%  [{score}]"
+            
+            self.watchlist.addItem(display_text)
+        
+        self.log(f"[INFO] Watchlist updated: {len(items)} stocks")
+        self.particle_system.order_created()  # 시각적 피드백
 
     def _on_timeframe_changed(self, timeframe: str):
         """차트 타임프레임 변경 핸들러"""
@@ -758,15 +894,15 @@ class Sigma9Dashboard(CustomWindow):
             # 사용 가능한 전략 목록 로드
             strategies = self.strategy_loader.discover_strategies()
             
-            # 드롭다운에 추가
-            self.strategy_combo.clear()
-            self.strategy_combo.addItems(strategies)
+            # Step 3.4: ControlPanel 드롭다운에 전략 목록 추가
+            self.control_panel.set_strategies(strategies)
             
             self.log(f"[INFO] Found {len(strategies)} strategies: {strategies}")
             
             # 첫 번째 전략 자동 로드
             if strategies:
                 self._load_selected_strategy(strategies[0])
+
         except Exception as e:
             self.log(f"[ERROR] Failed to init StrategyLoader: {e}")
             self.strategy_loader = None
