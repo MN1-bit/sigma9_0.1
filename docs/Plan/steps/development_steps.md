@@ -112,17 +112,20 @@ Based on [Master Plan v2.0](../Plan/masterplan.md) and [@PROJECT_DNA.md](../../@
 - [x] 3.2.3: Enforce Daily/Weekly Loss Limits
 - [x] 3.2.4: Implement "Kill Switch" functionality (Cancel All + Liquidate All)
 
-### Step 3.3: Double Tap & Harvest
-- [ ] 3.3.1: Implement Trailing Stop logic (Harvest)
-- [ ] 3.3.2: Implement `Double Tap` re-entry logic (Cooldown, VWAP check)
-- [ ] 3.3.3: Update OMS to handle these multi-stage exit scenarios
+### Step 3.3: Double Tap & Harvest ✅ COMPLETED
+- [x] 3.3.1: Implement Trailing Stop logic (Harvest)
+- [x] 3.3.2: Implement `Double Tap` re-entry logic (Cooldown, VWAP check)
+- [x] 3.3.3: Update OMS to handle these multi-stage exit scenarios
 
-### Step 3.4: GUI Control Panel (masterplan 14)
-- [ ] 3.4.1: Implement Connect/Disconnect button with Backend WebSocket
-- [ ] 3.4.2: Implement Boot Engine / Shutdown Engine buttons
-- [ ] 3.4.3: Implement Strategy Reload button
-- [ ] 3.4.4: Add connection status indicator (🔴🟡🟠🟢)
-- [ ] 3.4.5: Implement loading overlay for async operations
+### Step 3.4: GUI Control Panel (masterplan 14) ✅ COMPLETED
+- [x] 3.4.1: Implement Connect/Disconnect button with Backend WebSocket
+- [x] 3.4.2: Implement Boot Engine / Shutdown Engine buttons
+- [x] 3.4.3: Implement Strategy Reload button
+- [x] 3.4.4: Add connection status indicator (🔴🟡🟠🟢)
+- [x] 3.4.5: Implement loading overlay for async operations
+- [x] 3.4.6: Auto-connect to Backend on GUI startup
+- [x] 3.4.7: Auto-start Scanner when strategy is selected/changed
+- [x] 3.4.8: Auto-update Watchlist panel when Scanner produces results
 
 ---
 

@@ -130,10 +130,10 @@ class ThemeManager:
                     border-bottom: 1px solid {c['border']};
                 }}
                 QListWidget::item:selected {{
-                    background-color: {c['selection']};
+                    background-color: {c['hover']};
                 }}
                 QListWidget::item:hover {{
-                    background-color: {c['hover']};
+                    background-color: {c['selection']};
                 }}
             """
         return ""
