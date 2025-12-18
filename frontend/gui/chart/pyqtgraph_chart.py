@@ -101,8 +101,8 @@ class PyQtGraphChartWidget(QWidget):
     timeframe_changed = pyqtSignal(str)
     chart_clicked = pyqtSignal(float, float)
     
-    # 지원하는 타임프레임
-    TIMEFRAMES = ['1m', '3m', '5m', '15m', '1h', '4h', '1d', '1w']
+    # 지원하는 타임프레임 (Step 2.7)
+    TIMEFRAMES = ['1m', '5m', '15m', '1h', '1D']
     
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -438,6 +438,8 @@ class PyQtGraphChartWidget(QWidget):
         
         # 타임스탬프 -> 인덱스 매핑 생성
         self._timestamp_map = {} 
+        
+        
         
         for i, c in enumerate(candles):
             t = c['time']

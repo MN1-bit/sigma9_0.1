@@ -293,6 +293,32 @@ class RestAdapter:
             logger.error(f"reload_strategy error: {e}")
             return {"status": "error", "message": str(e)}
     
+    async def run_scanner(self, strategy_name: str = "seismograph") -> Dict[str, Any]:
+        """
+        Scanner 실행 요청
+        
+        Args:
+            strategy_name: 전략 이름
+        
+        Returns:
+            dict: 응답 데이터 {"status": "success", "item_count": ...}
+        """
+        try:
+            client = await self._get_client()
+            response = await client.post(
+                "/api/scanner/run",
+                params={"strategy_name": strategy_name}
+            )
+            
+            if response.status_code == 200:
+                return response.json()
+            else:
+                return {"status": "error", "message": f"HTTP {response.status_code}"}
+                
+        except Exception as e:
+            logger.error(f"run_scanner error: {e}")
+            return {"status": "error", "message": str(e)}
+    
     # ─────────────────────────────────────────────────────────────
     # Scheduler Control (Backend Tab용)
     # ─────────────────────────────────────────────────────────────

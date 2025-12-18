@@ -137,7 +137,13 @@ class Scanner:
                 # Accumulation Score 상세 계산 (Step 2.2.5 메타데이터 포함)
                 result = self.strategy.calculate_watchlist_score_detailed(ticker, data)
                 
-                if result["score"] > 0:
+                # 50점 초과만 Watchlist에 추가 (50점 이하는 관찰 가치 낮음)
+                if result["score"] > 50:
+                    # 변동률 계산: (최근 종가 - 전일 종가) / 전일 종가 * 100
+                    last_close = data[-1]["close"] if data else 0
+                    prev_close = data[-2]["close"] if len(data) >= 2 else last_close
+                    change_pct = ((last_close - prev_close) / prev_close * 100) if prev_close > 0 else 0.0
+                    
                     results.append({
                         "ticker": ticker,
                         "score": result["score"],
@@ -145,7 +151,8 @@ class Scanner:
                         "stage_number": result["stage_number"],
                         "signals": result["signals"],
                         "can_trade": result["can_trade"],
-                        "last_close": data[-1]["close"] if data else 0,
+                        "last_close": last_close,
+                        "change_pct": round(change_pct, 2),  # 소수점 2자리
                         "avg_volume": sum(d["volume"] for d in data) / len(data) if data else 0,
                     })
                 

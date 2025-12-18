@@ -150,6 +150,7 @@ Based on [Master Plan v2.0](../Plan/masterplan.md) and [@PROJECT_DNA.md](../../@
   - [x] 4.2.3.4: **Backend Tab**: Scheduler controls (Market Open Scan toggle, Scan offset minutes, Daily Data Update toggle, Update time picker)
 - [x] 4.2.4: **Verify Decoupling**: Run GUI with remote Server (localhost)
 - [x] 4.2.5: **Right Panel Oracle Section**: Trading + Oracle sections in Right Panel
+- [x] 4.2.6: **Local Server Launch**: Add "Start/Shutdown Local Server" buttons in Backend tab (Windows subprocess)
 
 ### Step 4.3: Reliability & Logging
 - [ ] 4.3.1: **Structured Logging**: Setup `loguru` on Server with JSON rotation
@@ -161,6 +162,39 @@ Based on [Master Plan v2.0](../Plan/masterplan.md) and [@PROJECT_DNA.md](../../@
 - [ ] 4.4.2: **Analysis Endpoints**: `/api/oracle/analyze/{ticker}` & `/api/oracle/reflection`
 - [ ] 4.4.3: **Oracle UI Integration**: Implement `OracleWidget` in Right Panel (Chat Interface + Markdown View)
 - [ ] 4.4.4: **Feature Implementation**: Coding for [Why?], [Fundamental], [Reflection] buttons
+
+### Step 4.A: Tiered Watchlist System
+> 📋 상세 계획: [step_4.a_plan.md](./step_4.a_plan.md)
+
+**선행 필수**: Step 2.7 (Multi-Timeframe) 완료 후 Phase 4.A.0 진행
+
+#### Phase 4.A.0: 실시간 데이터 파이프라인 (선행 필수)
+- [ ] 4.A.0.1: IBKR Tick 스트리밍 → WebSocket 브로드캐스트
+- [ ] 4.A.0.2: Intraday Bar 데이터 API (1m, 5m)
+- [ ] 4.A.0.3: Chart 실시간 업데이트 (Tick → Candlestick)
+- [ ] 4.A.0.4: Watchlist 종목 Tick 구독 관리
+
+#### Phase 4.A.1: Tier 1 Enhancement
+- [ ] 4.A.1.1: Dollar Volume 컬럼 추가 (K/M/B 표기)
+- [ ] 4.A.1.2: 헤더 정렬 기능 (등락율/Score/Ignition)
+- [ ] 4.A.1.3: Tier 1 주기적 갱신 (1분/5분)
+
+#### Phase 4.A.2: Tier 2 Hot Zone
+- [ ] 4.A.2.1: Tier 2 데이터 모델 (zenV, zenP 포함)
+- [ ] 4.A.2.2: Ignition ≥ 70 시 Tier 2 승격
+- [ ] 4.A.2.3: Day Gainers → Tier 2 자동 추가
+- [ ] 4.A.2.4: Tier 2 GUI 패널 (Watchlist 상단)
+- [ ] 4.A.2.5: Tier 2 Tick-level 실시간 업데이트 (1초)
+
+#### Phase 4.A.3: Z-Score Indicator
+- [ ] 4.A.3.1: zenV (Normalized Volume) 계산
+- [ ] 4.A.3.2: zenP (Normalized Price) 계산
+- [ ] 4.A.3.3: GUI에 Z-score 표시
+
+#### Phase 4.A.4: zenV-zenP Divergence 전략
+- [ ] 4.A.4.1: "High zenV + Low zenP" 조건 탐지
+- [ ] 4.A.4.2: Divergence 기반 진입 시그널
+- [ ] 4.A.4.3: 기존 Ignition 로직과 병행
 
 ---
 

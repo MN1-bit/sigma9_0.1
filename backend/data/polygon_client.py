@@ -90,7 +90,7 @@ class PolygonClient:
     def __init__(
         self,
         api_key: str,
-        base_url: str = "https://api.polygon.io",
+        base_url: str = "https://api.massive.com",  # polygon.io → massive.com (deprecated)
         rate_limit: int = 5,  # requests per minute
         retry_count: int = 3,
         retry_delay: float = 2.0,
@@ -99,7 +99,7 @@ class PolygonClient:
         PolygonClient 초기화
         
         Args:
-            api_key: Polygon.io API 키 (환경변수 POLYGON_API_KEY 권장)
+            api_key: Massive.com API 키 (환경변수 MASSIVE_API_KEY 권장)
             base_url: API 기본 URL
             rate_limit: 분당 최대 요청 수 (Free Tier: 5)
             retry_count: 실패 시 재시도 횟수
@@ -134,7 +134,7 @@ class PolygonClient:
         """async with 진입 시 HTTP 클라이언트 생성"""
         self._client = httpx.AsyncClient(
             timeout=httpx.Timeout(30.0),  # 30초 타임아웃
-            headers={"Authorization": f"Bearer {self.api_key}"},
+            # Massive.com API는 apiKey 쿼리 파라미터 방식 사용
         )
         return self
     
@@ -157,7 +157,7 @@ class PolygonClient:
         if self._client is None:
             self._client = httpx.AsyncClient(
                 timeout=httpx.Timeout(30.0),
-                headers={"Authorization": f"Bearer {self.api_key}"},
+                # Massive.com API는 apiKey 쿼리 파라미터 방식 사용
             )
         return self._client
     
@@ -183,6 +183,13 @@ class PolygonClient:
             PolygonRateLimitError: Rate Limit 초과 시
         """
         client = await self._ensure_client()
+        
+        # ─────────────────────────────────────────────────────────────────
+        # Massive.com API 인증: apiKey 쿼리 파라미터 방식
+        # ─────────────────────────────────────────────────────────────────
+        if "params" not in kwargs:
+            kwargs["params"] = {}
+        kwargs["params"]["apiKey"] = self.api_key
         
         for attempt in range(self.retry_count + 1):
             # ─────────────────────────────────────────────────────────────
@@ -297,13 +304,22 @@ class PolygonClient:
         bars = []
         for item in results:
             try:
+                open_val = float(item.get("o", 0))
+                high_val = float(item.get("h", 0))
+                low_val = float(item.get("l", 0))
+                close_val = float(item.get("c", 0))
+                
+                # 가격이 0 이하이면 데이터 오류로 간주하고 건너뜀
+                if open_val <= 0 or high_val <= 0 or low_val <= 0 or close_val <= 0:
+                    continue
+
                 bar = {
                     "ticker": item["T"],  # Ticker
                     "date": date,
-                    "open": float(item.get("o", 0)),
-                    "high": float(item.get("h", 0)),
-                    "low": float(item.get("l", 0)),
-                    "close": float(item.get("c", 0)),
+                    "open": open_val,
+                    "high": high_val,
+                    "low": low_val,
+                    "close": close_val,
                     "volume": int(item.get("v", 0)),
                     "vwap": float(item.get("vw", 0)) if item.get("vw") else None,
                     "transactions": int(item.get("n", 0)) if item.get("n") else None,
@@ -367,6 +383,205 @@ class PolygonClient:
             "primary_exchange": results.get("primary_exchange"),
             "last_updated": datetime.now().strftime("%Y-%m-%d"),
         }
+    
+    async def fetch_intraday_bars(
+        self,
+        ticker: str,
+        multiplier: int = 5,
+        from_date: str = None,
+        to_date: str = None,
+        limit: int = 5000,
+    ) -> list[dict]:
+        """
+        특정 종목의 Intraday Bar 데이터 조회
+        
+        Massive Aggregates API를 사용합니다.
+        1분, 5분, 15분, 60분 봉 데이터를 가져올 수 있습니다.
+        
+        Args:
+            ticker: 종목 심볼 (예: "AAPL")
+            multiplier: 타임프레임 배수 (1, 5, 15, 60)
+            from_date: 시작일 (YYYY-MM-DD, 기본값: 2일 전)
+            to_date: 종료일 (YYYY-MM-DD, 기본값: 오늘)
+            limit: 최대 결과 수 (기본값: 5000)
+        
+        Returns:
+            list[dict]: Intraday bar 데이터 리스트
+                각 딕셔너리는 다음 키를 가집니다:
+                - ticker: 종목 심볼
+                - timestamp: Unix timestamp (ms)
+                - open, high, low, close: 가격
+                - volume: 거래량
+                - vwap: 거래량 가중 평균가
+                - transactions: 체결 건수
+        
+        Example:
+            >>> bars = await client.fetch_intraday_bars("AAPL", multiplier=5, limit=100)
+            >>> print(f"{len(bars)}개 5분봉 데이터")
+        
+        Note:
+            - multiplier=1: 1분봉
+            - multiplier=5: 5분봉
+            - multiplier=15: 15분봉
+            - multiplier=60: 1시간봉
+        """
+        # ─────────────────────────────────────────────────────────────────
+        # 날짜 기본값 설정
+        # ─────────────────────────────────────────────────────────────────
+        if to_date is None:
+            to_date = datetime.now().strftime("%Y-%m-%d")
+        if from_date is None:
+            # 기본 2일 전 (Intraday 데이터는 보통 단기)
+            from datetime import timedelta
+            from_dt = datetime.now() - timedelta(days=2)
+            from_date = from_dt.strftime("%Y-%m-%d")
+        
+        # ─────────────────────────────────────────────────────────────────
+        # API 호출
+        # GET /v2/aggs/ticker/{ticker}/range/{multiplier}/minute/{from}/{to}
+        # ─────────────────────────────────────────────────────────────────
+        url = f"{self.base_url}/v2/aggs/ticker/{ticker}/range/{multiplier}/minute/{from_date}/{to_date}"
+        params = {
+            "adjusted": "true",
+            "sort": "asc",
+            "limit": str(limit),
+        }
+        
+        logger.debug(f"📡 Intraday Bars API 호출: {ticker} {multiplier}m ({from_date} ~ {to_date})")
+        
+        try:
+            data = await self._request_with_retry("GET", url, params=params)
+        except PolygonAPIError as e:
+            logger.warning(f"⚠️ {ticker} Intraday 조회 실패: {e}")
+            return []
+        
+        # ─────────────────────────────────────────────────────────────────
+        # 응답 파싱
+        # ─────────────────────────────────────────────────────────────────
+        if data.get("status") != "OK":
+            logger.warning(f"⚠️ Intraday API 응답 상태: {data.get('status')}")
+            return []
+        
+        results = data.get("results", [])
+        
+        if not results:
+            logger.info(f"📭 {ticker}에 Intraday 데이터 없음")
+            return []
+        
+        # ─────────────────────────────────────────────────────────────────
+        # 데이터 정규화
+        # ─────────────────────────────────────────────────────────────────
+        bars = []
+        for item in results:
+            try:
+                timestamp = int(item.get("t", 0))
+                open_val = float(item.get("o", 0))
+                high_val = float(item.get("h", 0))
+                low_val = float(item.get("l", 0))
+                close_val = float(item.get("c", 0))
+                
+
+
+                bar = {
+                    "ticker": ticker,
+                    "timestamp": timestamp,  # Unix ms
+                    "open": open_val,
+                    "high": high_val,
+                    "low": low_val,
+                    "close": close_val,
+                    "volume": int(item.get("v", 0)),
+                    "vwap": float(item.get("vw", 0)) if item.get("vw") else None,
+                    "transactions": int(item.get("n", 0)) if item.get("n") else None,
+                }
+                bars.append(bar)
+            except (KeyError, ValueError, TypeError) as e:
+                logger.warning(f"⚠️ Intraday 데이터 파싱 실패: {e}")
+                continue
+        
+        logger.info(f"✅ {ticker} {multiplier}m: {len(bars)}개 바 데이터 수신")
+        return bars
+    
+    async def fetch_day_gainers(self, include_otc: bool = False) -> list[dict]:
+        """
+        당일 급등주 상위 20개 조회
+        
+        Polygon Snapshot Gainers API를 사용합니다.
+        전일 종가 대비 상승률이 높은 상위 20개 종목을 반환합니다.
+        
+        Args:
+            include_otc: OTC 종목 포함 여부 (기본 False)
+        
+        Returns:
+            list[dict]: 급등주 리스트
+                - ticker: 종목 심볼
+                - change_pct: 변동률 (%)
+                - last_price: 현재가
+                - volume: 거래량
+                - prev_close: 전일 종가
+        
+        Example:
+            >>> gainers = await client.fetch_day_gainers()
+            >>> for g in gainers[:5]:
+            ...     print(f"{g['ticker']}: +{g['change_pct']:.1f}%")
+        
+        Note:
+            - 장중 실시간 데이터입니다.
+            - 거래량 10,000 이상인 종목만 포함됩니다.
+            - 매일 3:30 AM EST에 초기화됩니다.
+        """
+        url = f"{self.base_url}/v2/snapshot/locale/us/markets/stocks/gainers"
+        params = {"include_otc": str(include_otc).lower()}
+        
+        logger.debug("📡 Day Gainers API 호출")
+        
+        try:
+            data = await self._request_with_retry("GET", url, params=params)
+        except PolygonAPIError as e:
+            logger.warning(f"⚠️ Day Gainers 조회 실패: {e}")
+            return []
+        
+        if data.get("status") != "OK":
+            logger.warning(f"⚠️ Day Gainers API 응답 상태: {data.get('status')}")
+            return []
+        
+        tickers = data.get("tickers", [])
+        
+        if not tickers:
+            logger.info("📭 당일 급등주 데이터 없음")
+            return []
+        
+        # ─────────────────────────────────────────────────────────────────
+        # 데이터 정규화
+        # ─────────────────────────────────────────────────────────────────
+        gainers = []
+        for item in tickers:
+            try:
+                ticker = item.get("ticker", "")
+                day = item.get("day", {})
+                prev_day = item.get("prevDay", {})
+                
+                if not ticker or not day:
+                    continue
+                
+                prev_close = prev_day.get("c", 0)
+                last_price = day.get("c", 0)
+                change_pct = ((last_price - prev_close) / prev_close * 100) if prev_close > 0 else 0
+                
+                gainers.append({
+                    "ticker": ticker,
+                    "change_pct": round(change_pct, 2),
+                    "last_price": last_price,
+                    "volume": day.get("v", 0),
+                    "prev_close": prev_close,
+                    "todaysChange": item.get("todaysChange", 0),
+                    "todaysChangePerc": item.get("todaysChangePerc", 0),
+                })
+            except (KeyError, ValueError, TypeError) as e:
+                logger.warning(f"⚠️ Gainers 데이터 파싱 실패: {e}")
+                continue
+        
+        logger.info(f"✅ Day Gainers: {len(gainers)}개 종목")
+        return gainers
     
     async def close(self) -> None:
         """

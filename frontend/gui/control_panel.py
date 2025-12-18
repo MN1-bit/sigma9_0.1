@@ -3,7 +3,9 @@ from PyQt6.QtWidgets import (
     QFrame, QHBoxLayout, QPushButton, QLabel, QComboBox, 
     QSizePolicy, QWidget, QVBoxLayout, QGraphicsOpacityEffect
 )
+from PyQt6.QtGui import QIcon
 from PyQt6.QtCore import Qt, pyqtSignal, QPropertyAnimation, QEasingCurve
+import os
 from .theme import theme
 
 class StatusIndicator(QWidget):
@@ -29,6 +31,7 @@ class StatusIndicator(QWidget):
         if color_key == 'success': icon = "🟢"
         elif color_key == 'warning': icon = "🟡"
         elif color_key == 'danger': icon = "🔴"
+        elif color_key == 'primary': icon = "🔵"  # RUNNING 상태
         else: icon = "⚪"
         
         self.dot.setText(icon)
@@ -87,11 +90,32 @@ class ControlPanel(QFrame):
         layout.setSpacing(10)
         
         # 1. 로고
-        logo = QLabel("⚡ Sigma9")
-        logo.setStyleSheet(f"""
+        # 1. 로고 (Icon + Text)
+        logo_container = QWidget()
+        logo_layout = QHBoxLayout(logo_container)
+        logo_layout.setContentsMargins(0, 0, 0, 0)
+        logo_layout.setSpacing(8) # Icon과 Text 사이 간격
+
+        # Icon
+        icon_label = QLabel()
+        try:
+            icon_path = os.path.join(os.path.dirname(__file__), "assets", "ico01.ico")
+            icon_pixmap = QIcon(icon_path).pixmap(24, 24)
+            icon_label.setPixmap(icon_pixmap)
+        except Exception as e:
+            icon_label.setText("⚡") # Fallback
+            
+        icon_label.setStyleSheet("border: none; background: transparent;")
+        logo_layout.addWidget(icon_label)
+
+        # Text
+        text_label = QLabel("Sigma9")
+        text_label.setStyleSheet(f"""
             color: {theme.get_color('text')}; font-size: 16px; font-weight: bold; border: none; background: transparent;
         """)
-        layout.addWidget(logo)
+        logo_layout.addWidget(text_label)
+        
+        layout.addWidget(logo_container)
         
         layout.addStretch(1)
         
@@ -205,7 +229,21 @@ class ControlPanel(QFrame):
             self.connect_btn.setEnabled(True)
             self.connect_btn.setText("🔌 Connect")
             self.start_btn.setEnabled(False)
+            self.stop_btn.hide()
+            self.start_btn.show()
             self.status_indicator.set_status('danger', "Disconnected")
+    
+    def update_engine_status(self, running: bool):
+        """엔진 상태 업데이트 (파란색 Running)"""
+        if running:
+            self.start_btn.hide()
+            self.stop_btn.show()
+            self.status_indicator.set_status('primary', "Running")
+        else:
+            self.stop_btn.hide()
+            self.start_btn.show()
+            self.start_btn.setEnabled(True)
+            self.status_indicator.set_status('success', "Connected")
 
     def set_strategies(self, strategies: list):
         self.strategy_combo.clear()
