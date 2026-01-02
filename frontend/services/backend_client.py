@@ -101,6 +101,8 @@ class BackendClient(QObject):
     watchlist_updated = pyqtSignal(list)
     positions_updated = pyqtSignal(list)
     ignition_updated = pyqtSignal(dict)  # {"ticker": str, "score": float, "passed_filter": bool}
+    bar_received = pyqtSignal(dict)  # Phase 4.A.0: {"ticker": str, "timeframe": str, "bar": dict}
+    tick_received = pyqtSignal(dict)  # Phase 4.A.0.b: {"ticker": str, "price": float, "volume": int}
     
     @classmethod
     def instance(cls):
@@ -151,6 +153,14 @@ class BackendClient(QObject):
         # Ignition 시그널 연결 (존재하는 경우)
         if hasattr(self.ws, 'ignition_updated'):
             self.ws.ignition_updated.connect(self.ignition_updated.emit)
+        
+        # Phase 4.A.0: Bar 시그널 연결 (실시간 차트용)
+        if hasattr(self.ws, 'bar_received'):
+            self.ws.bar_received.connect(self.bar_received.emit)
+        
+        # Phase 4.A.0.b: Tick 시그널 연결 (실시간 가격 표시)
+        if hasattr(self.ws, 'tick_received'):
+            self.ws.tick_received.connect(self.tick_received.emit)
         
         logger.info(f"BackendClient initialized: {self._base_url}")
     

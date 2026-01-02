@@ -365,3 +365,76 @@ class RestAdapter:
         except Exception as e:
             logger.error(f"update_scheduler_config error: {e}")
             return {"status": "error", "message": str(e)}
+    
+    # ─────────────────────────────────────────────────────────────
+    # Tier 2 (Hot Zone) - Step 4.A.0.d
+    # ─────────────────────────────────────────────────────────────
+    
+    async def promote_to_tier2(self, tickers: List[str]) -> Dict[str, Any]:
+        """
+        종목을 Tier 2 (Hot Zone)로 승격
+        
+        Args:
+            tickers: 승격할 종목 목록
+        
+        Returns:
+            dict: {status, promoted_count, tick_subscribed}
+        """
+        try:
+            client = await self._get_client()
+            response = await client.post(
+                "/api/tier2/promote",
+                json={"tickers": tickers}
+            )
+            
+            if response.status_code == 200:
+                return response.json()
+            else:
+                return {"status": "error", "message": f"HTTP {response.status_code}"}
+                
+        except Exception as e:
+            logger.error(f"promote_to_tier2 error: {e}")
+            return {"status": "error", "message": str(e)}
+    
+    async def demote_from_tier2(self, tickers: List[str]) -> Dict[str, Any]:
+        """
+        종목을 Tier 2에서 해제
+        
+        Args:
+            tickers: 해제할 종목 목록
+        """
+        try:
+            client = await self._get_client()
+            response = await client.post(
+                "/api/tier2/demote",
+                json={"tickers": tickers}
+            )
+            
+            if response.status_code == 200:
+                return response.json()
+            else:
+                return {"status": "error", "message": f"HTTP {response.status_code}"}
+                
+        except Exception as e:
+            logger.error(f"demote_from_tier2 error: {e}")
+            return {"status": "error", "message": str(e)}
+    
+    async def get_tier2_status(self) -> Dict[str, Any]:
+        """
+        Tier 2 상태 조회
+        
+        Returns:
+            dict: {tier2_tickers, tick_subscribed, dispatcher_stats}
+        """
+        try:
+            client = await self._get_client()
+            response = await client.get("/api/tier2/status")
+            
+            if response.status_code == 200:
+                return response.json()
+            else:
+                return {}
+                
+        except Exception as e:
+            logger.debug(f"get_tier2_status error: {e}")
+            return {}

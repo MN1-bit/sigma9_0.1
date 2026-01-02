@@ -49,6 +49,7 @@ class MessageType(str, Enum):
     """WebSocket 메시지 타입"""
     LOG = "LOG"
     TICK = "TICK"
+    BAR = "BAR"  # Phase 4.A.0: 실시간 OHLCV 바 업데이트
     TRADE = "TRADE"
     WATCHLIST = "WATCHLIST"
     STATUS = "STATUS"
@@ -83,6 +84,7 @@ class WsAdapter(QObject):
     disconnected = pyqtSignal()
     log_received = pyqtSignal(str)
     tick_received = pyqtSignal(dict)
+    bar_received = pyqtSignal(dict)  # Phase 4.A.0: {"ticker": str, "timeframe": str, "bar": dict}
     trade_received = pyqtSignal(dict)
     watchlist_updated = pyqtSignal(list)
     status_changed = pyqtSignal(dict)
@@ -251,6 +253,14 @@ class WsAdapter(QObject):
                     self.tick_received.emit(tick_data)
                 except json.JSONDecodeError:
                     logger.warning(f"Invalid TICK JSON: {data[:50]}")
+            
+            elif msg_type == MessageType.BAR:
+                # Phase 4.A.0: 실시간 바 업데이트
+                try:
+                    bar_data = json.loads(data)
+                    self.bar_received.emit(bar_data)
+                except json.JSONDecodeError:
+                    logger.warning(f"Invalid BAR JSON: {data[:50]}")
                     
             elif msg_type == MessageType.TRADE:
                 try:

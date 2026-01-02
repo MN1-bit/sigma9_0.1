@@ -23,6 +23,7 @@ class MessageType(str, Enum):
     """WebSocket 메시지 타입"""
     LOG = "LOG"
     TICK = "TICK"
+    BAR = "BAR"  # Phase 4.A.0: 실시간 OHLCV 바 업데이트
     TRADE = "TRADE"
     WATCHLIST = "WATCHLIST"
     STATUS = "STATUS"
@@ -203,6 +204,23 @@ class ConnectionManager:
         await self.broadcast_typed(MessageType.STATUS, {
             "event": event,
             **data
+        })
+    
+    async def broadcast_bar(self, ticker: str, timeframe: str, bar: dict):
+        """
+        실시간 바(캔들) 데이터 브로드캐스트 (Phase 4.A.0)
+        
+        TickAggregator에서 생성된 완성된 바를 GUI에 푸시합니다.
+        
+        Args:
+            ticker: 종목 코드
+            timeframe: 타임프레임 ("1m", "5m" 등)
+            bar: OHLCV 바 데이터 {time, open, high, low, close, volume}
+        """
+        await self.broadcast_typed(MessageType.BAR, {
+            "ticker": ticker,
+            "timeframe": timeframe,
+            "bar": bar
         })
     
     async def broadcast_ignition(self, ticker: str, score: float, passed_filter: bool = True, reason: str = ""):

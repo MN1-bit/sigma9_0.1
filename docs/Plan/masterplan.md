@@ -40,8 +40,8 @@
 | Component | Library | Purpose |
 |-----------|---------|---------|
 | **GUI Framework** | `PyQt6` | 데스크탑 관제탑 |
-| **Charting** | `TradingView Lightweight Charts` | IBKR 데이터 시각화 |
-| **API Client** | `httpx` + `websockets` | Backend 통신 |
+| **Charting** | `pyqtgraph` | 고성능 네이티브 차트 (캔들스틱, 인디케이터) |
+| **API Client** | `httpx` + `websockets` | Backend 통신 (`frontend/services/`) |
 | **Async** | `qasync` | PyQt + asyncio 통합 |
 
 ### 2.3 통신 레이어
@@ -73,12 +73,19 @@ API Endpoints:
 
 | Source | Role | Method |
 |--------|------|--------|
-| **Polygon.io** | **Universe Scan + History** | `Grouped Daily` (전체 시장 일봉) → Local DB |
-| **IBKR** | **Real-time Trigger** | `reqMktData` (Selected Watchlist 50) |
+| **Massive.com** | **Universe Scan + History + Real-time** | `Grouped Daily` (전체 시장 일봉) → Local DB, **WebSocket** (실시간) |
+| **IBKR** | **주문 실행 전용** | `place_order`, `get_positions` 등 |
+
+**Massive WebSocket 채널**:
+| 채널 | 데이터 | 용도 |
+|------|--------|------|
+| `AM.*` | 1분봉 (Aggregate Minute) | 차트 실시간 갱신 |
+| `T.*` | 틱 (Trades) | Trailing Stop, 가격 모니터링 |
 
 ### 3.1.1 실시간 데이터 파이프라인 (Step 4.A.0)
 
-> 📋 **상세 계획**: [step_4.a_plan.md](./steps/step_4.a_plan.md)
+> 📋 **상세 계획**: [step_4.a_plan.md](./steps/step_4.a_plan.md)  
+> 📝 **구현 리포트**: [step_4.a.0_report.md](../devlog/step_4.a.0_report.md)
 
 Tiered Watchlist 및 실시간 차트를 위한 **데이터 흐름**:
 
@@ -87,29 +94,39 @@ Tiered Watchlist 및 실시간 차트를 위한 **데이터 흐름**:
 │                    REAL-TIME DATA PIPELINE                          │
 ├─────────────────────────────────────────────────────────────────────┤
 │                                                                     │
-│  [IBKR TWS] ──Tick Stream──▶ [IBKRConnector] ──▶ [IgnitionMonitor] │
-│                                    │                    │          │
-│                                    ▼                    ▼          │
-│                           [WebSocket Server]    [Ignition Score]   │
-│                                    │                    │          │
-│                                    ▼                    ▼          │
-│                             [WsAdapter]          [Tier 2 승격]     │
-│                                    │                               │
-│                                    ▼                               │
-│                    ┌───────────────┴───────────────┐               │
-│                    │                               │               │
-│                    ▼                               ▼               │
-│              [Chart Widget]              [Watchlist Panel]         │
-│              (Tick→Candle)               (실시간 가격/zenV/zenP)   │
+│  Massive WebSocket (wss://socket.massive.com/stocks)                │
+│        │                                                           │
+│        │ AM.* (1분봉), T.* (틱)                                      │
+│        ▼                                                           │
+│  [MassiveWebSocketClient] ──▶ [SubscriptionManager]                │
+│        │                              │                            │
+│        │ on_bar / on_tick            │ 구독 동기화                   │
+│        ▼                              ▼                            │
+│  [TickBroadcaster] ───────▶ [TickDispatcher] ◀── Step 4.A.0.b      │
+│        │                        │                                  │
+│        │ GUI 브로드캐스트        ├──▶ [Strategy.on_tick]            │
+│        │                        ├──▶ [TrailingStopManager]         │
+│        │                        └──▶ [IgnitionMonitor]             │
+│        ▼                                                           │
+│  [ConnectionManager] ───▶ GUI WebSocket                             │
+│        │                                                           │
+│        ▼                                                           │
+│  [WsAdapter] bar_received / tick_received                          │
+│        │                                                           │
+│        └─────────────▶ [Dashboard]                                   │
+│                            │                                       │
+│                            ▼                                       │
+│                     [PyQtGraphChart]                                │
+│                     update_realtime_bar()                          │
 │                                                                     │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
 | Component | 데이터 유형 | 갱신 주기 |
 |-----------|-------------|-----------|
-| **Tier 2 Hot Zone** | Tick Data | 1초 |
-| **Tier 1 Watchlist** | 1m/5m Bar | 1분/5분 |
-| **Chart** | Tick → OHLC | 실시간 |
+| **Tier 2 Hot Zone** | Massive T 채널 (틱) | 1초 |
+| **Tier 1 Watchlist** | Massive AM 채널 (1분봉) | 1분 |
+| **Chart** | Massive AM → OHLC | 실시간 |
 | **Z-Score (zenV/zenP)** | 20일 통계 기반 | Tick 마다 재계산 |
 
 
@@ -123,13 +140,13 @@ Tiered Watchlist 및 실시간 차트를 위한 **데이터 흐름**:
 | **Avg Volume** | > 100K/day | 최소 유동성 확보 |
 | **Change%** | 0% ~ 5% | 아직 터지지 않은 종목만 |
 
-### 3.2 Accumulation Stage Detection (매집 단계 탐지)
+### 3.3 Accumulation Stage Detection (매집 단계 탐지)
 
 > 📌 **Design Decision**: [Research Reference](../references/research/scoring_vs_filtering_debate.md)
 > 기존 Weighted Sum 대신 **Stage-Based Priority System** 채택.
 > 단타 머신의 특성상 "폭발 임박" 종목을 최우선 선별.
 
-#### 3.2.1 매집 4단계 (Accumulation Stages)
+#### 3.3.1 매집 4단계 (Accumulation Stages)
 
 | Stage | 신호 | 조건 | 의미 | 역할 |
 |-------|------|------|------|------|
@@ -138,7 +155,7 @@ Tiered Watchlist 및 실시간 차트를 위한 **데이터 흐름**:
 | 3 | **Accumulation Bar** | 가격 ±2.5% & 거래량 > 3× 평균 | 매집 완료 | Alert |
 | 4 | **Tight Range (VCP)** | 5일 ATR < 20일 ATR의 50% | 🔥 폭발 임박 | **Priority Selection** |
 
-#### 3.2.2 우선순위 로직 (Priority Logic)
+#### 3.3.2 우선순위 로직 (Priority Logic)
 
 ```
 Watchlist Selection (Priority Order):
@@ -150,7 +167,7 @@ Watchlist Selection (Priority Order):
 └── 6순위 (10점):  Volume Dry-out only           → 관찰 대상
 ```
 
-#### 3.2.3 핵심 원칙
+#### 3.3.3 핵심 원칙
 
 - **폭발 임박 신호(Tight Range)가 뜬 종목을 최우선으로 선별**
 - Stage 1~2 종목은 Watchlist에 올리되, 실거래 대상은 아님
@@ -206,6 +223,9 @@ Watchlist Selection (Priority Order):
 ## 6. Architecture
 
 ### 6.1 Class Diagram
+
+> ⚠️ **v2.0 구현 범위**: `OmniController` 및 `TradingEngine`은 **Phase 5**에서 구현 예정.  
+> 현재는 Strategy Signal → `OrderManager` 직접 연결 구조로 운영 중.
 
 ```mermaid
 classDiagram
@@ -364,12 +384,15 @@ flowchart TB
 | **Right** | **Tabbed Panel**: [Trading] (Positions, P&L) / [Oracle] (LLM Chat & Reports) |
 | **Bottom** | 실시간 로그 콘솔 |
 
-### 7.2 Chart Features
+### 7.2 Chart Features (PyQtGraph 기반)
 
-- IBKR 실시간 1분/5분/15분/1시간/4시간/1일 봉
+- **고성능 pyqtgraph 네이티브 렌더링** (JavaScript 브릿지 없음)
+- 실시간 1분/5분/15분/1시간/4시간/1일 봉 (Massive.com + IBKR)
 - VWAP 오버레이
 - ATR Stop-Loss / Trailing Stop 라인 (동적)
 - Buy/Sell 마커
+- **증분 렌더링**: 틱 도착 시 마지막 캔들만 업데이트
+- **주말 갭 제거**: 인덱스 기반 X축 (거래일만 표시)
 
 ### 7.3 Theme & Aesthetics
 
@@ -395,14 +418,18 @@ flowchart TB
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│  ⚡ TIER 2 - HOT ZONE (1초 갱신, 상위 5개)               │
+│                    WATCHLIST PANEL                       │
+├─────────────────────────────────────────────────────────┤
+│  ⚡ TIER 2 - HOT ZONE (Tick-level, 1초 갱신)             │
 │  ┌─────────────────────────────────────────────────────┐│
 │  │ AAPL  $178.25  1.2M  🔥85  +3.2%  Z:V+2.1 Z:P+0.3 ││
+│  │ NVDA  $495.30  2.8M  🔥92  +5.1%  Z:V+3.2 Z:P+1.1 ││
 │  └─────────────────────────────────────────────────────┘│
 ├─────────────────────────────────────────────────────────┤
-│  📋 TIER 1 - WATCHLIST (1분/5분 갱신, 최대 50개)         │
+│  📋 TIER 1 - WATCHLIST (1분/5분 갱신)                    │
 │  ┌─────────────────────────────────────────────────────┐│
 │  │ MSFT   +1.2%  [100]  🔥45   560K                   ││
+│  │ TSLA   -0.3%  [80]   🔥32   1.2M                   ││
 │  └─────────────────────────────────────────────────────┘│
 └─────────────────────────────────────────────────────────┘
 ```
@@ -410,13 +437,22 @@ flowchart TB
 | 항목 | Tier 1 (Watchlist) | Tier 2 (Hot Zone) |
 |------|--------------------|-------------------|
 | **갱신 주기** | 1분 / 5분 | 1초 (Tick) |
-| **승격 조건** | Scanner 50점 초과 | Ignition 상위 5개 or Day Gainer |
-| **종목 수** | 최대 50개 | 상위 5개 (최대 10개) |
-| **표시 항목** | Ticker, 등락율, Score, Ignition, DollarVol | + Price, zenV, zenP |
+| **승격 조건** | Scanner 50점 초과 | Ignition ≥ 70 또는 Day Gainer |
+| **표시 항목** | Ticker, 등락율, Score, Ignition, DollarVol | Ticker, Price, DollarVol, Ignition, 등락율, zenV, zenP |
+| **정렬** | 등락율/Score/Ignition | 등락율/Ignition/zenV/zenP |
+| **종목 수** | 최대 50개 | **상위 5개** (종합스코어 기준, 최대 10개) |
 
 **Z-Score 지표**:
 - **zenV** (Normalized Volume): `(current_volume - avg_20d) / std_20d`
 - **zenP** (Normalized Price): `(current_price - avg_20d) / std_20d`
+
+**종합 스코어 계산**:
+```python
+def composite_score(ignition_score: float, zenV: float, zenP: float) -> float:
+    """Ignition과 zen-V/P 합친 종합 스코어 (폭발 임박 우선)"""
+    zen_score = (zenV - zenP) * 10  # Volume-Price Divergence
+    return max(ignition_score, zen_score)  # 둘 중 높은 값
+```
 
 **zenV-zenP Divergence 전략**:
 > "거래량 폭발(zenV > 2.0) + 가격 미반영(zenP < 0.5)" → 진입 시그널
@@ -635,52 +671,89 @@ Half Kelly (권장):
 ```
 Sigma9-0.1/
 ├── backend/                          # ← AWS로 배포
-│   ├── server.py                     # FastAPI 메인 서버
+│   ├── server.py                     # FastAPI 메인 서버 + WebSocket
+│   ├── __main__.py                   # 엔트리포인트 (uvicorn 실행)
 │   ├── core/
 │   │   ├── strategy_base.py          # 전략 추상 인터페이스 (Scanning + Trading)
-│   │   ├── strategy_loader.py        # 플러그인 로더 (동적 로딩)
-│   │   ├── engine.py                 # 전략 실행 엔진
-│   │   ├── risk_manager.py           # 리스크 관리
-│   │   └── double_tap.py             # 재진입 로직
+│   │   ├── strategy_loader.py        # 플러그인 로더 (동적 로딩 + Hot Reload)
+│   │   ├── scanner.py                # Scanner Orchestrator (Phase 1)
+│   │   ├── ignition_monitor.py       # Ignition Score 실시간 모니터링 (Phase 2)
+│   │   ├── risk_manager.py           # 리스크 관리 (Kelly, Loss Limits)
+│   │   ├── order_manager.py          # 주문 상태 관리 (OCA Groups)
+│   │   ├── double_tap.py             # 재진입 로직
+│   │   ├── trailing_stop.py          # 트레일링 스탑 (Harvest)
+│   │   ├── scheduler.py              # APScheduler 백엔드 자동화
+│   │   ├── config_loader.py          # Pydantic 중앙 설정 로더
+│   │   ├── tick_broadcaster.py       # Massive WS → GUI WebSocket 브릿지
+│   │   ├── subscription_manager.py   # Massive 구독 동기화
+│   │   ├── tick_dispatcher.py        # 📶 틱 중앙 배포자 (Strategy, TrailingStop 등)
+│   │   ├── technical_analysis.py     # 기술적 지표 (VWAP, ATR, SMA, EMA, RSI)
+│   │   ├── backtest_engine.py        # 백테스팅 엔진
+│   │   └── backtest_report.py        # 백테스트 리포트 생성
 │   ├── broker/
-│   │   └── ibkr_connector.py         # IBKR 연동
+│   │   └── ibkr_connector.py         # IBKR 주문 실행 전용 (place_order, get_positions)
+│   ├── data/
+│   │   ├── database.py               # SQLAlchemy + SQLite (WAL Mode)
+│   │   ├── massive_ws_client.py      # 📶 Massive WebSocket 실시간 클라이언트
+│   │   ├── polygon_client.py         # Massive.com REST API 클라이언트
+│   │   ├── polygon_loader.py         # 히스토리 데이터 Incremental Sync
+│   │   ├── symbol_mapper.py          # Polygon ↔ IBKR 심볼 매핑
+│   │   └── watchlist_store.py        # Watchlist 영속화 (JSON/DB)
 │   ├── llm/
 │   │   └── oracle.py                 # LLM Intelligence Layer
 │   ├── api/
 │   │   ├── routes.py                 # REST API 엔드포인트
-│   │   └── websocket.py              # WebSocket 핸들러
+│   │   └── websocket.py              # WebSocket 핸들러 (ConnectionManager)
+│   ├── strategies/                   # ← 전략 플러그인 폴더
+│   │   ├── __init__.py
+│   │   ├── _template.py              # 새 전략 개발 템플릿
+│   │   └── seismograph.py            # Sigma9 메인 전략
 │   ├── config/
 │   │   └── settings.yaml
 │   ├── requirements.txt
 │   └── Dockerfile
 │
 ├── frontend/                         # ← 로컬 Windows 유지
-│   ├── main.py                       # PyQt6 진입점
+│   ├── main.py                       # PyQt6 진입점 (qasync 이벤트루프)
 │   ├── gui/
-│   │   ├── dashboard.py              # 메인 대시보드
-│   │   ├── chart_widget.py           # TradingView 차트
-│   │   ├── watchlist_widget.py       # Watchlist 패널
+│   │   ├── dashboard.py              # 메인 대시보드 (Tiered Watchlist)
+│   │   ├── chart/                    # 📊 차트 서브패키지
+│   │   │   ├── pyqtgraph_chart.py    # 고성능 pyqtgraph 차트 위젯
+│   │   │   ├── candlestick_item.py   # 캔들스틱 렌더링 아이템
+│   │   │   └── chart_data_manager.py # 차트 데이터 캐싱/로딩
+│   │   ├── chart_widget.py           # (Legacy) TradingView 차트
+│   │   ├── control_panel.py          # 🎛️ Control Panel (Connect, Kill Switch)
+│   │   ├── settings_dialog.py        # 설정 다이얼로그 (탭: Connection, Backend, Theme)
 │   │   ├── custom_window.py          # Acrylic 프레임리스 윈도우
 │   │   ├── window_effects.py         # Windows DWM API 래퍼
 │   │   ├── particle_effects.py       # 트레이딩 파티클 이펙트
+│   │   ├── theme.py                  # 중앙화된 테마 매니저
 │   │   └── assets/                   # GUI 리소스 (이미지, 아이콘 등)
 │   │       └── gold_coin.png         # 익절 이펙트 이미지
-│   ├── client/
-│   │   ├── api_client.py             # REST API 클라이언트
-│   │   └── ws_client.py              # WebSocket 클라이언트
+│   ├── services/                     # 📡 Backend 통신 레이어
+│   │   ├── backend_client.py         # 어댑터 관리 + 상태 동기화
+│   │   ├── rest_adapter.py           # REST API 클라이언트
+│   │   ├── ws_adapter.py             # WebSocket 클라이언트
+│   │   └── chart_data_service.py     # 차트 데이터 요청/캐싱 서비스
 │   └── config/
 │       └── settings.yaml             # 서버 주소 설정
 │
 ├── docs/
 │   └── Plan/
 │       ├── masterplan.md             # 이 문서
-│       ├── migration_guide.md        # 마이그레이션 상세 가이드
-│       └── headless_ibgateway_guide.md
+│       ├── steps/                    # 단계별 상세 계획
+│       │   ├── development_steps.md  # 개발 로드맵
+│       │   └── step_*.md             # 각 스텝별 계획
+│       └── migration_guide.md        # 마이그레이션 상세 가이드
+│
+├── data/
+│   └── market_data.db                # SQLite 시장 데이터 (WAL Mode)
 │
 └── tests/
     ├── test_strategies.py
     └── test_api.py
 ```
+
 
 ---
 

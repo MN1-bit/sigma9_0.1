@@ -92,6 +92,56 @@ class CandlestickItem(pg.GraphicsObject):
         self.informViewBoundsChanged()
         self.update()
     
+    # ═══════════════════════════════════════════════════════════════════
+    # Phase 4.A.0: 실시간 바 업데이트 메서드
+    # ═══════════════════════════════════════════════════════════════════
+    
+    def update_bar(self, index: int, open_: float, high: float, low: float, close: float):
+        """
+        기존 바 업데이트 (마지막 캔들 갱신용)
+        
+        Args:
+            index: 업데이트할 바의 인덱스 (X좌표)
+            open_: 시가
+            high: 고가
+            low: 저가
+            close: 종가
+        """
+        if not self.data:
+            return
+        
+        # 인덱스로 해당 바 찾기
+        for i, candle in enumerate(self.data):
+            if candle[0] == index:
+                self.data[i] = (index, open_, high, low, close)
+                break
+        else:
+            # 못 찾으면 마지막 바 업데이트
+            if self.data:
+                self.data[-1] = (index, open_, high, low, close)
+        
+        # 렌더링 갱신
+        self._generatePicture()
+        self.update()
+    
+    def add_bar(self, index: int, open_: float, high: float, low: float, close: float):
+        """
+        새 바 추가 (새 캔들 생성용)
+        
+        Args:
+            index: 새 바의 인덱스 (X좌표)
+            open_: 시가
+            high: 고가
+            low: 저가
+            close: 종가
+        """
+        self.data.append((index, open_, high, low, close))
+        
+        # 렌더링 갱신
+        self._generatePicture()
+        self.informViewBoundsChanged()
+        self.update()
+    
     def _generatePicture(self):
         """
         캔들스틱을 QPicture에 미리 렌더링

@@ -170,11 +170,35 @@ Based on [Master Plan v2.0](../Plan/masterplan.md) and [@PROJECT_DNA.md](../../@
 
 **선행 필수**: Step 2.7 (Multi-Timeframe) 완료 후 Phase 4.A.0 진행
 
-#### Phase 4.A.0: 실시간 데이터 파이프라인 (선행 필수)
-- [ ] 4.A.0.1: IBKR Tick 스트리밍 → WebSocket 브로드캐스트
-- [ ] 4.A.0.2: Intraday Bar 데이터 API (1m, 5m)
-- [ ] 4.A.0.3: Chart 실시간 업데이트 (Tick → Candlestick)
-- [ ] 4.A.0.4: Watchlist 종목 Tick 구독 관리
+#### Phase 4.A.0: 실시간 데이터 파이프라인 ✅ COMPLETED
+> 📝 **데이터 소스 전환**: IBKR 실시간 시세 → **Massive.com WebSocket (AM/T 채널)**  
+> 📝 IBKR는 **주문 실행 전용**으로 역할 축소
+
+- [x] 4.A.0.1: Massive WebSocket 클라이언트 (`massive_ws_client.py`)
+- [x] 4.A.0.2: TickBroadcaster → GUI WebSocket 브릿지 (`tick_broadcaster.py`)
+- [x] 4.A.0.3: Chart 실시간 업데이트 (`update_realtime_bar()`)
+- [x] 4.A.0.4: SubscriptionManager 구독 동기화 (`subscription_manager.py`)
+
+#### Phase 4.A.0.b: Tick Dispatcher Integration ✅ COMPLETED
+- [x] 4.A.0.b.1: TickDispatcher 생성 (`tick_dispatcher.py`)
+- [x] 4.A.0.b.2: Strategy (Seismograph) `on_tick` 연결
+- [/] 4.A.0.b.3: TradingEngine 연결 ⏭️ SKIP (Phase 5에서 구현)
+- [x] 4.A.0.b.4: TrailingStop `on_price_update` 연결
+- [x] 4.A.0.b.5: Tier 2 GUI `tick_received` 연결
+- [x] 4.A.0.b.6: T 채널 자동 구독 (`sync_tick_subscriptions`)
+
+#### Phase 4.A.0.c: Pipeline 버그 수정 ✅ COMPLETED
+- [x] 4.A.0.c.1: P0 - `listen()` 루프 추가
+- [x] 4.A.0.c.2: P1 - 초기 구독 트리거
+- [x] 4.A.0.c.3: P2 - 문자열/필드 수정
+
+#### Phase 4.A.0.d: 틱 기반 실시간 캔들 업데이트 ✅ COMPLETED
+> 📝 현재 조회 중인 차트의 마지막 캔들이 틱 데이터에 따라 실시간으로 "출렁이는" 효과
+> 📝 약 300ms 주기로 스로틀링하여 성능 최적화
+
+- [x] 4.A.0.d.1: `Dashboard._on_tick_received()` → 현재 차트 종목 필터링 + 300ms 스로틀링
+- [x] 4.A.0.d.2: `PyQtGraphChart.update_current_candle(price, volume)` 메서드 추가
+- [x] 4.A.0.d.3: `CandlestickItem.update_bar(index, bar)` 마지막 캔들 갱신 로직 (기존 메서드 활용)
 
 #### Phase 4.A.1: Tier 1 Enhancement
 - [ ] 4.A.1.1: Dollar Volume 컬럼 추가 (K/M/B 표기)

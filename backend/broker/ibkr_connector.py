@@ -107,7 +107,7 @@ class IBKRConnector(QThread):
     # ═══════════════════════════════════════════════════════════════════
     
     connected = pyqtSignal(bool)        # 연결 상태 변경
-    price_update = pyqtSignal(dict)     # 실시간 가격 업데이트
+    # NOTE: price_update 제거 → Massive WebSocket 사용 (Phase 4.A.0)
     account_update = pyqtSignal(dict)   # 계좌 정보 업데이트
     error = pyqtSignal(str)             # 에러 메시지
     log_message = pyqtSignal(str)       # 로그 메시지
@@ -150,15 +150,6 @@ class IBKRConnector(QThread):
         # _is_connected: 현재 IB Gateway에 연결되어 있는지
         self._is_running: bool = False
         self._is_connected: bool = False
-        
-        # --- 시세 구독 추적 ---
-        # 구독 중인 Ticker 객체를 심볼별로 저장
-        # {"SPY": Ticker(...), "QQQ": Ticker(...)}
-        self._subscribed_tickers: Dict[str, Ticker] = {}
-        
-        # 로그: 설정 로드 완료
-        # (아직 GUI 연결 전이므로 print 사용)
-        print(f"[IBKRConnector] 설정 로드: {self.host}:{self.port} (Client ID: {self.client_id})")
         
         # --- 주문 추적 (Step 3.1 OMS) ---
         # 활성 주문 추적: order_id -> Trade 객체
@@ -351,118 +342,16 @@ class IBKRConnector(QThread):
         return self.ib if self._is_connected else None
     
     # ═══════════════════════════════════════════════════════════════════
-    # 실시간 시세 구독
+    # [DEPRECATED] 실시간 시세 구독 - Massive WebSocket으로 대체 (Phase 4.A.0)
+    # 
+    # 기존 메서드들 제거됨:
+    #   - subscribe_ticker() 
+    #   - unsubscribe_ticker()
+    #   - unsubscribe_all()
+    #   - _on_price_update()
+    #
+    # 실시간 시세는 이제 backend/data/massive_ws_client.py 사용
     # ═══════════════════════════════════════════════════════════════════
-    
-    def subscribe_ticker(self, symbols: List[str]) -> None:
-        """
-        실시간 시세 구독 시작
-        
-        지정한 심볼들의 실시간 가격을 구독합니다.
-        가격이 변경될 때마다 price_update 시그널이 발생합니다.
-        
-        Args:
-            symbols: 구독할 심볼 리스트 (예: ["SPY", "QQQ", "AAPL"])
-        
-        Example:
-            >>> connector.subscribe_ticker(["SPY"])
-            >>> # 이후 price_update 시그널로 가격 수신
-        """
-        if not self.ib or not self.ib.isConnected():
-            self.log_message.emit("❌ 시세 구독 실패: IBKR 연결 안됨")
-            return
-        
-        for symbol in symbols:
-            # 이미 구독 중이면 건너뜀
-            if symbol in self._subscribed_tickers:
-                continue
-            
-            try:
-                # Stock 계약 생성
-                # SMART: IB의 스마트 라우팅 (최적 거래소 자동 선택)
-                contract = Stock(symbol, "SMART", "USD")
-                
-                # 시세 구독 요청
-                # reqMktData 파라미터:
-                #   contract: 구독할 계약
-                #   "": genericTickList (기본 틱만)
-                #   False: snapshot 아님 (스트리밍)
-                #   False: regulatorySnapshot 아님
-                #   []: 추가 옵션 없음
-                ticker = self.ib.reqMktData(
-                    contract,
-                    "",
-                    False,
-                    False,
-                    []
-                )
-                
-                # 가격 업데이트 콜백 등록
-                ticker.updateEvent += self._on_price_update
-                
-                # 구독 목록에 추가
-                self._subscribed_tickers[symbol] = ticker
-                
-                self.log_message.emit(f"📡 시세 구독 시작: {symbol}")
-                
-            except Exception as e:
-                self.log_message.emit(f"⚠️ {symbol} 구독 실패: {str(e)}")
-    
-    def unsubscribe_ticker(self, symbol: str) -> None:
-        """
-        시세 구독 해제
-        
-        Args:
-            symbol: 구독 해제할 심볼
-        """
-        if symbol not in self._subscribed_tickers:
-            return
-        
-        try:
-            ticker = self._subscribed_tickers.pop(symbol)
-            if self.ib and self.ib.isConnected():
-                self.ib.cancelMktData(ticker.contract)
-            self.log_message.emit(f"📴 시세 구독 해제: {symbol}")
-        except Exception as e:
-            self.log_message.emit(f"⚠️ {symbol} 구독 해제 실패: {str(e)}")
-    
-    def unsubscribe_all(self) -> None:
-        """모든 시세 구독 해제"""
-        symbols = list(self._subscribed_tickers.keys())
-        for symbol in symbols:
-            self.unsubscribe_ticker(symbol)
-    
-    def _on_price_update(self, ticker: Ticker) -> None:
-        """
-        시세 업데이트 콜백 (내부용)
-        
-        ib_insync에서 가격이 변경될 때마다 이 메서드가 호출됩니다.
-        받은 데이터를 딕셔너리로 변환하여 price_update 시그널로 전달합니다.
-        
-        Args:
-            ticker: ib_insync Ticker 객체
-        """
-        try:
-            symbol = ticker.contract.symbol
-            
-            # 시세 데이터 딕셔너리 생성
-            data = {
-                "symbol": symbol,
-                "last": ticker.last if ticker.last else 0.0,    # 최근 체결가
-                "bid": ticker.bid if ticker.bid else 0.0,       # 매수 호가
-                "ask": ticker.ask if ticker.ask else 0.0,       # 매도 호가
-                "volume": ticker.volume if ticker.volume else 0, # 거래량
-                "high": ticker.high if ticker.high else 0.0,    # 고가
-                "low": ticker.low if ticker.low else 0.0,       # 저가
-                "close": ticker.close if ticker.close else 0.0, # 전일 종가
-            }
-            
-            # GUI에 전달
-            self.price_update.emit(data)
-            
-        except Exception:
-            # 시세 업데이트가 매우 빈번하므로 에러 로깅 생략
-            pass
     
     # ═══════════════════════════════════════════════════════════════════
     # 주문 관리 (Step 3.1 OMS)

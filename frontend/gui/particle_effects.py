@@ -193,17 +193,52 @@ class BokehEffect(BackgroundEffect):
         self._init_particles()
 
     def _init_particles(self):
-        for _ in range(20):
-            self.particles.append(Particle(
-                x=random.uniform(0, self.width),
-                y=random.uniform(0, self.height),
-                vx=random.uniform(0.1, 0.5), # 오른쪽으로 천천히
-                vy=random.uniform(-0.1, 0.1),
-                size=random.uniform(20, 60),
-                color=(144, 202, 249),
-                life=random.uniform(0.2, 0.8),
-                decay=0.0
-            ))
+        # 다양한 파스텔 톤 색상
+        colors = [
+            # Blues
+            (144, 202, 249),  # Light Blue
+            (179, 229, 252),  # Pale Blue
+            # Pinks
+            (248, 187, 208),  # Pastel Pink
+            (244, 143, 177),  # Rose Pink
+            (255, 182, 193),  # Light Pink
+            # Purples
+            (206, 147, 216),  # Pastel Purple
+            (179, 157, 219),  # Lavender
+            (225, 190, 231),  # Soft Lilac
+            # Greens
+            (165, 214, 167),  # Pastel Green
+            (178, 223, 219),  # Mint
+            (200, 230, 201),  # Soft Sage
+            # Warm tones
+            (255, 224, 178),  # Pastel Peach
+            (255, 245, 157),  # Pastel Yellow
+            (255, 204, 188),  # Coral
+        ]
+        
+        # 그리드 기반 배치로 골고루 분산 (7x5 = 35개)
+        cols, rows = 7, 5
+        cell_w = self.width / cols
+        cell_h = self.height / rows
+        
+        for row in range(rows):
+            for col in range(cols):
+                # 셀 중심 + 랜덤 오프셋 (셀 크기의 40% 범위 내)
+                center_x = (col + 0.5) * cell_w
+                center_y = (row + 0.5) * cell_h
+                offset_x = random.uniform(-cell_w * 0.4, cell_w * 0.4)
+                offset_y = random.uniform(-cell_h * 0.4, cell_h * 0.4)
+                
+                self.particles.append(Particle(
+                    x=center_x + offset_x,
+                    y=center_y + offset_y,
+                    vx=random.uniform(0.15, 0.6),
+                    vy=random.uniform(-0.2, 0.2),
+                    size=random.uniform(40, 120),
+                    color=random.choice(colors),
+                    life=random.uniform(0.4, 1.0),
+                    decay=0.0
+                ))
 
     def update(self):
         for p in self.particles:
@@ -211,17 +246,19 @@ class BokehEffect(BackgroundEffect):
             p.y += p.vy
             
             # Loop around
-            if p.x > self.width + 100: p.x = -100
-            if p.y > self.height + 100: p.y = -100
-            if p.y < -100: p.y = self.height + 100
+            if p.x > self.width + 150: p.x = -150
+            if p.y > self.height + 150: p.y = -150
+            if p.y < -150: p.y = self.height + 150
 
     def draw(self, painter: QPainter):
         painter.setPen(Qt.PenStyle.NoPen)
         for p in self.particles:
-            alpha = int(40 * p.life)
+            # 투명도 증가로 더 진하게 (70 → 90)
+            alpha = int(90 * p.life)
             grad = QRadialGradient(p.x, p.y, p.size)
             c = QColor(p.color[0], p.color[1], p.color[2], alpha)
             grad.setColorAt(0, c)
+            grad.setColorAt(0.5, QColor(p.color[0], p.color[1], p.color[2], int(alpha * 0.4)))
             grad.setColorAt(1, QColor(0,0,0,0))
             painter.setBrush(QBrush(grad))
             painter.drawEllipse(QPointF(p.x, p.y), p.size, p.size)
@@ -311,6 +348,162 @@ class MatrixRainEffect(BackgroundEffect):
             painter.drawText(int(p.x), int(p.y), p.char)
 
 
+class GoldenRainEffect(BackgroundEffect):
+    """Golden Rain: 골드 코인/파티클이 떨어지는 효과 (Take Profit 느낌)"""
+    def __init__(self, w, h):
+        super().__init__(w, h)
+        self._init_particles()
+
+    def _init_particles(self):
+        for _ in range(40):
+            colors = [
+                (255, 215, 0),   # Gold
+                (255, 193, 7),   # Amber
+                (255, 235, 59),  # Yellow
+                (255, 223, 128), # Light Gold
+            ]
+            self.particles.append(Particle(
+                x=random.uniform(0, self.width),
+                y=random.uniform(-self.height, 0),
+                vx=random.uniform(-0.5, 0.5),
+                vy=random.uniform(1.5, 4),
+                size=random.uniform(3, 8),
+                color=random.choice(colors),
+                life=random.uniform(0.6, 1.0),
+                decay=0.0,
+                rotation=random.uniform(0, 360),
+                rotation_speed=random.uniform(-5, 5)
+            ))
+
+    def update(self):
+        for p in self.particles:
+            p.x += p.vx
+            p.y += p.vy
+            p.rotation += p.rotation_speed
+            
+            # Reset when off screen
+            if p.y > self.height + 20:
+                p.y = random.uniform(-50, -10)
+                p.x = random.uniform(0, self.width)
+
+    def draw(self, painter: QPainter):
+        painter.setPen(Qt.PenStyle.NoPen)
+        for p in self.particles:
+            alpha = int(200 * p.life)
+            # Glowing effect
+            grad = QRadialGradient(p.x, p.y, p.size * 2)
+            c = QColor(p.color[0], p.color[1], p.color[2], alpha)
+            grad.setColorAt(0, c)
+            grad.setColorAt(0.5, QColor(p.color[0], p.color[1], p.color[2], int(alpha * 0.5)))
+            grad.setColorAt(1, QColor(0, 0, 0, 0))
+            painter.setBrush(QBrush(grad))
+            painter.drawEllipse(QPointF(p.x, p.y), p.size * 2, p.size * 2)
+
+
+class RisingBubblesEffect(BackgroundEffect):
+    """Rising Bubbles: 초록색 버블이 상승하는 효과 (Profit 느낌)"""
+    def __init__(self, w, h):
+        super().__init__(w, h)
+        self._init_particles()
+
+    def _init_particles(self):
+        for _ in range(50):
+            colors = [
+                (76, 175, 80),   # Green
+                (129, 199, 132), # Light Green
+                (165, 214, 167), # Pale Green
+                (102, 187, 106), # Medium Green
+            ]
+            self.particles.append(Particle(
+                x=random.uniform(0, self.width),
+                y=random.uniform(self.height, self.height * 2),
+                vx=random.uniform(-0.3, 0.3),
+                vy=random.uniform(-3, -1.5),
+                size=random.uniform(4, 12),
+                color=random.choice(colors),
+                life=random.uniform(0.5, 1.0),
+                decay=0.0,
+                phase=random.uniform(0, math.pi * 2)  # For wobble
+            ))
+
+    def update(self):
+        for p in self.particles:
+            # Gentle wobble
+            p.phase += 0.05
+            p.x += p.vx + math.sin(p.phase) * 0.5
+            p.y += p.vy
+            
+            # Reset when off screen
+            if p.y < -20:
+                p.y = self.height + random.uniform(10, 50)
+                p.x = random.uniform(0, self.width)
+                p.phase = random.uniform(0, math.pi * 2)
+
+    def draw(self, painter: QPainter):
+        painter.setPen(Qt.PenStyle.NoPen)
+        for p in self.particles:
+            alpha = int(150 * p.life)
+            grad = QRadialGradient(p.x - p.size * 0.3, p.y - p.size * 0.3, p.size)
+            c = QColor(p.color[0], p.color[1], p.color[2], alpha)
+            grad.setColorAt(0, QColor(255, 255, 255, int(alpha * 0.8)))
+            grad.setColorAt(0.3, c)
+            grad.setColorAt(1, QColor(p.color[0], p.color[1], p.color[2], int(alpha * 0.3)))
+            painter.setBrush(QBrush(grad))
+            painter.drawEllipse(QPointF(p.x, p.y), p.size, p.size)
+
+
+class FallingEmberEffect(BackgroundEffect):
+    """Falling Ember: 빨간 불씨가 떨어지는 효과 (Loss 느낌)"""
+    def __init__(self, w, h):
+        super().__init__(w, h)
+        self._init_particles()
+
+    def _init_particles(self):
+        for _ in range(45):
+            colors = [
+                (244, 67, 54),   # Red
+                (229, 57, 53),   # Dark Red
+                (239, 154, 154), # Light Red
+                (255, 87, 34),   # Deep Orange
+            ]
+            self.particles.append(Particle(
+                x=random.uniform(0, self.width),
+                y=random.uniform(-self.height, 0),
+                vx=random.uniform(-1, 1),
+                vy=random.uniform(2, 5),
+                ay=0.05,  # Gravity
+                size=random.uniform(3, 8),
+                color=random.choice(colors),
+                life=random.uniform(0.6, 1.0),
+                decay=0.0
+            ))
+
+    def update(self):
+        for p in self.particles:
+            p.vx += random.uniform(-0.1, 0.1)  # Wind turbulence
+            p.vy += p.ay
+            p.x += p.vx
+            p.y += p.vy
+            
+            # Reset when off screen
+            if p.y > self.height + 20:
+                p.y = random.uniform(-50, -10)
+                p.x = random.uniform(0, self.width)
+                p.vy = random.uniform(2, 5)
+                p.vx = random.uniform(-1, 1)
+
+    def draw(self, painter: QPainter):
+        painter.setPen(Qt.PenStyle.NoPen)
+        for p in self.particles:
+            alpha = int(180 * p.life)
+            # Ember glow
+            grad = QRadialGradient(p.x, p.y, p.size * 1.5)
+            grad.setColorAt(0, QColor(255, 255, 200, alpha))
+            grad.setColorAt(0.4, QColor(p.color[0], p.color[1], p.color[2], alpha))
+            grad.setColorAt(1, QColor(0, 0, 0, 0))
+            painter.setBrush(QBrush(grad))
+            painter.drawEllipse(QPointF(p.x, p.y), p.size * 1.5, p.size * 1.5)
+
 class ParticleSystem(QWidget):
     """파티클 시스템 오버레이"""
     
@@ -365,6 +558,12 @@ class ParticleSystem(QWidget):
             self.background_effect = VectorFieldEffect(w, h)
         elif name == "matrix rain":
             self.background_effect = MatrixRainEffect(w, h)
+        elif name == "golden rain":
+            self.background_effect = GoldenRainEffect(w, h)
+        elif name == "rising bubbles":
+            self.background_effect = RisingBubblesEffect(w, h)
+        elif name == "falling ember":
+            self.background_effect = FallingEmberEffect(w, h)
         else: # None
             self.background_effect = None
 

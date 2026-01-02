@@ -82,6 +82,13 @@ class AppState:
         self.db = None               # Database connection
         self.strategy_loader = None  # StrategyLoader
         
+        # Phase 4.A.0: Real-time Data Pipeline
+        self.massive_ws = None       # MassiveWebSocketClient
+        self.tick_broadcaster = None # TickBroadcaster
+        self.tick_dispatcher = None  # TickDispatcher (Step 4.A.0.b)
+        self.sub_manager = None      # SubscriptionManager
+        self.trailing_stop = None    # TrailingStopManager (Step 4.A.0.b)
+        
 # 전역 상태 (의존성 주입용)
 app_state = AppState()
 
@@ -164,6 +171,90 @@ async def lifespan(app: FastAPI):
             logger.info("ℹ️ Scheduler module not found - will be created in Step 4.1.4")
         except Exception as e:
             logger.warning(f"⚠️ Scheduler init skipped: {e}")
+    
+    # 6. Massive WebSocket 초기화 (Phase 4.A.0)
+    import os
+    if os.getenv("MASSIVE_WS_ENABLED", "false").lower() == "true":
+        try:
+            from backend.data.massive_ws_client import MassiveWebSocketClient
+            from backend.core.tick_broadcaster import TickBroadcaster
+            from backend.core.tick_dispatcher import TickDispatcher
+            from backend.core.subscription_manager import SubscriptionManager
+            from backend.api.websocket import manager as ws_manager
+            
+            # TickDispatcher 생성 (중앙 틱 배포자)
+            app_state.tick_dispatcher = TickDispatcher()
+            
+            # 활성 전략이 있으면 TickDispatcher에 등록
+            if app_state.strategy_loader:
+                active_strategy = app_state.strategy_loader.get_active_strategy()
+                if active_strategy and hasattr(active_strategy, 'on_tick'):
+                    def strategy_tick_handler(tick: dict):
+                        active_strategy.on_tick(
+                            ticker=tick.get("ticker", ""),
+                            price=tick.get("price", 0),
+                            volume=tick.get("size", 0),
+                            timestamp=tick.get("time", 0)
+                        )
+                    app_state.tick_dispatcher.register("strategy", strategy_tick_handler)
+                    logger.info("✅ Strategy connected to TickDispatcher")
+            
+            # [Step 4.A.0.b.4] TrailingStopManager 연결
+            try:
+                from backend.core.trailing_stop import TrailingStopManager
+                app_state.trailing_stop = TrailingStopManager(connector=app_state.ibkr)
+                
+                def trailing_tick_handler(tick: dict):
+                    result = app_state.trailing_stop.on_price_update(
+                        symbol=tick.get("ticker", ""),
+                        current_price=tick.get("price", 0)
+                    )
+                    if result == "TRIGGERED":
+                        logger.info(f"🛑 Trailing Stop TRIGGERED: {tick.get('ticker')}")
+                
+                app_state.tick_dispatcher.register("trailing_stop", trailing_tick_handler)
+                logger.info("✅ TrailingStop connected to TickDispatcher")
+            except Exception as e:
+                logger.warning(f"⚠️ TrailingStop init skipped: {e}")
+            
+            app_state.massive_ws = MassiveWebSocketClient()
+            app_state.tick_broadcaster = TickBroadcaster(
+                app_state.massive_ws, 
+                ws_manager,
+                asyncio.get_event_loop(),
+                tick_dispatcher=app_state.tick_dispatcher
+            )
+            app_state.sub_manager = SubscriptionManager(app_state.massive_ws)
+            
+            # 백그라운드에서 Massive 연결 시작
+            async def start_massive_streaming():
+                if await app_state.massive_ws.connect():
+                    logger.info("✅ Massive WebSocket connected")
+                    
+                    # [Step 4.A.0.c P1] 초기 구독 트리거
+                    # Watchlist 티커 로드 후 AM/T 채널 자동 구독
+                    try:
+                        if app_state.db:
+                            # DB에서 현재 Watchlist 로드
+                            from backend.data.database import MarketDB
+                            watchlist = app_state.db.get_watchlist_tickers() if hasattr(app_state.db, 'get_watchlist_tickers') else []
+                            if watchlist and app_state.sub_manager:
+                                app_state.sub_manager.sync_watchlist(watchlist)
+                                logger.info(f"✅ Auto-subscribed to {len(watchlist)} tickers")
+                    except Exception as e:
+                        logger.warning(f"⚠️ Auto-subscribe skipped: {e}")
+                    
+                    # [Step 4.A.0.c P0] listen() 루프 시작 (콜백이 데이터 처리)
+                    async for _ in app_state.massive_ws.listen():
+                        pass
+                else:
+                    logger.warning("⚠️ Massive WebSocket connection failed")
+            
+            asyncio.create_task(start_massive_streaming())
+            logger.info("📡 Massive WebSocket initializing...")
+            
+        except Exception as e:
+            logger.warning(f"⚠️ Massive WebSocket init skipped: {e}")
     
     logger.info("=" * 50)
     logger.info(f"🎯 Server running at http://{app_state.config.server.host}:{app_state.config.server.port}")

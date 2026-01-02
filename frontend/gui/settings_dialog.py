@@ -552,7 +552,8 @@ class SettingsDialog(QDialog):
         self.effect_combo = QComboBox()
         self.effect_combo.addItems([
             "None", "Constellation", "Digital Dust", 
-            "Bokeh", "Vector Field", "Matrix Rain"
+            "Bokeh", "Vector Field", "Matrix Rain",
+            "Golden Rain", "Rising Bubbles", "Falling Ember"
         ])
         self._style_input(self.effect_combo)
         
@@ -612,7 +613,6 @@ class SettingsDialog(QDialog):
         color_layout.addWidget(self.color_btn)
         color_layout.addStretch()
         layout.addLayout(color_layout)
-        
         layout.addStretch()
         return widget
 

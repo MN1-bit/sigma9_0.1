@@ -35,7 +35,7 @@ Features:
 
 import pyqtgraph as pg
 from pyqtgraph import DateAxisItem
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QComboBox, QLabel
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QButtonGroup
 from PyQt6.QtCore import Qt, pyqtSignal, QTimer
 from PyQt6.QtGui import QColor
 from typing import List, Dict, Optional
@@ -146,40 +146,28 @@ class PyQtGraphChartWidget(QWidget):
         layout.setSpacing(4)
         
         # ═══════════════════════════════════════════════════════════════
-        # 1. 상단 툴바 (타임프레임 선택)
+        # 1. 상단 툴바 (타임프레임 버튼 그룹)
         # ═══════════════════════════════════════════════════════════════
         toolbar = QHBoxLayout()
         toolbar.setContentsMargins(4, 4, 4, 0)
+        toolbar.setSpacing(2)
         
-        # 타임프레임 라벨
-        tf_label = QLabel("Timeframe:")
-        tf_label.setStyleSheet(f"color: {theme.get_color('text_secondary')}; font-size: 11px;")
-        toolbar.addWidget(tf_label)
+        # 타임프레임 버튼 그룹
+        self._tf_buttons = {}
+        self._current_timeframe = '1D'  # 일봉 기본
         
-        # 타임프레임 콤보박스
-        self.tf_combo = QComboBox()
-        self.tf_combo.addItems(self.TIMEFRAMES)
-        self.tf_combo.setCurrentText('1d')  # 일봉 기본
-        self.tf_combo.setStyleSheet(f"""
-            QComboBox {{
-                background-color: {theme.get_color('surface')};
-                border: 1px solid {theme.get_color('border')};
-                border-radius: 4px;
-                padding: 4px 8px;
-                color: {theme.get_color('text')};
-                min-width: 60px;
-            }}
-            QComboBox::drop-down {{
-                border: none;
-            }}
-            QComboBox QAbstractItemView {{
-                background-color: {theme.get_color('surface')};
-                border: 1px solid {theme.get_color('border')};
-                color: {theme.get_color('text')};
-            }}
-        """)
-        self.tf_combo.currentTextChanged.connect(self._on_timeframe_changed)
-        toolbar.addWidget(self.tf_combo)
+        for tf in self.TIMEFRAMES:
+            btn = QPushButton(tf)
+            btn.setCheckable(True)
+            btn.setChecked(tf == self._current_timeframe)
+            btn.setFixedHeight(24)
+            btn.setMinimumWidth(36)
+            btn.clicked.connect(lambda checked, timeframe=tf: self._on_tf_button_clicked(timeframe))
+            self._tf_buttons[tf] = btn
+            toolbar.addWidget(btn)
+        
+        # 버튼 스타일 적용
+        self._update_tf_button_styles()
         
         toolbar.addStretch()
         layout.addLayout(toolbar)
@@ -281,6 +269,53 @@ class PyQtGraphChartWidget(QWidget):
     def _on_timeframe_changed(self, timeframe: str):
         """타임프레임 변경 핸들러"""
         self.timeframe_changed.emit(timeframe)
+    
+    def _on_tf_button_clicked(self, timeframe: str):
+        """타임프레임 버튼 클릭 핸들러"""
+        if timeframe == self._current_timeframe:
+            # 같은 버튼 다시 클릭 시 체크 상태 유지
+            self._tf_buttons[timeframe].setChecked(True)
+            return
+        
+        self._current_timeframe = timeframe
+        self._update_tf_button_styles()
+        self.timeframe_changed.emit(timeframe)
+    
+    def _update_tf_button_styles(self):
+        """타임프레임 버튼 스타일 업데이트"""
+        for tf, btn in self._tf_buttons.items():
+            is_selected = (tf == self._current_timeframe)
+            btn.setChecked(is_selected)
+            
+            if is_selected:
+                # 선택된 버튼: 파란색 배경
+                btn.setStyleSheet(f"""
+                    QPushButton {{
+                        background-color: {theme.get_color('primary')};
+                        border: none;
+                        border-radius: 4px;
+                        padding: 2px 8px;
+                        color: white;
+                        font-size: 11px;
+                        font-weight: bold;
+                    }}
+                """)
+            else:
+                # 미선택 버튼: 투명 배경
+                btn.setStyleSheet(f"""
+                    QPushButton {{
+                        background-color: transparent;
+                        border: 1px solid {theme.get_color('border')};
+                        border-radius: 4px;
+                        padding: 2px 8px;
+                        color: {theme.get_color('text_secondary')};
+                        font-size: 11px;
+                    }}
+                    QPushButton:hover {{
+                        background-color: {theme.get_color('surface')};
+                        color: {theme.get_color('text')};
+                    }}
+                """)
     
     def _format_volume_axis(self):
         """
@@ -856,6 +891,171 @@ class PyQtGraphChartWidget(QWidget):
         for marker in self._markers:
             self.price_plot.removeItem(marker)
         self._markers.clear()
+    
+    # ═══════════════════════════════════════════════════════════════════
+    # Phase 4.A.0: 실시간 바 업데이트
+    # ═══════════════════════════════════════════════════════════════════
+    
+    def update_realtime_bar(self, bar: dict, volume_data: dict = None):
+        """
+        실시간 바(캔들) 업데이트 (Phase 4.A.0)
+        
+        마지막 캔들을 업데이트하거나, 새로운 바가 완성되면 추가합니다.
+        
+        Args:
+            bar: {
+                "time": float (timestamp in seconds),
+                "open": float,
+                "high": float,
+                "low": float,
+                "close": float
+            }
+            volume_data: Optional {
+                "time": float,
+                "volume": int,
+                "is_up": bool
+            }
+        
+        ═══════════════════════════════════════════════════════════════
+        동작 방식:
+        ═══════════════════════════════════════════════════════════════
+        1. bar["time"]이 마지막 캔들과 같으면 → 기존 캔들 업데이트 (In-place)
+        2. bar["time"]이 새로운 시간이면 → 새 캔들 추가
+        """
+        if not self._candle_data:
+            # 데이터가 없으면 무시 (초기 로드 필요)
+            return
+        
+        bar_time = bar.get("time", 0)
+        if isinstance(bar_time, str):
+            from datetime import datetime
+            bar_time = datetime.fromisoformat(bar_time.replace('Z', '+00:00')).timestamp()
+        
+        last_bar = self._candle_data[-1]
+        last_time = last_bar.get("time", 0)
+        
+        # ─────────────────────────────────────────────────────────────────
+        # Case 1: 같은 시간 → 마지막 캔들 업데이트
+        # ─────────────────────────────────────────────────────────────────
+        if abs(bar_time - last_time) < 1:  # 1초 오차 허용
+            last_bar["high"] = max(last_bar["high"], bar["high"])
+            last_bar["low"] = min(last_bar["low"], bar["low"])
+            last_bar["close"] = bar["close"]
+            
+            # CandlestickItem 업데이트 (인덱스 기반)
+            if self._candle_item:
+                last_idx = last_bar["index"]
+                self._candle_item.update_bar(
+                    last_idx,
+                    last_bar["open"],
+                    last_bar["high"],
+                    last_bar["low"],
+                    last_bar["close"]
+                )
+            
+            # Volume 업데이트 (있으면)
+            if volume_data and self._volume_data:
+                last_vol = self._volume_data[-1]
+                last_vol["volume"] = volume_data.get("volume", last_vol["volume"])
+                # TODO: Volume bar 업데이트 (BarGraphItem 부분 갱신 필요)
+        
+        # ─────────────────────────────────────────────────────────────────
+        # Case 2: 새로운 시간 → 새 캔들 추가
+        # ─────────────────────────────────────────────────────────────────
+        else:
+            new_idx = len(self._candle_data)
+            
+            # 데이터 추가
+            new_candle = {
+                "index": new_idx,
+                "time": bar_time,
+                "open": bar["open"],
+                "high": bar["high"],
+                "low": bar["low"],
+                "close": bar["close"]
+            }
+            self._candle_data.append(new_candle)
+            self._timestamp_map[bar_time] = new_idx
+            
+            # 축 업데이트
+            if hasattr(self, 'date_axis'):
+                timestamps = [c["time"] for c in self._candle_data]
+                self.date_axis.update_ticks(timestamps)
+            
+            # CandlestickItem에 새 바 추가
+            if self._candle_item:
+                self._candle_item.add_bar(
+                    new_idx,
+                    bar["open"],
+                    bar["high"],
+                    bar["low"],
+                    bar["close"]
+                )
+            
+            # Volume 추가 (있으면)
+            if volume_data:
+                new_vol = {
+                    "index": new_idx,
+                    "time": bar_time,
+                    "volume": volume_data.get("volume", 0)
+                }
+                self._volume_data.append(new_vol)
+                # TODO: Volume bar 추가 (BarGraphItem 동적 추가 필요)
+            
+            # 뷰포트가 오른쪽 끝에 있으면 스크롤
+            vb = self.price_plot.getViewBox()
+            x_range = vb.viewRange()[0]
+            if x_range[1] >= len(self._candle_data) - 2:
+                # 자동 스크롤 (새 캔들이 보이도록)
+                vb.setXRange(x_range[0] + 1, x_range[1] + 1, padding=0)
+    
+    # ═══════════════════════════════════════════════════════════════════
+    # Phase 4.A.0.d: 틱 기반 실시간 캔들 업데이트
+    # ═══════════════════════════════════════════════════════════════════
+    
+    def update_current_candle(self, price: float, volume: int = 0):
+        """
+        틱 가격으로 현재 캔들 업데이트 (출렁이는 효과)
+        
+        Args:
+            price: 현재 틱 가격
+            volume: 틱 거래량 (누적하지 않음 - 1분봉에서 처리)
+        
+        ═══════════════════════════════════════════════════════════════
+        동작 방식:
+        ═══════════════════════════════════════════════════════════════
+        - 마지막 캔들의 High/Low/Close를 틱 가격으로 업데이트
+        - High = max(current_high, price)
+        - Low = min(current_low, price)
+        - Close = price
+        - Volume은 업데이트하지 않음 (1분봉 완성 시 AM 채널에서 설정)
+        
+        📌 이 메서드는 Dashboard에서 300ms 스로틀링으로 호출됩니다.
+        """
+        if not self._candle_data or len(self._candle_data) == 0:
+            return
+        
+        if price <= 0:
+            return
+        
+        # 마지막 캔들 가져오기
+        last = self._candle_data[-1]
+        
+        # OHLC 업데이트
+        last["high"] = max(last["high"], price)
+        last["low"] = min(last["low"], price)
+        last["close"] = price
+        
+        # CandlestickItem 업데이트 (마지막 캔들만)
+        if self._candle_item:
+            last_idx = last["index"]
+            self._candle_item.update_bar(
+                last_idx,
+                last["open"],
+                last["high"],
+                last["low"],
+                last["close"]
+            )
     
     def clear(self):
         """차트 초기화"""

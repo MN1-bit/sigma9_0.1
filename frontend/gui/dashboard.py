@@ -151,8 +151,27 @@ class Sigma9Dashboard(CustomWindow):
         # 로그 메시지
         self.backend_client.log_message.connect(self.log)
         
+        # Phase 4.A.0: 실시간 바 업데이트 (차트용)
+        if hasattr(self.backend_client, 'bar_received'):
+            self.backend_client.bar_received.connect(self._on_bar_received)
+        
+        # Phase 4.A.0.b: 실시간 틱 업데이트 (Tier 2 가격 표시용)
+        if hasattr(self.backend_client, 'tick_received'):
+            self.backend_client.tick_received.connect(self._on_tick_received)
+        
         # Ignition Score 캐시 초기화 (ticker -> score)
         self._ignition_cache: dict = {}
+        
+        # 실시간 가격 캐시 (ticker -> price)
+        self._price_cache: dict = {}
+        
+        # Phase 4.A.0.d: 틱 기반 차트 업데이트용
+        self._current_chart_ticker: str = None  # 현재 차트에 표시 중인 종목
+        self._pending_tick: dict = None  # 스로틀링 대기 중인 틱
+        self._tick_throttle_timer = QTimer()
+        self._tick_throttle_timer.setSingleShot(True)
+        self._tick_throttle_timer.setInterval(300)  # 300ms 스로틀링
+        self._tick_throttle_timer.timeout.connect(self._apply_tick_to_chart)
     
     def _auto_connect_backend(self):
         """
@@ -441,37 +460,162 @@ class Sigma9Dashboard(CustomWindow):
     def _create_left_panel(self) -> QFrame:
         """
         LEFT PANEL - Watchlist (감시 종목 리스트)
+        
+        [Step 4.A.1] QTableWidget 기반 다중 컬럼 Watchlist
+        - Ticker, Change, DolVol, Score, Ignition 5개 컬럼
+        - 헤더 클릭으로 정렬 가능
+        - 1분 주기 자동 갱신
         """
+        from PyQt6.QtWidgets import QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView
+        from PyQt6.QtCore import QTimer
+        
         frame, layout = self._create_panel_frame("📋 Watchlist")
-        frame.setMinimumWidth(180)
-        frame.setMaximumWidth(300)
+        frame.setMinimumWidth(280)
+        frame.setMaximumWidth(400)
         
-        # 종목 리스트
-        self.watchlist = QListWidget()
-        # [REFAC] 테마 매니저 List 스타일 사용
-        styles = theme.get_stylesheet("list")
-        # [FIX] 배경을 투명하게 하고 패널 배경을 사용 (Surface on Surface 방지)
-        # 만약 두 겹이면 너무 밝아질 수 있으므로, ListWidget 자체는 투명하게 설정
-        styles += "QListWidget { background-color: transparent; }"
-        self.watchlist.setStyleSheet(styles)
+        # [Step 4.A.1] QTableWidget 생성
+        self.watchlist_table = QTableWidget()
+        self.watchlist_table.setColumnCount(5)
+        self.watchlist_table.setHorizontalHeaderLabels(["Ticker", "Chg%", "DolVol", "Score", "Ign"])
         
-        # [NEW] Watchlist 클릭 시 차트 로드
-        self.watchlist.itemClicked.connect(self._on_watchlist_clicked)
+        # 정렬 활성화 (4.A.1.2)
+        self.watchlist_table.setSortingEnabled(True)
         
-        # 샘플 데이터 (실제로는 DB에서 로드)
-        # TODO: 실제 워치리스트 연동 시 Scanner에서 가져오기
-        sample_tickers = [
-            "AAPL  +2.3%  [85]",
-            "TSLA  +1.8%  [78]",
-            "NVDA  +3.1%  [92]",
-            "AMD   +0.9%  [71]",
-            "MSFT  +1.5%  [76]",
-        ]
-        self.watchlist.addItems(sample_tickers)
+        # 선택 모드 설정
+        self.watchlist_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.watchlist_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         
-        layout.addWidget(self.watchlist)
+        # 헤더 스타일 및 크기
+        header = self.watchlist_table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)  # Ticker
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Fixed)    # Chg%
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Fixed)    # DolVol
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Fixed)    # Score
+        header.setSectionResizeMode(4, QHeaderView.ResizeMode.Fixed)    # Ign
+        self.watchlist_table.setColumnWidth(1, 55)
+        self.watchlist_table.setColumnWidth(2, 60)
+        self.watchlist_table.setColumnWidth(3, 45)
+        self.watchlist_table.setColumnWidth(4, 40)
+        
+        # 행 높이 조절
+        self.watchlist_table.verticalHeader().setDefaultSectionSize(24)
+        self.watchlist_table.verticalHeader().setVisible(False)
+        
+        # 스타일 적용
+        c = theme.colors
+        self.watchlist_table.setStyleSheet(f"""
+            QTableWidget {{
+                background-color: transparent;
+                border: none;
+                color: {c['text']};
+                font-size: 11px;
+                gridline-color: {c['border']};
+            }}
+            QTableWidget::item {{
+                padding: 2px 4px;
+            }}
+            QTableWidget::item:selected {{
+                background-color: {c['primary']};
+                color: white;
+            }}
+            QHeaderView::section {{
+                background-color: {c['surface']};
+                color: {c['text_secondary']};
+                border: 1px solid {c['border']};
+                padding: 4px;
+                font-size: 10px;
+                font-weight: bold;
+            }}
+        """)
+        
+        # 클릭 시 차트 로드
+        self.watchlist_table.cellClicked.connect(self._on_watchlist_table_clicked)
+        
+        # 샘플 데이터 추가
+        self._add_watchlist_sample_data()
+        
+        layout.addWidget(self.watchlist_table)
+        
+        # [Step 4.A.1.3] 1분 자동 갱신 타이머
+        self._watchlist_refresh_timer = QTimer()
+        self._watchlist_refresh_timer.timeout.connect(self._refresh_watchlist)
+        self._watchlist_refresh_timer.start(60_000)  # 60초
         
         return frame
+    
+    def _add_watchlist_sample_data(self):
+        """샘플 데이터로 테이블 채우기"""
+        from PyQt6.QtWidgets import QTableWidgetItem
+        from PyQt6.QtCore import Qt
+        
+        sample_data = [
+            ("AAPL", 2.3, 1_500_000_000, 85, 72),
+            ("TSLA", 1.8, 2_300_000_000, 78, 0),
+            ("NVDA", 3.1, 890_000_000, 92, 85),
+            ("AMD", 0.9, 450_000_000, 71, 0),
+            ("MSFT", 1.5, 1_200_000_000, 76, 65),
+        ]
+        
+        self.watchlist_table.setRowCount(len(sample_data))
+        for row, (ticker, change, dolvol, score, ign) in enumerate(sample_data):
+            # Ticker
+            self.watchlist_table.setItem(row, 0, QTableWidgetItem(ticker))
+            
+            # Change %
+            sign = "+" if change >= 0 else ""
+            change_item = QTableWidgetItem(f"{sign}{change:.1f}%")
+            change_item.setData(Qt.ItemDataRole.UserRole, change)  # 정렬용 숫자 저장
+            if change >= 0:
+                change_item.setForeground(QColor(theme.get_color('success')))
+            else:
+                change_item.setForeground(QColor(theme.get_color('danger')))
+            self.watchlist_table.setItem(row, 1, change_item)
+            
+            # Dollar Volume
+            dolvol_item = QTableWidgetItem(self._format_dollar_volume(dolvol))
+            dolvol_item.setData(Qt.ItemDataRole.UserRole, dolvol)
+            self.watchlist_table.setItem(row, 2, dolvol_item)
+            
+            # Score
+            score_item = QTableWidgetItem(str(int(score)))
+            score_item.setData(Qt.ItemDataRole.UserRole, score)
+            self.watchlist_table.setItem(row, 3, score_item)
+            
+            # Ignition
+            if ign > 0:
+                ign_item = QTableWidgetItem(f"🔥{int(ign)}")
+                ign_item.setData(Qt.ItemDataRole.UserRole, ign)
+                if ign >= 70:
+                    ign_item.setBackground(QColor(255, 193, 7, 80))
+            else:
+                ign_item = QTableWidgetItem("-")
+                ign_item.setData(Qt.ItemDataRole.UserRole, 0)
+            self.watchlist_table.setItem(row, 4, ign_item)
+    
+    def _format_dollar_volume(self, value: float) -> str:
+        """Dollar Volume K/M/B 포맷팅 (4.A.1.1)"""
+        if value >= 1_000_000_000:
+            return f"${value/1e9:.1f}B"
+        elif value >= 1_000_000:
+            return f"${value/1e6:.0f}M"
+        elif value >= 1_000:
+            return f"${value/1e3:.0f}K"
+        return f"${value:.0f}"
+    
+    def _on_watchlist_table_clicked(self, row: int, column: int):
+        """Watchlist 테이블 클릭 핸들러"""
+        ticker_item = self.watchlist_table.item(row, 0)
+        if ticker_item:
+            ticker = ticker_item.text()
+            self.log(f"[ACTION] Selected: {ticker}")
+            self._load_chart_for_ticker(ticker)
+    
+    def _refresh_watchlist(self):
+        """[Step 4.A.1.3] Watchlist 자동 갱신 (1분 주기)"""
+        if hasattr(self, 'backend_client') and self.backend_client.is_connected():
+            self.backend_client.run_scanner_sync()
+            self.log("[INFO] Watchlist auto-refreshed")
+
 
     def _create_center_panel(self) -> QFrame:
         """
@@ -983,65 +1127,91 @@ class Sigma9Dashboard(CustomWindow):
     
     def _update_watchlist_panel(self, items: list):
         """
-        Step 3.4.8: Watchlist 패널 자동 업데이트
+        Step 3.4.8 + 4.A.1: Watchlist 패널 자동 업데이트 (QTableWidget)
         
-        Scanner 결과가 도착하면 Watchlist 위젯을 업데이트합니다.
+        Scanner 결과가 도착하면 Watchlist 테이블을 업데이트합니다.
         
         Args:
             items: List[WatchlistItem] - Scanner 결과
         """
-        self.watchlist.clear()
+        from PyQt6.QtWidgets import QTableWidgetItem
+        from PyQt6.QtCore import Qt
+        
+        self.watchlist_table.setRowCount(0)  # 초기화
         
         if not items:
-            self.watchlist.addItem("No stocks found")
+            self.watchlist_table.setRowCount(1)
+            self.watchlist_table.setItem(0, 0, QTableWidgetItem("No stocks found"))
             self.log("[INFO] Watchlist updated: 0 stocks")
             return
         
-        for item in items:
+        self.watchlist_table.setRowCount(len(items))
+        
+        for row, item in enumerate(items):
             if isinstance(item, WatchlistItem):
                 ticker = item.ticker
                 change_pct = item.change_pct
                 score = item.score
+                dollar_volume = getattr(item, 'dollar_volume', 0) or getattr(item, 'avg_volume', 0) * getattr(item, 'last_close', 0)
             else:
-                # dict 형태인 경우
                 ticker = item.get("ticker", "UNKNOWN")
                 change_pct = item.get("change_pct", 0.0)
                 score = item.get("score", 0)
+                dollar_volume = item.get("dollar_volume", 0) or item.get("avg_volume", 0) * item.get("last_close", 0)
             
-            # Ignition Score 조회 (캐시에서)
+            # Ignition Score (캐시에서)
             ignition_score = self._ignition_cache.get(ticker, 0.0)
             
-            # 표시 형식: "AAPL  +2.3%  [85] 🔥72" 또는 "AAPL  +2.3%  [85]  -"
+            # Ticker
+            self.watchlist_table.setItem(row, 0, QTableWidgetItem(ticker))
+            
+            # Change %
             sign = "+" if change_pct >= 0 else ""
-            
-            # Ignition 칸럼 항상 표시 (값이 있으면 표시, 없으면 빈칸)
-            if ignition_score > 0:
-                display_text = f"{ticker:6s} {sign}{change_pct:.1f}%  [{score:.0f}] 🔥{ignition_score:.0f}"
+            change_item = QTableWidgetItem(f"{sign}{change_pct:.1f}%")
+            change_item.setData(Qt.ItemDataRole.UserRole, change_pct)
+            if change_pct >= 0:
+                change_item.setForeground(QColor(theme.get_color('success')))
             else:
-                display_text = f"{ticker:6s} {sign}{change_pct:.1f}%  [{score:.0f}]  -"
+                change_item.setForeground(QColor(theme.get_color('danger')))
+            self.watchlist_table.setItem(row, 1, change_item)
             
-            list_item = self.watchlist.addItem(display_text)
+            # Dollar Volume
+            dolvol_item = QTableWidgetItem(self._format_dollar_volume(dollar_volume))
+            dolvol_item.setData(Qt.ItemDataRole.UserRole, dollar_volume)
+            self.watchlist_table.setItem(row, 2, dolvol_item)
             
-            # Score ≥ 70 강조 표시 (노란색)
-            if ignition_score >= 70:
-                idx = self.watchlist.count() - 1
-                widget_item = self.watchlist.item(idx)
-                if widget_item:
-                    widget_item.setBackground(QColor(255, 193, 7, 80))  # 노란색 반투명
+            # Score
+            score_item = QTableWidgetItem(str(int(score)))
+            score_item.setData(Qt.ItemDataRole.UserRole, score)
+            self.watchlist_table.setItem(row, 3, score_item)
+            
+            # Ignition
+            if ignition_score > 0:
+                ign_item = QTableWidgetItem(f"🔥{int(ignition_score)}")
+                ign_item.setData(Qt.ItemDataRole.UserRole, ignition_score)
+                if ignition_score >= 70:
+                    ign_item.setBackground(QColor(255, 193, 7, 80))
+            else:
+                ign_item = QTableWidgetItem("-")
+                ign_item.setData(Qt.ItemDataRole.UserRole, 0)
+            self.watchlist_table.setItem(row, 4, ign_item)
         
         self.log(f"[INFO] Watchlist updated: {len(items)} stocks")
-        self.particle_system.order_created()  # 시각적 피드백
+        self.particle_system.order_created()
     
     def _on_ignition_update(self, data: dict):
         """
-        Ignition Score 실시간 업데이트 핸들러 (Phase 2)
+        Ignition Score 실시간 업데이트 핸들러 (Phase 2 + 4.A.1)
         
         WebSocket으로 수신된 Ignition Score를 캐시에 저장하고
-        해당 종목의 Watchlist 표시를 업데이트합니다.
+        해당 종목의 Watchlist 테이블을 업데이트합니다.
         
         Args:
             data: {"ticker": str, "score": float, "passed_filter": bool, "reason": str}
         """
+        from PyQt6.QtWidgets import QTableWidgetItem
+        from PyQt6.QtCore import Qt
+        
         ticker = data.get("ticker", "")
         score = data.get("score", 0.0)
         passed_filter = data.get("passed_filter", True)
@@ -1055,30 +1225,25 @@ class Sigma9Dashboard(CustomWindow):
         # 캐시 업데이트
         self._ignition_cache[ticker] = score
         
-        # Watchlist에서 해당 종목 찾아서 업데이트
-        for i in range(self.watchlist.count()):
-            item = self.watchlist.item(i)
-            if item and item.text().split()[0] == ticker:
-                # 기존 텍스트 파싱 후 Ignition Score 업데이트
-                text = item.text()
-                parts = text.split()
-                if len(parts) >= 3:
-                    # 새 텍스트 생성 (🔥 이모지 사용)
-                    base_text = " ".join(parts[:3])  # "AAPL +2.3% [85]"
-                    new_text = f"{base_text} 🔥{score:.0f}"
-                    item.setText(new_text)
-                    
-                    # 70점 이상 강조 + 사운드 + 파티클
+        # Watchlist 테이블에서 해당 종목 찾아서 업데이트
+        for row in range(self.watchlist_table.rowCount()):
+            ticker_item = self.watchlist_table.item(row, 0)
+            if ticker_item and ticker_item.text() == ticker:
+                # Ignition 컬럼 업데이트
+                if score > 0:
+                    ign_item = QTableWidgetItem(f"🔥{int(score)}")
+                    ign_item.setData(Qt.ItemDataRole.UserRole, score)
                     if score >= 70:
-                        item.setBackground(QColor(255, 193, 7, 80))
+                        ign_item.setBackground(QColor(255, 193, 7, 80))
                         if passed_filter:
-                            # 파티클 이펙트
                             self.particle_system.take_profit()
-                            # 사운드 알림
                             self._play_ignition_sound()
                             self.log(f"[IGNITION] 🔥 {ticker} Score={score:.0f} - READY!")
-                    else:
-                        item.setBackground(QColor(0, 0, 0, 0))  # 투명
+                else:
+                    ign_item = QTableWidgetItem("-")
+                    ign_item.setData(Qt.ItemDataRole.UserRole, 0)
+                
+                self.watchlist_table.setItem(row, 4, ign_item)
                 break
     
     def _play_ignition_sound(self):
@@ -1210,6 +1375,61 @@ class Sigma9Dashboard(CustomWindow):
             self.chart_widget.set_ma_data(data["ema_9"], period=9, color='#a855f7')
         
         self.log(f"[INFO] Chart updated for {ticker} ({len(data['candles'])} bars)")
+        
+        # Phase 4.A.0.d: 현재 차트 종목 저장 (틱 업데이트용)
+        self._current_chart_ticker = ticker
+
+    # ═══════════════════════════════════════════════════════════════════════
+    # Phase 4.A.0.d: 틱 기반 실시간 캔들 업데이트
+    # ═══════════════════════════════════════════════════════════════════════
+    
+    def _on_tick_received(self, tick: dict):
+        """
+        실시간 틱 수신 핸들러 (Phase 4.A.0.d)
+        
+        Args:
+            tick: {
+                "ticker": str,
+                "price": float,
+                "volume": int
+            }
+        
+        📌 동작:
+        - 가격 캐시 업데이트 (모든 종목)
+        - 현재 차트 종목이면 300ms 스로틀링 후 캔들 업데이트
+        """
+        ticker = tick.get("ticker")
+        price = tick.get("price", 0)
+        volume = tick.get("volume", 0)
+        
+        if not ticker or price <= 0:
+            return
+        
+        # 가격 캐시 업데이트 (Tier 2 등에서 사용)
+        self._price_cache[ticker] = price
+        
+        # 현재 차트 종목이면 캔들 업데이트 예약
+        if self._current_chart_ticker and ticker == self._current_chart_ticker:
+            self._pending_tick = {"ticker": ticker, "price": price, "volume": volume}
+            
+            # 300ms 스로틀링: 타이머가 이미 실행 중이면 대기
+            if not self._tick_throttle_timer.isActive():
+                self._tick_throttle_timer.start()
+    
+    def _apply_tick_to_chart(self):
+        """
+        300ms마다 호출 - 현재 캔들 업데이트
+        
+        스로틀 타이머가 만료되면 대기 중인 틱으로 차트 업데이트
+        """
+        if self._pending_tick and hasattr(self, 'chart_widget'):
+            # [FIX] 틱 종목이 현재 차트 종목과 일치하는지 검증 (race condition 방지)
+            if self._pending_tick.get("ticker") == self._current_chart_ticker:
+                self.chart_widget.update_current_candle(
+                    self._pending_tick["price"],
+                    self._pending_tick.get("volume", 0)
+                )
+            self._pending_tick = None
 
     def log(self, message: str):
         """로그 콘솔에 메시지 추가 (자동 스크롤)"""
@@ -1683,6 +1903,78 @@ class Sigma9Dashboard(CustomWindow):
             finally:
                 self._updating_chart = False
             self.log(f"[INFO] ✅ {len(candle_data)} bars loaded (no existing data)")
+
+
+    # ═══════════════════════════════════════════════════════════════════
+    # Phase 4.A.0: 실시간 바 수신 핸들러
+    # ═══════════════════════════════════════════════════════════════════
+    
+    def _on_bar_received(self, data: dict):
+        """
+        실시간 바 데이터 수신 핸들러 (Phase 4.A.0)
+        
+        Massive WebSocket에서 AM (1분봉) 데이터가 도착하면
+        현재 표시 중인 차트를 업데이트합니다.
+        
+        Args:
+            data: {
+                "ticker": str,
+                "timeframe": str,
+                "bar": {
+                    "time": float,
+                    "open": float,
+                    "high": float,
+                    "low": float,
+                    "close": float,
+                    "volume": int
+                }
+            }
+        """
+        try:
+            ticker = data.get("ticker", "")
+            bar = data.get("bar", {})
+            
+            # 현재 차트에 표시 중인 종목이 아니면 무시
+            if not hasattr(self, '_current_ticker') or self._current_ticker != ticker:
+                return
+            
+            # 차트 업데이트
+            if hasattr(self, 'chart_widget') and self.chart_widget:
+                self.chart_widget.update_realtime_bar(bar)
+                
+        except Exception as e:
+            self.log(f"[WARN] Bar update error: {e}")
+
+    def _on_tick_received(self, data: dict):
+        """
+        실시간 틱 데이터 수신 핸들러 (Phase 4.A.0.b)
+        
+        Massive WebSocket에서 틱 데이터가 도착하면
+        가격 캐시를 업데이트하고 Tier 2 패널을 갱신합니다.
+        
+        Args:
+            data: {
+                "ticker": str,
+                "price": float,
+                "volume": int,
+                "timestamp": str
+            }
+        """
+        try:
+            ticker = data.get("ticker", "")
+            price = data.get("price", 0)
+            
+            if not ticker or price <= 0:
+                return
+            
+            # 가격 캐시 업데이트
+            self._price_cache[ticker] = price
+            
+            # TODO: Tier 2 패널 가격 업데이트
+            # self._update_tier2_price(ticker, price)
+                
+        except Exception as e:
+            pass  # 틱 업데이트는 빈번하므로 에러 로깅 생략
 
 
 
