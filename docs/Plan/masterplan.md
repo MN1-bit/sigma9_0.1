@@ -437,25 +437,44 @@ flowchart TB
 | 항목 | Tier 1 (Watchlist) | Tier 2 (Hot Zone) |
 |------|--------------------|-------------------|
 | **갱신 주기** | 1분 / 5분 | 1초 (Tick) |
-| **승격 조건** | Scanner 50점 초과 | Ignition ≥ 70 또는 Day Gainer |
-| **표시 항목** | Ticker, 등락율, Score, Ignition, DollarVol | Ticker, Price, DollarVol, Ignition, 등락율, zenV, zenP |
-| **정렬** | 등락율/Score/Ignition | 등락율/Ignition/zenV/zenP |
-| **종목 수** | 최대 50개 | **상위 5개** (종합스코어 기준, 최대 10개) |
+### 7.3 Watchlist Pipeline (Architecture V2)
 
-**Z-Score 지표**:
-- **zenV** (Normalized Volume): `(current_volume - avg_20d) / std_20d`
-- **zenP** (Normalized Price): `(current_price - avg_20d) / std_20d`
+> **Philosophy**: "Scout & Strike" (선-진입, 후-불타기)
+> **Goal**: 폭발(Ignition) 전에 미리 들어가고(Scout), 폭발 시 비중을 태운다(Strike).
 
-**종합 스코어 계산**:
-```python
-def composite_score(ignition_score: float, zenV: float, zenP: float) -> float:
-    """Ignition과 zen-V/P 합친 종합 스코어 (폭발 임박 우선)"""
-    zen_score = (zenV - zenP) * 10  # Volume-Price Divergence
-    return max(ignition_score, zen_score)  # 둘 중 높은 값
-```
+**1. The Sourcer (종목 발굴)**:
+- **Source A (Pre-Market)**: `Daily Z-Score Divergence` (zenV > 2.0, zenP < 0.5)
+  - "누군가 조용히 매집 중인 종목" → **Watchlist 등록**
+- **Source B (Real-Time)**: `Top Gainers` & `Volume Spikes`
+  - "지금 당장 움직이는 종목" → **Watchlist 등록**
 
-**zenV-zenP Divergence 전략**:
-> "거래량 폭발(zenV > 2.0) + 가격 미반영(zenP < 0.5)" → 진입 시그널
+**2. The Ranker (우선순위)**:
+- Watchlist 내 50개 종목을 **Ignition Score** 기준으로 실시간 정렬.
+- **Top 5**는 자동으로 **Tier 2 (Hot Zone)** 승격.
+
+**3. The Trigger (진입)**:
+- **Trigger 1: Scout Entry (정찰)**
+  - 조건: `Diff(zenV, zenP) > 1.5` (Divergence 심화)
+  - 비중: 시드의 30%
+  - 의미: "폭발 임박 징후 포착, 길목 지키기"
+- **Trigger 2: Strike Entry (확인)**
+  - 조건: `Ignition Score > 70` (폭발 시작)
+  - 비중: 시드의 70% (Pyramiding)
+  - 의미: "폭발 확인, 물량 투입"
+
+---
+
+### 7.4 Tier 2 Hot Zone (GUI)
+
+- **구성**: 상단 5개 슬롯 (고정)
+- **표시 데이터**:
+  | Column | Data | Visual |
+  |--------|------|--------|
+  | **Tick** | 종목코드 | 클릭 시 차트 연동 |
+  | **Ign** | Ignition Score | >70 Red, >50 Orange |
+  | **zenV** | Volume Z-Score | >2.0 Green (매집) |
+  | **Prc** | 현재가 | 실시간 등락 색상 |
+  | **Chg** | 등락률 | 퍼센트 |
 
 ---
 

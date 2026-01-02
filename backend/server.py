@@ -88,6 +88,7 @@ class AppState:
         self.tick_dispatcher = None  # TickDispatcher (Step 4.A.0.b)
         self.sub_manager = None      # SubscriptionManager
         self.trailing_stop = None    # TrailingStopManager (Step 4.A.0.b)
+        self.ignition_monitor = None # IgnitionMonitor [Step 4.A.4]
         
 # 전역 상태 (의존성 주입용)
 app_state = AppState()
@@ -147,6 +148,40 @@ async def lifespan(app: FastAPI):
         logger.info(f"✅ Strategy Loader initialized. Found {len(strategies)} strategies")
     except Exception as e:
         logger.warning(f"⚠️ Strategy Loader init skipped: {e}")
+    
+    # 4. IgnitionMonitor 초기화 [Step 4.A.4]
+    try:
+        from backend.core.ignition_monitor import initialize_ignition_monitor
+        from backend.api.websocket import manager as ws_manager
+        from backend.strategies.seismograph import SeismographStrategy
+        strategy = SeismographStrategy()
+        app_state.ignition_monitor = initialize_ignition_monitor(strategy, ws_manager)
+        logger.info("✅ IgnitionMonitor initialized")
+    except Exception as e:
+        logger.warning(f"⚠️ IgnitionMonitor init skipped: {e}")
+    
+    # 4.5. Daily Data Sync [Bugfix: Issue 1 - 일봉 차트 날짜 제한 해결]
+    import os
+    api_key = os.getenv("MASSIVE_API_KEY", "")
+    if api_key and app_state.db:
+        try:
+            logger.info("🔄 Checking daily data sync status...")
+            from backend.data.polygon_client import PolygonClient
+            from backend.data.polygon_loader import PolygonLoader
+            
+            async with PolygonClient(api_key) as client:
+                loader = PolygonLoader(app_state.db, client)
+                sync_status = await loader.get_sync_status()
+                
+                if not sync_status.get("is_up_to_date"):
+                    missing_days = sync_status.get("missing_days", 0)
+                    logger.info(f"📊 {missing_days} days of daily data missing, starting sync...")
+                    records = await loader.update_market_data()
+                    logger.info(f"✅ Daily data synced: {records} records added")
+                else:
+                    logger.info("✅ Daily data already up-to-date")
+        except Exception as e:
+            logger.warning(f"⚠️ Daily data sync skipped: {e}")
     
     # 4. IBKR 연결 (auto_connect가 true일 때만)
     if app_state.config.ibkr.auto_connect:
@@ -260,12 +295,57 @@ async def lifespan(app: FastAPI):
     logger.info(f"🎯 Server running at http://{app_state.config.server.host}:{app_state.config.server.port}")
     logger.info("=" * 50)
     
+    # 7. IgnitionMonitor 자동 시작 [Bugfix: Ignition Score 자동 계산]
+    if app_state.ignition_monitor:
+        try:
+            from backend.data.watchlist_store import load_watchlist, save_watchlist
+            watchlist = load_watchlist()
+            
+            # Watchlist가 없으면 Scanner 자동 실행
+            if not watchlist:
+                logger.info("📡 No watchlist found, running auto-scanner...")
+                try:
+                    from backend.core.scanner import Scanner
+                    from backend.strategies.seismograph import SeismographStrategy
+                    
+                    scanner = Scanner(app_state.db)
+                    strategy = SeismographStrategy()
+                    
+                    # 간단한 스캔 실행 (Day Gainers 기반)
+                    results = await scanner.scan_with_strategy(strategy, limit=30)
+                    
+                    if results:
+                        # Watchlist 저장
+                        save_watchlist(results)
+                        watchlist = results
+                        logger.info(f"✅ Auto-scanner completed: {len(results)} stocks found")
+                    else:
+                        logger.warning("⚠️ Auto-scanner returned no results")
+                except Exception as scan_error:
+                    logger.warning(f"⚠️ Auto-scanner failed: {scan_error}")
+            
+            if watchlist:
+                await app_state.ignition_monitor.start(watchlist)
+                logger.info(f"✅ IgnitionMonitor started with {len(watchlist)} tickers")
+            else:
+                logger.info("ℹ️ IgnitionMonitor: No watchlist, will start when scanner runs")
+        except Exception as e:
+            logger.warning(f"⚠️ IgnitionMonitor auto-start skipped: {e}")
+    
     yield  # 서버 실행 중
     
     # ─────────────────────────────────────────────────────────────
     # SHUTDOWN
     # ─────────────────────────────────────────────────────────────
     logger.info("🛑 Server Shutting Down...")
+    
+    # IgnitionMonitor 종료 [Bugfix: Ignition Score 자동 종료]
+    if app_state.ignition_monitor:
+        try:
+            await app_state.ignition_monitor.stop()
+            logger.info("✅ IgnitionMonitor stopped")
+        except Exception as e:
+            logger.error(f"❌ IgnitionMonitor shutdown error: {e}")
     
     # Scheduler 종료
     if app_state.scheduler:

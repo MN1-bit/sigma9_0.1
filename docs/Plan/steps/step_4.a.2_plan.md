@@ -229,11 +229,11 @@ status = await self.rest.get_tier2_status()
 
 ## ✅ 완료 조건
 
-1. [ ] Tier 2 테이블이 Tier 1 상단에 표시
-2. [ ] 6개 컬럼: Ticker, Price, Chg%, zenV, zenP, Ign
-3. [ ] Tick 수신 시 Price 실시간 업데이트
-4. [ ] Ignition ≥ 70 시 자동 Tier 2 승격
-5. [ ] 문법 오류 없음 (py_compile)
+1. [x] Tier 2 테이블이 Tier 1 상단에 표시
+2. [x] 6개 컬럼: Ticker, Price, Chg%, zenV, zenP, Ign
+3. [x] Tick 수신 시 Price 실시간 업데이트
+4. [x] Ignition ≥ 70 시 자동 Tier 2 승격
+5. [x] 문법 오류 없음 (py_compile)
 
 ---
 

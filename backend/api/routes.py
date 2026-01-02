@@ -65,6 +65,7 @@ class WatchlistItem(BaseModel):
     stage: str
     last_close: float
     change_pct: float
+    avg_volume: float = 0.0  # [4.A.4] DolVol 계산용
 
 
 class PositionItem(BaseModel):
@@ -321,7 +322,8 @@ async def get_watchlist():
                 score=item.get("score", 0.0),
                 stage=item.get("stage", "Unknown"),
                 last_close=item.get("last_close", 0.0),
-                change_pct=item.get("change_pct", 0.0)
+                change_pct=item.get("change_pct", 0.0),
+                avg_volume=item.get("avg_volume", 0.0)  # [4.A.4] DolVol용
             ))
         logger.info(f"📋 Watchlist 반환: {len(result)}개 항목")
         return result
@@ -967,3 +969,196 @@ async def get_tier2_status():
         "dispatcher_stats": dispatcher_stats,
         "timestamp": _get_timestamp()
     }
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Z-Score Endpoints (Step 4.A.3)
+# ═══════════════════════════════════════════════════════════════════════════
+
+@router.get("/zscore/{ticker}", summary="종목 Z-Score 조회")
+async def get_zscore(ticker: str):
+    """
+    특정 종목의 Z-Score (zenV, zenP)를 계산합니다.
+    
+    📌 Z-Score:
+        - zenV: Volume Z-Score (거래량이 평균 대비 몇 표준편차인지)
+        - zenP: Price Z-Score (가격 변동이 평균 대비 몇 표준편차인지)
+    
+    📌 매집 신호:
+        - zenV > 2.0 AND zenP < 1.0: 높은 거래량, 낮은 가격 변동 = 매집 가능성 🔥
+    
+    Args:
+        ticker: 종목 심볼 (예: "AAPL")
+    
+    Returns:
+        dict: {ticker, zenV, zenP, timestamp}
+    
+    Example:
+        GET /api/zscore/AAPL
+        → {"ticker": "AAPL", "zenV": 2.35, "zenP": 0.45, "timestamp": "..."}
+    """
+    from backend.data.database import MarketDB
+    from backend.core.zscore_calculator import ZScoreCalculator
+    
+    logger.info(f"📊 Z-Score 조회 요청: {ticker}")
+    
+    try:
+        # MarketDB에서 20일 일봉 데이터 조회
+        db = MarketDB("data/market_data.db")
+        await db.initialize()
+        
+        # get_daily_bars returns most recent first (DESC), we need oldest first
+        daily_bars = await db.get_daily_bars(ticker.upper(), days=25)  # 여유분 포함
+        
+        if not daily_bars:
+            logger.warning(f"⚠️ {ticker}: 일봉 데이터 없음")
+            return {
+                "ticker": ticker.upper(),
+                "zenV": 0.0,
+                "zenP": 0.0,
+                "data_available": False,
+                "message": "No daily bar data available",
+                "timestamp": _get_timestamp()
+            }
+        
+        # DailyBar 객체를 딕셔너리로 변환하고 시간순 정렬 (오래된 → 최신)
+        bars_dict = [bar.to_dict() for bar in reversed(daily_bars)]
+        
+        # Z-Score 계산
+        calculator = ZScoreCalculator(lookback=20)
+        result = calculator.calculate(ticker.upper(), bars_dict)
+        
+        return {
+            "ticker": ticker.upper(),
+            "zenV": result.zenV,
+            "zenP": result.zenP,
+            "data_available": True,
+            "bars_used": len(bars_dict),
+            "timestamp": _get_timestamp()
+        }
+        
+    except Exception as e:
+        logger.error(f"Z-Score 계산 실패: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Data Sync Endpoints (Issue 1: 일봉 데이터 동기화)
+# ═══════════════════════════════════════════════════════════════════════════
+
+@router.post("/sync/daily", summary="일봉 데이터 동기화")
+async def sync_daily_data():
+    """
+    누락된 일봉 데이터를 Polygon.io에서 가져와 DB에 저장합니다.
+    
+    📌 동작:
+        1. DB의 가장 최근 일봉 날짜 확인
+        2. 최근 날짜 ~ 오늘 사이의 누락된 거래일 계산
+        3. 누락된 날짜만 Polygon API로 가져와 저장
+    
+    📌 사용 시점:
+        - 서버 시작 시 자동 호출
+        - 수동으로 동기화 필요 시
+    
+    Returns:
+        dict: {status, records_added, db_latest_date, market_latest_date}
+    
+    Example:
+        POST /api/sync/daily
+        → {"status": "success", "records_added": 50, ...}
+    """
+    import os
+    from backend.data.database import MarketDB
+    from backend.data.polygon_client import PolygonClient
+    from backend.data.polygon_loader import PolygonLoader
+    
+    api_key = os.getenv("MASSIVE_API_KEY", "")
+    if not api_key:
+        raise HTTPException(status_code=500, detail="MASSIVE_API_KEY not configured")
+    
+    logger.info("🔄 일봉 데이터 동기화 시작...")
+    
+    try:
+        # DB 초기화
+        db = MarketDB("data/market_data.db")
+        await db.initialize()
+        
+        # PolygonLoader로 증분 업데이트
+        async with PolygonClient(api_key) as client:
+            loader = PolygonLoader(db, client)
+            
+            # 동기화 상태 확인
+            sync_status = await loader.get_sync_status()
+            
+            if sync_status.get("is_up_to_date"):
+                logger.info("✅ 일봉 데이터 이미 최신 상태")
+                return {
+                    "status": "up_to_date",
+                    "records_added": 0,
+                    "db_latest_date": sync_status.get("db_latest_date"),
+                    "market_latest_date": sync_status.get("market_latest_date"),
+                    "timestamp": _get_timestamp()
+                }
+            
+            # 증분 업데이트 실행
+            records_added = await loader.update_market_data()
+            
+            # 업데이트 후 상태 다시 확인
+            updated_status = await loader.get_sync_status()
+            
+            logger.info(f"✅ 일봉 데이터 동기화 완료: {records_added}개 레코드 추가")
+            
+            return {
+                "status": "success",
+                "records_added": records_added,
+                "db_latest_date": updated_status.get("db_latest_date"),
+                "market_latest_date": updated_status.get("market_latest_date"),
+                "timestamp": _get_timestamp()
+            }
+    
+    except Exception as e:
+        logger.error(f"일봉 데이터 동기화 실패: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/sync/status", summary="데이터 동기화 상태 조회")
+async def get_sync_status():
+    """
+    현재 데이터 동기화 상태를 조회합니다.
+    
+    Returns:
+        dict: {db_latest_date, market_latest_date, missing_days, is_up_to_date}
+    """
+    import os
+    from backend.data.database import MarketDB
+    from backend.data.polygon_client import PolygonClient
+    from backend.data.polygon_loader import PolygonLoader
+    
+    api_key = os.getenv("MASSIVE_API_KEY", "")
+    if not api_key:
+        return {
+            "status": "error",
+            "message": "MASSIVE_API_KEY not configured",
+            "timestamp": _get_timestamp()
+        }
+    
+    try:
+        db = MarketDB("data/market_data.db")
+        await db.initialize()
+        
+        async with PolygonClient(api_key) as client:
+            loader = PolygonLoader(db, client)
+            sync_status = await loader.get_sync_status()
+        
+        return {
+            **sync_status,
+            "timestamp": _get_timestamp()
+        }
+    
+    except Exception as e:
+        logger.error(f"동기화 상태 조회 실패: {e}")
+        return {
+            "status": "error",
+            "message": str(e),
+            "timestamp": _get_timestamp()
+        }

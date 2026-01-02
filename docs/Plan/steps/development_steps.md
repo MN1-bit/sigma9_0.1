@@ -217,10 +217,12 @@ Based on [Master Plan v2.0](../Plan/masterplan.md) and [@PROJECT_DNA.md](../../@
 - [ ] 4.A.3.2: zenP (Normalized Price) 계산
 - [ ] 4.A.3.3: GUI에 Z-score 표시
 
-#### Phase 4.A.4: zenV-zenP Divergence 전략
-- [ ] 4.A.4.1: "High zenV + Low zenP" 조건 탐지
-- [ ] 4.A.4.2: Divergence 기반 진입 시그널
-- [ ] 4.A.4.3: 기존 Ignition 로직과 병행
+#### Phase 4.A.4: zenV-zenP Divergence 전략 ✅ COMPLETED
+- [x] 4.A.4.1: "High zenV + Low zenP" 조건 탐지 (`DivergenceDetector`)
+- [x] 4.A.4.2: Divergence 기반 Scout 시그널 (Tier 2 Signal 컬럼 🔥)
+- [x] 4.A.4.3: Ignition≥70 Strike 시그널 (🎯)
+- [x] 4.A.4.4: Tier 2 Demote 로직 (`_demote_from_tier2`)
+- [x] 4.A.4.5: `ZScoreCalculator` Time-Projection 메서드
 
 ---
 

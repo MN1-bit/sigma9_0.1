@@ -54,6 +54,7 @@ class WatchlistItem:
     stage: str
     last_close: float = 0.0
     change_pct: float = 0.0
+    avg_volume: float = 0.0  # [4.A.4] DolVol 계산용
     
     def to_display_string(self) -> str:
         """표시용 문자열 생성"""
@@ -68,7 +69,8 @@ class WatchlistItem:
             score=data.get("score", 0),
             stage=data.get("stage", ""),
             last_close=data.get("last_close", 0),
-            change_pct=data.get("change_pct", 0)
+            change_pct=data.get("change_pct", 0),
+            avg_volume=data.get("avg_volume", 0)  # [4.A.4]
         )
 
 
@@ -289,9 +291,21 @@ class BackendClient(QObject):
             self.log_message.emit(f"❌ Kill switch failed: {e}")
     
     def run_scanner_sync(self, strategy_name: str = "seismograph"):
-        """동기 스캐너 실행"""
+        """
+        비동기 스캐너 실행 (Non-blocking)
+        
+        ⚠️ [BUGFIX] GUI 프리즈 해결:
+        이전: future.result()로 동기 대기 → UI 블로킹
+        이후: fire-and-forget 패턴으로 백그라운드 실행 → UI 반응성 유지
+        
+        결과는 watchlist_updated 시그널을 통해 전달됩니다.
+        """
+        import asyncio
         try:
-            self._run_async(self.run_scanner(strategy_name))
+            loop = self._get_event_loop()
+            # Fire-and-forget: 결과를 기다리지 않음
+            asyncio.run_coroutine_threadsafe(self.run_scanner(strategy_name), loop)
+            # 결과는 run_scanner() → refresh_watchlist() → watchlist_updated.emit()으로 전달됨
         except Exception as e:
             logger.error(f"run_scanner_sync failed: {e}")
             self.log_message.emit(f"❌ Scanner failed: {e}")

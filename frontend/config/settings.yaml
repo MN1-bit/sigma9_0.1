@@ -25,3 +25,18 @@ window:
   height: 1080
   remember_position: true
   always_on_top: false
+tables:
+  tier1_column_widths:
+  - 0
+  - 50
+  - 53
+  - 40
+  - 55
+  tier2_column_widths:
+  - 0
+  - 50
+  - 46
+  - 45
+  - 45
+  - 40
+  - 45
