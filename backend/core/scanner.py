@@ -147,6 +147,8 @@ class Scanner:
                     results.append({
                         "ticker": ticker,
                         "score": result["score"],
+                        "score_v2": result.get("score_v2", result["score"]),  # [02-001] v2 연속 점수
+                        "intensities": result.get("intensities", {}),  # [02-001] 신호 강도
                         "stage": result["stage"],
                         "stage_number": result["stage_number"],
                         "signals": result["signals"],
@@ -155,6 +157,7 @@ class Scanner:
                         "change_pct": round(change_pct, 2),  # 소수점 2자리
                         "avg_volume": sum(d["volume"] for d in data) / len(data) if data else 0,
                     })
+
                 
                 processed += 1
                 

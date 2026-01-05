@@ -1,2 +1,4 @@
 # Auto Claude data directory
 .auto-claude/
+
+data/market_data.db

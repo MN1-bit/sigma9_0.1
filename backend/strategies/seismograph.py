@@ -351,6 +351,9 @@ class SeismographStrategy(StrategyBase):
         
         Returns:
             float: 0 ~ 100 사이의 점수 (Stage 기반 우선순위)
+        
+        Note:
+            v2 가중합 계산은 calculate_watchlist_score_v2() 참조
         """
         try:
             # 데이터 유효성 검사 (최소 5일 필요, 이상적으로 20일)
@@ -402,6 +405,253 @@ class SeismographStrategy(StrategyBase):
         except Exception:
             # 데이터 오류 시 0점
             return 0.0
+    
+    # ═══════════════════════════════════════════════════════════════════
+    # v2: 연속 점수 시스템 (가중합 기반)
+    # ═══════════════════════════════════════════════════════════════════
+    
+    # 신호별 가중치 (Masterplan 기준)
+    SCORE_WEIGHTS = {
+        "tight_range": 0.30,      # VCP 패턴 (30%)
+        "obv_divergence": 0.35,   # 스마트 머니 (35%)
+        "accumulation_bar": 0.25, # 매집 완료 (25%)
+        "volume_dryout": 0.10,    # 준비 단계 (10%)
+    }
+    
+    def calculate_watchlist_score_v2(self, ticker: str, daily_data: Any) -> float:
+        """
+        v2: 연속 점수 시스템 (가중합 기반)
+        
+        ═══════════════════════════════════════════════════════════════════
+        개선된 점수 계산 (02-001_score_calculation_enhancement.md)
+        ═══════════════════════════════════════════════════════════════════
+        
+        기존 step 함수 대신 연속적인 0~100 점수를 반환합니다.
+        각 신호의 "강도(intensity)"를 계산하여 가중합으로 최종 점수 산출.
+        
+        수식:
+            Score = 100 × Σ(w_i × I_i)
+            
+        where:
+            w_i = 신호 가중치 (tight_range=0.30, obv=0.35, ...)
+            I_i = 신호 강도 (0.0 ~ 1.0)
+        
+        Args:
+            ticker: 종목 코드 (예: "AAPL")
+            daily_data: 일봉 데이터 (pandas DataFrame 또는 list of dict)
+                필수 컬럼: open, high, low, close, volume
+        
+        Returns:
+            float: 0.0 ~ 100.0 연속 점수
+        """
+        try:
+            if daily_data is None or len(daily_data) < 5:
+                return 0.0
+            
+            # 각 신호의 강도 계산 (0.0 ~ 1.0)
+            intensities = self._calculate_signal_intensities(daily_data)
+            
+            # 가중합 계산
+            raw_score = sum(
+                intensities.get(signal, 0.0) * weight
+                for signal, weight in self.SCORE_WEIGHTS.items()
+            )
+            
+            return round(raw_score * 100, 1)  # 0~100 스케일
+            
+        except Exception:
+            return 0.0
+    
+    def _calculate_signal_intensities(self, data: Any) -> Dict[str, float]:
+        """
+        개별 신호 강도 계산 (0.0 ~ 1.0)
+        
+        Boolean 신호 대신 연속적인 강도 값을 반환합니다.
+        
+        Args:
+            data: OHLCV 데이터
+            
+        Returns:
+            dict: 각 신호의 강도 (0.0 ~ 1.0)
+        """
+        return {
+            "tight_range": self._calc_tight_range_intensity(data),
+            "obv_divergence": self._calc_obv_divergence_intensity(data),
+            "accumulation_bar": self._calc_accumulation_bar_intensity(data),
+            "volume_dryout": self._calc_volume_dryout_intensity(data),
+        }
+    
+    def _calc_tight_range_intensity(self, data: Any) -> float:
+        """
+        Tight Range 강도 계산 (0.0 ~ 1.0)
+        
+        ATR_5 / ATR_20 비율이 낮을수록 강함
+        - 비율 ≤ 30%: intensity = 1.0
+        - 비율 ≥ 70%: intensity = 0.0
+        - 그 사이: 선형 보간
+        """
+        try:
+            highs = self._get_column(data, 'high', 20)
+            lows = self._get_column(data, 'low', 20)
+            closes = self._get_column(data, 'close', 20)
+            
+            if len(highs) < 20:
+                return 0.0
+            
+            # True Range 계산
+            tr_list = []
+            for i in range(1, len(highs)):
+                h_l = highs[i] - lows[i]
+                h_pc = abs(highs[i] - closes[i - 1])
+                l_pc = abs(lows[i] - closes[i - 1])
+                tr_list.append(max(h_l, h_pc, l_pc))
+            
+            if len(tr_list) < 19:
+                return 0.0
+            
+            atr_5d = np.mean(tr_list[-5:])
+            atr_20d = np.mean(tr_list)
+            
+            if atr_20d <= 0:
+                return 0.0
+            
+            ratio = atr_5d / atr_20d
+            
+            # 선형 보간: 0.3 이하 → 1.0, 0.7 이상 → 0.0
+            intensity = max(0.0, min(1.0, (0.7 - ratio) / 0.4))
+            return round(intensity, 2)
+            
+        except Exception:
+            return 0.0
+    
+    def _calc_obv_divergence_intensity(self, data: Any) -> float:
+        """
+        OBV Divergence 강도 계산 (0.0 ~ 1.0)
+        
+        가격 기울기 vs OBV 기울기 차이로 강도 계산
+        - 가격 하락폭 클수록 + OBV 상승폭 클수록 = 높은 강도
+        """
+        try:
+            lookback = self.config["obv_lookback"]["value"]
+            closes = self._get_column(data, 'close', lookback)
+            volumes = self._get_column(data, 'volume', lookback)
+            
+            if len(closes) < 5 or len(volumes) < 5:
+                return 0.0
+            
+            # OBV 계산
+            obv = [0.0]
+            for i in range(1, len(closes)):
+                if closes[i] > closes[i - 1]:
+                    obv.append(obv[-1] + volumes[i])
+                elif closes[i] < closes[i - 1]:
+                    obv.append(obv[-1] - volumes[i])
+                else:
+                    obv.append(obv[-1])
+            
+            # 정규화된 기울기 계산
+            if len(closes) < 2 or closes[0] == 0:
+                return 0.0
+            
+            # 가격 변화율 (%)
+            price_change_pct = (closes[-1] - closes[0]) / closes[0]
+            
+            # OBV 변화율 (정규화: 총 거래량 대비)
+            total_volume = sum(volumes) if sum(volumes) > 0 else 1
+            obv_change_ratio = (obv[-1] - obv[0]) / total_volume
+            
+            # Divergence: 가격 하락 + OBV 상승
+            if price_change_pct > 0.02:  # 2% 이상 상승 시 divergence 아님
+                return 0.0
+            
+            if obv_change_ratio <= 0:  # OBV 하락 시 divergence 아님
+                return 0.0
+            
+            # 강도: 가격 하락폭(-price_change_pct)과 OBV 상승폭을 곱함
+            # 최대값 클램핑
+            divergence_strength = min(1.0, abs(price_change_pct) * 10 + obv_change_ratio * 5)
+            return round(divergence_strength, 2)
+            
+        except Exception:
+            return 0.0
+    
+    def _calc_accumulation_bar_intensity(self, data: Any) -> float:
+        """
+        Accumulation Bar 강도 계산 (0.0 ~ 1.0)
+        
+        Volume Spike 배수로 강도 계산
+        - 2x → 0.0
+        - 3x → 0.33
+        - 5x → 1.0
+        """
+        try:
+            latest = data.iloc[-1] if hasattr(data, 'iloc') else data[-1]
+            
+            open_price = float(latest.get('open', latest.get('Open', 0)))
+            close_price = float(latest.get('close', latest.get('Close', 0)))
+            
+            if open_price == 0:
+                return 0.0
+            
+            price_change = abs(close_price - open_price) / open_price
+            
+            # 가격 변동이 크면 매집봉 아님
+            if price_change > 0.025:
+                return 0.0
+            
+            volumes = self._get_column(data, 'volume', 20)
+            if len(volumes) < 5:
+                return 0.0
+            
+            avg_volume = np.mean(volumes[:-1])
+            current_volume = float(volumes[-1])
+            
+            if avg_volume <= 0:
+                return 0.0
+            
+            volume_ratio = current_volume / avg_volume
+            
+            # 2x 미만 → 0, 5x 이상 → 1.0
+            intensity = max(0.0, min(1.0, (volume_ratio - 2) / 3))
+            return round(intensity, 2)
+            
+        except Exception:
+            return 0.0
+    
+    def _calc_volume_dryout_intensity(self, data: Any) -> float:
+        """
+        Volume Dry-out 강도 계산 (0.0 ~ 1.0)
+        
+        최근 3일 vs 20일 평균 비율로 강도 계산
+        - 40% → 0.0 (threshold)
+        - 20% → 0.5
+        - 0%  → 1.0
+        """
+        try:
+            volumes = self._get_column(data, 'volume', 20)
+            
+            if len(volumes) < 5:
+                return 0.0
+            
+            avg_20d = np.mean(volumes)
+            avg_3d = np.mean(volumes[-3:])
+            
+            if avg_20d <= 0:
+                return 0.0
+            
+            ratio = avg_3d / avg_20d
+            threshold = self.config["dryout_threshold"]["value"]
+            
+            # threshold(0.4) 이상 → 0, 0 → 1.0
+            if ratio >= threshold:
+                return 0.0
+            
+            intensity = 1.0 - (ratio / threshold)
+            return round(intensity, 2)
+            
+        except Exception:
+            return 0.0
+
     
     def calculate_watchlist_score_detailed(
         self, 
@@ -469,8 +719,13 @@ class SeismographStrategy(StrategyBase):
             # Stage 1 (Volume Dry-out) / Stage 2 (OBV Divergence) = Monitoring Only
             can_trade = stage_num >= 3
             
+            # [02-001] v2 연속 점수 및 신호 강도 추가
+            score_v2 = self.calculate_watchlist_score_v2(ticker, daily_data)
+            intensities = self._calculate_signal_intensities(daily_data)
+            
             return {
                 "score": score,
+                "score_v2": score_v2,  # [02-001] 연속 점수 추가
                 "stage": stage_str,
                 "stage_number": stage_num,
                 "signals": {
@@ -479,8 +734,10 @@ class SeismographStrategy(StrategyBase):
                     "obv_divergence": has_obv_divergence,
                     "volume_dryout": has_volume_dryout,
                 },
+                "intensities": intensities,  # [02-001] 신호 강도 추가
                 "can_trade": can_trade,
             }
+
             
         except Exception:
             return self._get_empty_score_result()

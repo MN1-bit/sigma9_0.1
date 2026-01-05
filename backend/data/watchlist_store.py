@@ -298,6 +298,55 @@ def load_watchlist() -> List[Dict[str, Any]]:
     return get_watchlist_store().load()
 
 
+def merge_watchlist(new_items: List[Dict[str, Any]], update_existing: bool = True) -> List[Dict[str, Any]]:
+    """
+    [Issue 6.2 Fix] 기존 Watchlist와 새 항목 병합
+    
+    새 항목을 기존 Watchlist에 추가하되, 중복은 건너뛰거나 업데이트합니다.
+    덮어쓰기 대신 병합을 사용하여 깜빡임 문제를 해결합니다.
+    
+    Args:
+        new_items: 추가할 새로운 Watchlist 항목들
+        update_existing: True면 기존 항목을 새 데이터로 업데이트, False면 건너뛰기
+    
+    Returns:
+        병합된 전체 Watchlist
+    """
+    store = get_watchlist_store()
+    current = store.load()
+    
+    # 기존 티커 맵 생성
+    existing_map = {item.get("ticker"): i for i, item in enumerate(current)}
+    
+    added = 0
+    updated = 0
+    
+    for new_item in new_items:
+        ticker = new_item.get("ticker")
+        if not ticker:
+            continue
+        
+        if ticker in existing_map:
+            # 기존 항목 존재 - 업데이트할지 결정
+            if update_existing:
+                idx = existing_map[ticker]
+                # 기존 필드 유지하면서 새 필드로 업데이트
+                current[idx].update(new_item)
+                updated += 1
+        else:
+            # 새 항목 추가
+            current.append(new_item)
+            existing_map[ticker] = len(current) - 1
+            added += 1
+    
+    # 변경이 있으면 저장
+    if added > 0 or updated > 0:
+        store.save(current, save_history=False)  # 히스토리는 저장 안함 (빈번한 병합)
+        logger.info(f"📋 Watchlist 병합 완료: +{added} 추가, ~{updated} 업데이트 (총 {len(current)}개)")
+    
+    return current
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 # 테스트
 # ═══════════════════════════════════════════════════════════════════════════

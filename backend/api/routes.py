@@ -62,10 +62,13 @@ class WatchlistItem(BaseModel):
     """Watchlist 항목"""
     ticker: str
     score: float
+    score_v2: float = 0.0  # [02-001] v2 연속 점수
     stage: str
     last_close: float
     change_pct: float
     avg_volume: float = 0.0  # [4.A.4] DolVol 계산용
+    intensities: dict = {}  # [02-001] 신호 강도
+
 
 
 class PositionItem(BaseModel):
@@ -320,13 +323,16 @@ async def get_watchlist():
             result.append(WatchlistItem(
                 ticker=item.get("ticker", ""),
                 score=item.get("score", 0.0),
+                score_v2=item.get("score_v2", 0.0),  # [02-001] v2 점수
                 stage=item.get("stage", "Unknown"),
                 last_close=item.get("last_close", 0.0),
                 change_pct=item.get("change_pct", 0.0),
-                avg_volume=item.get("avg_volume", 0.0)  # [4.A.4] DolVol용
+                avg_volume=item.get("avg_volume", 0.0),  # [4.A.4] DolVol용
+                intensities=item.get("intensities", {}),  # [02-001] 신호 강도
             ))
         logger.info(f"📋 Watchlist 반환: {len(result)}개 항목")
         return result
+
     
     # 데이터가 없으면 빈 리스트 반환
     logger.warning("⚠️ Watchlist 비어 있음")
@@ -471,11 +477,12 @@ async def run_scanner(strategy_name: str = "seismograph"):
             lookback_days=20
         )
         
-        # Watchlist 저장
+        # Watchlist 저장 (병합)
         if watchlist:
-            store = get_watchlist_store()
-            store.save(watchlist)
-            logger.info(f"✅ Scanner 완료: {len(watchlist)}개 종목")
+            # [Issue 01-002 Fix] 기존 Day Gainer 유지를 위해 병합 저장
+            from backend.data.watchlist_store import merge_watchlist
+            merged = merge_watchlist(watchlist, update_existing=True)
+            logger.info(f"✅ Scanner 완료: {len(watchlist)}개 스캔, {len(merged)}개 총 Watchlist")
         else:
             logger.warning("⚠️ Scanner: 조건에 맞는 종목 없음")
         

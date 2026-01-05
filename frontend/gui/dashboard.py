@@ -58,6 +58,7 @@ from .settings_dialog import SettingsDialog
 # from .chart_widget import ChartWidget  # Step 2.4.7: 차트 위젯 (Backup) - REMOVED due to missing dependency
 from .chart.pyqtgraph_chart import PyQtGraphChartWidget  # [NEW] PyQtGraph 기반 차트
 from .control_panel import ControlPanel, StatusIndicator, LoadingOverlay  # [NEW] Step 3.4
+from .watchlist_model import WatchlistModel  # [Issue 01-004] Model/View 아키텍처
 from ..config.loader import load_settings, save_settings
 from ..services.backend_client import BackendClient, ConnectionState, WatchlistItem  # [NEW] Step 3.4
 
@@ -228,18 +229,34 @@ class Sigma9Dashboard(CustomWindow):
     
     def _auto_connect_backend(self):
         """
-        Step 3.4.6: GUI 시작 시 Backend 자동 연결
+        Step 3.4.6: GUI 시작 시 Backend 자동 연결 (Non-blocking)
         
         500ms 후에 호출되어 Backend에 자동으로 연결을 시도합니다.
         연결 성공 시 현재 선택된 전략으로 Scanner를 자동 실행합니다.
+        
+        [BUGFIX] GUI freeze 방지: 백그라운드 스레드에서 연결 시도
         """
         self.log("[INFO] Auto-connecting to backend...")
-        # [FIX] async → sync 래퍼 사용
-        if self.backend_client.connect_sync():
-            # 연결 성공 시 Scanner 자동 실행 (Step 3.4.7)
-            current_strategy = self.control_panel.get_selected_strategy()
-            if current_strategy:
-                self._run_scanner_for_strategy(current_strategy)
+        
+        # [BUGFIX] Non-blocking 연결: 별도 스레드에서 실행
+        import threading
+        
+        def connect_in_background():
+            try:
+                if self.backend_client.connect_sync():
+                    # 연결 성공 시 Scanner 자동 실행 (GUI 스레드에서)
+                    from PyQt6.QtCore import QTimer
+                    def run_scanner():
+                        current_strategy = self.control_panel.get_selected_strategy()
+                        if current_strategy:
+                            self._run_scanner_for_strategy(current_strategy)
+                    QTimer.singleShot(0, run_scanner)
+            except Exception as e:
+                from PyQt6.QtCore import QTimer
+                QTimer.singleShot(0, lambda: self.log(f"[WARN] Auto-connect failed: {e}"))
+        
+        thread = threading.Thread(target=connect_in_background, daemon=True)
+        thread.start()
 
     def resizeEvent(self, event):
         """윈도우 크기 변경 시 파티클 시스템 크기도 조절"""
@@ -523,7 +540,7 @@ class Sigma9Dashboard(CustomWindow):
         │  [Tier 1 Table] │
         └─────────────────┘
         """
-        from PyQt6.QtWidgets import QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView
+        from PyQt6.QtWidgets import QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView, QTableView
         from PyQt6.QtCore import QTimer
         
         # 메인 프레임 (타이틀 없이 직접 생성)
@@ -623,6 +640,7 @@ class Sigma9Dashboard(CustomWindow):
         
         # ═══════════════════════════════════════════════════════════════════
         # 2. Tier 1 Watchlist (하단)
+        # [Issue 01-004] QTableWidget → QTableView + WatchlistModel 전환
         # ═══════════════════════════════════════════════════════════════════
         tier1_label = QLabel("📋 Watchlist")
         tier1_label.setStyleSheet(f"""
@@ -634,11 +652,20 @@ class Sigma9Dashboard(CustomWindow):
         """)
         layout.addWidget(tier1_label)
         
-        self.watchlist_table = QTableWidget()
-        self.watchlist_table.setColumnCount(5)
-        self.watchlist_table.setHorizontalHeaderLabels(["Ticker", "Chg%", "DolVol", "Score", "Ign"])
+        # [Issue 01-004] Model/View 아키텍처: 모델과 뷰 분리
+        self.watchlist_model = WatchlistModel()
         
-        # 정렬 활성화 (4.A.1.2)
+        # [Issue 01-004 Phase 4] QSortFilterProxyModel로 정렬 상태 유지
+        # Proxy가 정렬 상태를 관리하여 데이터 업데이트 시에도 정렬 유지
+        from PyQt6.QtCore import QSortFilterProxyModel
+        self.watchlist_proxy = QSortFilterProxyModel()
+        self.watchlist_proxy.setSourceModel(self.watchlist_model)
+        self.watchlist_proxy.setSortRole(Qt.ItemDataRole.UserRole)  # 숫자 정렬용
+        
+        self.watchlist_table = QTableView()
+        self.watchlist_table.setModel(self.watchlist_proxy)  # Proxy 연결
+        
+        # 정렬 활성화 (Proxy가 정렬 상태 관리)
         self.watchlist_table.setSortingEnabled(True)
         
         # 선택 모드 설정
@@ -668,19 +695,19 @@ class Sigma9Dashboard(CustomWindow):
         self.watchlist_table.verticalHeader().setDefaultSectionSize(24)
         self.watchlist_table.verticalHeader().setVisible(False)
         
-        # 스타일 적용
+        # 스타일 적용 (QTableView용으로 변경)
         self.watchlist_table.setStyleSheet(f"""
-            QTableWidget {{
+            QTableView {{
                 background-color: transparent;
                 border: none;
                 color: {c['text']};
                 font-size: 11px;
                 gridline-color: {c['border']};
             }}
-            QTableWidget::item {{
+            QTableView::item {{
                 padding: 2px 4px;
             }}
-            QTableWidget::item:selected {{
+            QTableView::item:selected {{
                 background-color: {c['primary']};
                 color: white;
             }}
@@ -694,10 +721,10 @@ class Sigma9Dashboard(CustomWindow):
             }}
         """)
         
-        # 클릭 시 차트 로드
-        self.watchlist_table.cellClicked.connect(self._on_watchlist_table_clicked)
+        # [Issue 01-004] cellClicked → clicked 시그널 변경 (QModelIndex 기반)
+        self.watchlist_table.clicked.connect(self._on_watchlist_table_clicked)
         
-        # 샘플 데이터 추가
+        # 샘플 데이터 추가 (Model 초기화)
         self._add_watchlist_sample_data()
         
         layout.addWidget(self.watchlist_table)
@@ -717,11 +744,17 @@ class Sigma9Dashboard(CustomWindow):
             self.log(f"[ACTION] Hot Zone selected: {ticker}")
             self._load_chart_for_ticker(ticker)
     
-    def _on_watchlist_table_clicked(self, row: int, column: int):
-        """Tier 1 Watchlist 테이블 클릭 핸들러"""
-        ticker_item = self.watchlist_table.item(row, 0)
-        if ticker_item:
-            ticker = ticker_item.text()
+    def _on_watchlist_table_clicked(self, proxy_index):
+        """
+        [Issue 01-004 Phase 4] Tier 1 Watchlist 테이블 클릭 핸들러
+        
+        ProxyModel 인덱스를 SourceModel 인덱스로 변환하여 ticker 조회
+        """
+        # Proxy 인덱스 → Source 인덱스 변환
+        source_index = self.watchlist_proxy.mapToSource(proxy_index)
+        ticker_index = self.watchlist_model.index(source_index.row(), 0)
+        ticker = self.watchlist_model.data(ticker_index)
+        if ticker:
             self.log(f"[ACTION] Watchlist selected: {ticker}")
             self._load_chart_for_ticker(ticker)
     
@@ -755,9 +788,13 @@ class Sigma9Dashboard(CustomWindow):
         thread.start()
 
     def _add_watchlist_sample_data(self):
-        """Watchlist 초기화 (빈 상태로 시작, 백엔드 연결 시 업데이트됨)"""
-        # [REMOVED] 샘플 데이터 제거 - 백엔드 스캐너 결과로 업데이트됨
-        self.watchlist_table.setRowCount(0)
+        """
+        [Issue 01-004] Watchlist 초기화 (빈 상태로 시작, 백엔드 연결 시 업데이트됨)
+        
+        Model/View 아키텍처: 모델 초기화
+        """
+        # Model 기반: clear_all() 호출
+        self.watchlist_model.clear_all()
         self.log("[INFO] Watchlist ready - waiting for scanner results")
     
     def _format_dollar_volume(self, value: float) -> str:
@@ -796,13 +833,7 @@ class Sigma9Dashboard(CustomWindow):
         save_setting(key, current)
 
     
-    def _on_watchlist_table_clicked(self, row: int, column: int):
-        """Watchlist 테이블 클릭 핸들러"""
-        ticker_item = self.watchlist_table.item(row, 0)
-        if ticker_item:
-            ticker = ticker_item.text()
-            self.log(f"[ACTION] Selected: {ticker}")
-            self._load_chart_for_ticker(ticker)
+    # [Issue 01-004] 중복 함수 제거 - 위의 _on_watchlist_table_clicked 사용
     
     def _refresh_watchlist(self):
         """[Step 4.A.1.3] Watchlist 자동 갱신 (1분 주기)"""
@@ -1140,106 +1171,120 @@ class Sigma9Dashboard(CustomWindow):
 
     def _on_connect(self):
         """
-        Connect 버튼 클릭 - 스마트 자동 연결
+        Connect 버튼 클릭 - 스마트 자동 연결 (Non-blocking)
         
         순서:
         1. AWS 서버 연결 시도
         2. 실패 시 → 로컬 서버 연결 시도
         3. 로컬 서버도 없으면 → 자동으로 로컬 서버 시작
         4. 연결 성공 시 → 엔진 자동 시작
+        
+        [BUGFIX] GUI freeze 방지: 전체 로직을 백그라운드 스레드에서 실행
         """
         self.log("[ACTION] 🔌 Smart Connect initiated...")
         self.particle_system.order_created()
         
-        import httpx
-        import subprocess
-        import os
-        import time
+        # [BUGFIX] 전체 연결 로직을 백그라운드에서 실행
+        import threading
         
-        # 설정에서 서버 정보 가져오기
-        settings = load_settings()
-        aws_host = settings.get("server", {}).get("aws_host", "")
-        local_host = "localhost"
-        port = settings.get("server", {}).get("port", 8000)
-        
-        # ═══════════════════════════════════════════════════════════
-        # Step 1: AWS 서버 연결 시도
-        # ═══════════════════════════════════════════════════════════
-        if aws_host and aws_host != "localhost" and aws_host != "ec2-xxx.amazonaws.com":
-            self.log(f"[INFO] 1️⃣ Trying AWS server: {aws_host}:{port}...")
+        def connect_in_background():
+            import httpx
+            import subprocess
+            import os
+            import time
+            from PyQt6.QtCore import QTimer
+            
+            def log_safe(msg):
+                """스레드 안전 로그"""
+                QTimer.singleShot(0, lambda: self.log(msg))
+            
+            # 설정에서 서버 정보 가져오기
+            settings = load_settings()
+            aws_host = settings.get("server", {}).get("aws_host", "")
+            local_host = "localhost"
+            port = settings.get("server", {}).get("port", 8000)
+            
+            # ═══════════════════════════════════════════════════════════
+            # Step 1: AWS 서버 연결 시도
+            # ═══════════════════════════════════════════════════════════
+            if aws_host and aws_host != "localhost" and aws_host != "ec2-xxx.amazonaws.com":
+                log_safe(f"[INFO] 1️⃣ Trying AWS server: {aws_host}:{port}...")
+                try:
+                    resp = httpx.get(f"http://{aws_host}:{port}/health", timeout=5.0)
+                    if resp.status_code == 200:
+                        log_safe(f"[INFO] ✅ AWS server found!")
+                        self.backend_client.set_server(aws_host, port)
+                        if self.backend_client.connect_sync():
+                            QTimer.singleShot(0, self._auto_start_engine)
+                            return
+                except Exception as e:
+                    log_safe(f"[WARN] AWS connection failed: {e}")
+            
+            # ═══════════════════════════════════════════════════════════
+            # Step 2: 로컬 서버 연결 시도
+            # ═══════════════════════════════════════════════════════════
+            log_safe(f"[INFO] 2️⃣ Trying local server: {local_host}:{port}...")
             try:
-                resp = httpx.get(f"http://{aws_host}:{port}/health", timeout=5.0)
+                resp = httpx.get(f"http://{local_host}:{port}/health", timeout=3.0)
                 if resp.status_code == 200:
-                    self.log(f"[INFO] ✅ AWS server found!")
-                    self.backend_client.set_server(aws_host, port)
+                    log_safe(f"[INFO] ✅ Local server found!")
+                    self.backend_client.set_server(local_host, port)
                     if self.backend_client.connect_sync():
-                        self._auto_start_engine()
+                        QTimer.singleShot(0, self._auto_start_engine)
                         return
+            except httpx.ConnectError:
+                log_safe("[WARN] Local server not running")
             except Exception as e:
-                self.log(f"[WARN] AWS connection failed: {e}")
-        
-        # ═══════════════════════════════════════════════════════════
-        # Step 2: 로컬 서버 연결 시도
-        # ═══════════════════════════════════════════════════════════
-        self.log(f"[INFO] 2️⃣ Trying local server: {local_host}:{port}...")
-        try:
-            resp = httpx.get(f"http://{local_host}:{port}/health", timeout=3.0)
-            if resp.status_code == 200:
-                self.log(f"[INFO] ✅ Local server found!")
+                log_safe(f"[WARN] Local server check failed: {e}")
+            
+            # ═══════════════════════════════════════════════════════════
+            # Step 3: 로컬 서버 자동 시작
+            # ═══════════════════════════════════════════════════════════
+            log_safe("[INFO] 3️⃣ Starting local server automatically...")
+            
+            project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            venv_python = os.path.join(project_root, ".venv", "Scripts", "python.exe")
+            
+            if not os.path.exists(venv_python):
+                log_safe("[ERROR] ❌ Python not found in .venv")
+                return
+            
+            try:
+                # 새 콘솔 창에서 서버 실행
+                self._local_server_process = subprocess.Popen(
+                    [venv_python, "-m", "backend"],
+                    cwd=project_root,
+                    creationflags=subprocess.CREATE_NEW_CONSOLE
+                )
+                log_safe(f"[INFO] 🖥️ Local server started (PID: {self._local_server_process.pid})")
+                
+                # 서버 시작 대기 (최대 10초)
+                for i in range(20):
+                    time.sleep(0.5)
+                    try:
+                        resp = httpx.get(f"http://{local_host}:{port}/health", timeout=2.0)
+                        if resp.status_code == 200:
+                            log_safe("[INFO] ✅ Local server is now ready!")
+                            break
+                    except:
+                        pass
+                    if i % 4 == 0:
+                        log_safe(f"[INFO] Waiting for server... ({i//2}s)")
+                
+                # ═══════════════════════════════════════════════════════════
+                # Step 4: 연결 및 엔진 시작
+                # ═══════════════════════════════════════════════════════════
                 self.backend_client.set_server(local_host, port)
                 if self.backend_client.connect_sync():
-                    self._auto_start_engine()
-                    return
-        except httpx.ConnectError:
-            self.log("[WARN] Local server not running")
-        except Exception as e:
-            self.log(f"[WARN] Local server check failed: {e}")
+                    QTimer.singleShot(0, self._auto_start_engine)
+                else:
+                    log_safe("[ERROR] ❌ Failed to connect after starting server")
+                    
+            except Exception as e:
+                log_safe(f"[ERROR] ❌ Failed to start local server: {e}")
         
-        # ═══════════════════════════════════════════════════════════
-        # Step 3: 로컬 서버 자동 시작
-        # ═══════════════════════════════════════════════════════════
-        self.log("[INFO] 3️⃣ Starting local server automatically...")
-        
-        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        venv_python = os.path.join(project_root, ".venv", "Scripts", "python.exe")
-        
-        if not os.path.exists(venv_python):
-            self.log("[ERROR] ❌ Python not found in .venv")
-            return
-        
-        try:
-            # 새 콘솔 창에서 서버 실행
-            self._local_server_process = subprocess.Popen(
-                [venv_python, "-m", "backend"],
-                cwd=project_root,
-                creationflags=subprocess.CREATE_NEW_CONSOLE
-            )
-            self.log(f"[INFO] 🖥️ Local server started (PID: {self._local_server_process.pid})")
-            
-            # 서버 시작 대기 (최대 10초)
-            for i in range(20):
-                time.sleep(0.5)
-                try:
-                    resp = httpx.get(f"http://{local_host}:{port}/health", timeout=2.0)
-                    if resp.status_code == 200:
-                        self.log("[INFO] ✅ Local server is now ready!")
-                        break
-                except:
-                    pass
-                if i % 4 == 0:
-                    self.log(f"[INFO] Waiting for server... ({i//2}s)")
-            
-            # ═══════════════════════════════════════════════════════════
-            # Step 4: 연결 및 엔진 시작
-            # ═══════════════════════════════════════════════════════════
-            self.backend_client.set_server(local_host, port)
-            if self.backend_client.connect_sync():
-                self._auto_start_engine()
-            else:
-                self.log("[ERROR] ❌ Failed to connect after starting server")
-                
-        except Exception as e:
-            self.log(f"[ERROR] ❌ Failed to start local server: {e}")
+        thread = threading.Thread(target=connect_in_background, daemon=True)
+        thread.start()
     
     def _auto_start_engine(self):
         """연결 후 자동으로 엔진 시작"""
@@ -1321,69 +1366,62 @@ class Sigma9Dashboard(CustomWindow):
     
     def _update_watchlist_panel(self, items: list):
         """
-        Step 3.4.8 + 4.A.1: Watchlist 패널 자동 업데이트 (QTableWidget)
+        [Issue 01-004] Watchlist 패널 업데이트 (Model/View 아키텍처)
         
-        Scanner 결과가 도착하면 Watchlist 테이블을 업데이트합니다.
+        Scanner 결과가 도착하면 WatchlistModel을 통해 업데이트합니다.
+        QTableView + QStandardItemModel 조합으로 정렬 상태와 무관하게
+        안정적인 데이터 업데이트를 보장합니다.
+        
+        [Issue 01-003] Transparency Protocol:
+        - 데이터 누락 시 ⚠️ 경고 아이콘 표시
+        - 사용자가 데이터 품질 문제를 인지할 수 있도록 함
         
         Args:
             items: List[WatchlistItem] - Scanner 결과
         """
-        from PyQt6.QtWidgets import QTableWidgetItem
-        from PyQt6.QtCore import Qt
-        
-        self.watchlist_table.setRowCount(0)  # 초기화
-        
         if not items:
-            self.watchlist_table.setRowCount(1)
-            self.watchlist_table.setItem(0, 0, QTableWidgetItem("No stocks found"))
+            self.watchlist_model.clear_all()
             self.log("[INFO] Watchlist updated: 0 stocks")
             return
         
-        self.watchlist_table.setRowCount(len(items))
+        # [Issue 6.3 Fix] Watchlist 캐시 저장 (ticker -> item dict)
+        self._watchlist_data = {}
         
-        for row, item in enumerate(items):
+        # Model 업데이트 (현재 정렬 상태에 영향 없음)
+        for item in items:
             if isinstance(item, WatchlistItem):
                 ticker = item.ticker
                 change_pct = item.change_pct
                 score = item.score
+                score_v2 = getattr(item, 'score_v2', None)  # [02-001] v2 점수 (없으면 None)
                 dollar_volume = getattr(item, 'dollar_volume', 0) or getattr(item, 'avg_volume', 0) * getattr(item, 'last_close', 0)
             else:
                 ticker = item.get("ticker", "UNKNOWN")
                 change_pct = item.get("change_pct", 0.0)
                 score = item.get("score", 0)
+                score_v2 = item.get("score_v2")  # [02-001] v2 점수 (없으면 None)
                 dollar_volume = item.get("dollar_volume", 0) or item.get("avg_volume", 0) * item.get("last_close", 0)
+            
+            # [Issue 6.3 Fix] Watchlist 캐시에 저장
+            self._watchlist_data[ticker] = item if isinstance(item, dict) else {
+                "ticker": ticker, "change_pct": change_pct, "score": score,
+                "stage_number": getattr(item, 'stage_number', 0),
+                "source": getattr(item, 'source', ''),
+            }
             
             # Ignition Score (캐시에서)
             ignition_score = self._ignition_cache.get(ticker, 0.0)
             
-            # Ticker (텍스트)
-            self.watchlist_table.setItem(row, 0, QTableWidgetItem(ticker))
-            
-            # Change % (숫자)
-            sign = "+" if change_pct >= 0 else ""
-            change_item = NumericTableWidgetItem(f"{sign}{change_pct:.1f}%", change_pct)
-            if change_pct >= 0:
-                change_item.setForeground(QColor(theme.get_color('success')))
-            else:
-                change_item.setForeground(QColor(theme.get_color('danger')))
-            self.watchlist_table.setItem(row, 1, change_item)
-            
-            # Dollar Volume (숫자)
-            dolvol_item = NumericTableWidgetItem(self._format_dollar_volume(dollar_volume), dollar_volume)
-            self.watchlist_table.setItem(row, 2, dolvol_item)
-            
-            # Score (숫자)
-            score_item = NumericTableWidgetItem(str(int(score)), score)
-            self.watchlist_table.setItem(row, 3, score_item)
-            
-            # Ignition (숫자)
-            if ignition_score > 0:
-                ign_item = NumericTableWidgetItem(f"🔥{int(ignition_score)}", ignition_score)
-                if ignition_score >= 70:
-                    ign_item.setBackground(QColor(255, 193, 7, 80))
-            else:
-                ign_item = NumericTableWidgetItem("-", 0)
-            self.watchlist_table.setItem(row, 4, ign_item)
+            # Model 업데이트 (WatchlistModel이 정렬/색상/포맷 처리)
+            item_data = {
+                "ticker": ticker,
+                "change_pct": change_pct,
+                "dollar_volume": dollar_volume,
+                "score": score,
+                "score_v2": score_v2,  # [02-001] v2 점수 추가
+                "ignition": ignition_score,
+            }
+            self.watchlist_model.update_item(item_data)
         
         self.log(f"[INFO] Watchlist updated: {len(items)} stocks")
         self.particle_system.order_created()
@@ -1395,7 +1433,11 @@ class Sigma9Dashboard(CustomWindow):
         WebSocket으로 수신된 Ignition Score를 캐시에 저장하고
         해당 종목의 Watchlist 테이블을 업데이트합니다.
         
-        [Step 4.A.2.2] Ignition ≥ 70 시 자동 Tier 2 승격
+        [Step 4.A.2.2] 자동 Tier 2 승격 조건:
+        - Ignition ≥ 70 (기존)
+        - Stage 4 VCP (신규)
+        - zenV-zenP Divergence (신규)
+        - High Score Gainer (신규)
         
         Args:
             data: {"ticker": str, "score": float, "passed_filter": bool, "reason": str}
@@ -1426,19 +1468,61 @@ class Sigma9Dashboard(CustomWindow):
                     ign_item.setData(Qt.ItemDataRole.UserRole, score)
                     if score >= 70:
                         ign_item.setBackground(QColor(255, 193, 7, 80))
-                        if passed_filter:
-                            self.particle_system.take_profit()
-                            self._play_ignition_sound()
-                            self.log(f"[IGNITION] 🔥 {ticker} Score={score:.0f} - READY!")
-                            
-                            # [Step 4.A.2.2] 자동 Tier 2 승격
-                            self._promote_to_tier2(ticker, score)
                 else:
                     ign_item = QTableWidgetItem("-")
                     ign_item.setData(Qt.ItemDataRole.UserRole, 0)
                 
                 self.watchlist_table.setItem(row, 4, ign_item)
                 break
+        
+        # [Issue 6.3 Fix] 새로운 복합 승격 조건 검사
+        should_promote, reason = self._check_tier2_promotion(ticker, score, passed_filter, data)
+        if should_promote:
+            self.particle_system.take_profit()
+            self._play_ignition_sound()
+            self.log(f"[TIER2] {reason}: {ticker} (Ign={score:.0f})")
+            self._promote_to_tier2(ticker, score)
+    
+    def _check_tier2_promotion(self, ticker: str, ignition_score: float, passed_filter: bool, data: dict = None) -> tuple:
+        """
+        [Issue 6.3 Fix] Hot Zone 승격 조건 검사 (복합 조건)
+        
+        승격 철학: "상승 확률(Probability) × 기대 배율(Multiplier)"
+        
+        Returns:
+            (should_promote: bool, reason: str)
+        """
+        # 이미 Tier 2에 있으면 건너뛰기
+        if hasattr(self, '_tier2_cache') and ticker in self._tier2_cache:
+            return False, ""
+        
+        # [Issue 6.3 Fix] Watchlist 캐시에서 데이터 조회
+        watchlist_entry = {}
+        if hasattr(self, '_watchlist_data'):
+            watchlist_entry = self._watchlist_data.get(ticker, {})
+        
+        # 1. Ignition Score ≥ 70 (기존 - 폭발 임박)
+        if ignition_score >= 70 and passed_filter:
+            return True, "🎯 Ignition Ready"
+        
+        # 2. Stage 4 (VCP Breakout Imminent) - Watchlist 캐시에서 확인
+        stage_number = watchlist_entry.get("stage_number", 0) if isinstance(watchlist_entry, dict) else 0
+        if stage_number >= 4:
+            return True, "🔥 VCP Breakout"
+        
+        # 3. zenV-zenP Divergence (High Volume + Low Price Change = 매집 중)
+        if hasattr(self, '_tier2_cache') and ticker in self._tier2_cache:
+            item = self._tier2_cache[ticker]
+            if item.zenV >= 2.0 and item.zenP < 0.5:
+                return True, "📊 Accumulation Divergence"
+        
+        # 4. High Accumulation Score (≥ 80) + Day Gainer
+        acc_score = watchlist_entry.get("score", 0) if isinstance(watchlist_entry, dict) else 0
+        source = watchlist_entry.get("source", "") if isinstance(watchlist_entry, dict) else ""
+        if acc_score >= 80 and source == "realtime_gainer":
+            return True, "⭐ High Score Gainer"
+        
+        return False, ""
     
     def _promote_to_tier2(self, ticker: str, ignition_score: float = 0.0):
         """

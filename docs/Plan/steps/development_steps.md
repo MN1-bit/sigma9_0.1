@@ -224,6 +224,12 @@ Based on [Master Plan v2.0](../Plan/masterplan.md) and [@PROJECT_DNA.md](../../@
 - [x] 4.A.4.4: Tier 2 Demote 로직 (`_demote_from_tier2`)
 - [x] 4.A.4.5: `ZScoreCalculator` Time-Projection 메서드
 
+#### Phase 4.A.5: Realtime Gainers Scanner ✅ COMPLETED
+> 📝 **문제 해결**: SMXT +40% 급등 시 미탐지 → 1초 내 탐지 가능
+- [x] 4.A.5.1: `polygon_client.py` - `get_gainers()` 메서드 추가
+- [x] 4.A.5.2: `realtime_scanner.py` - 1초 폴링 스캐너 모듈 생성
+- [x] 4.A.5.3: `server.py` - RealtimeScanner 초기화 및 시작/종료 로직
+
 ---
 
 ## Phase 5: Cloud Migration (Prepare for AWS)

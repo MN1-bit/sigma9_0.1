@@ -1,0 +1,1267 @@
+{
+  "version": "1.0",
+  "generated_at": "2026-01-06T00:24:02.798747",
+  "item_count": 73,
+  "watchlist": [
+    {
+      "ticker": "AMCI",
+      "score": 100.0,
+      "stage": "Stage 4 (폭발 임박 🔥)",
+      "stage_number": 4,
+      "signals": {
+        "tight_range": true,
+        "accumulation_bar": false,
+        "obv_divergence": true,
+        "volume_dryout": true
+      },
+      "can_trade": true,
+      "last_close": 7.15,
+      "change_pct": -0.56,
+      "avg_volume": 12941150.75
+    },
+    {
+      "ticker": "BDRX",
+      "score": 100.0,
+      "stage": "Stage 4 (폭발 임박 🔥)",
+      "stage_number": 4,
+      "signals": {
+        "tight_range": true,
+        "accumulation_bar": false,
+        "obv_divergence": true,
+        "volume_dryout": true
+      },
+      "can_trade": true,
+      "last_close": 2.42,
+      "change_pct": -1.63,
+      "avg_volume": 2896234.2
+    },
+    {
+      "ticker": "CMCT",
+      "score": 100.0,
+      "stage": "Stage 4 (폭발 임박 🔥)",
+      "stage_number": 4,
+      "signals": {
+        "tight_range": true,
+        "accumulation_bar": false,
+        "obv_divergence": true,
+        "volume_dryout": true
+      },
+      "can_trade": true,
+      "last_close": 3.41,
+      "change_pct": -2.85,
+      "avg_volume": 3867948.45
+    },
+    {
+      "ticker": "CZOO",
+      "score": 100.0,
+      "stage": "Stage 4 (폭발 임박 🔥)",
+      "stage_number": 4,
+      "signals": {
+        "tight_range": true,
+        "accumulation_bar": false,
+        "obv_divergence": true,
+        "volume_dryout": true
+      },
+      "can_trade": true,
+      "last_close": 6.04,
+      "change_pct": 0.17,
+      "avg_volume": 2418165.05
+    },
+    {
+      "ticker": "EVAC.U",
+      "score": 100.0,
+      "stage": "Stage 4 (폭발 임박 🔥)",
+      "stage_number": 4,
+      "signals": {
+        "tight_range": true,
+        "accumulation_bar": false,
+        "obv_divergence": true,
+        "volume_dryout": true
+      },
+      "can_trade": true,
+      "last_close": 10.12,
+      "change_pct": 0.1,
+      "avg_volume": 68993.7
+    },
+    {
+      "ticker": "INFY",
+      "score": 100.0,
+      "stage": "Stage 4 (폭발 임박 🔥)",
+      "stage_number": 4,
+      "signals": {
+        "tight_range": true,
+        "accumulation_bar": false,
+        "obv_divergence": true,
+        "volume_dryout": true
+      },
+      "can_trade": true,
+      "last_close": 17.965,
+      "change_pct": -1.02,
+      "avg_volume": 16821235.7
+    },
+    {
+      "ticker": "MENS",
+      "score": 100.0,
+      "stage": "Stage 4 (폭발 임박 🔥)",
+      "stage_number": 4,
+      "signals": {
+        "tight_range": true,
+        "accumulation_bar": false,
+        "obv_divergence": true,
+        "volume_dryout": false
+      },
+      "can_trade": true,
+      "last_close": 3.66,
+      "change_pct": 7.33,
+      "avg_volume": 2043712.65
+    },
+    {
+      "ticker": "OPEX",
+      "score": 100.0,
+      "stage": "Stage 4 (폭발 임박 🔥)",
+      "stage_number": 4,
+      "signals": {
+        "tight_range": true,
+        "accumulation_bar": false,
+        "obv_divergence": true,
+        "volume_dryout": false
+      },
+      "can_trade": true,
+      "last_close": 14.98,
+      "change_pct": -0.6,
+      "avg_volume": 214433.55
+    },
+    {
+      "ticker": "PAVS",
+      "score": 100.0,
+      "stage": "Stage 4 (폭발 임박 🔥)",
+      "stage_number": 4,
+      "signals": {
+        "tight_range": true,
+        "accumulation_bar": false,
+        "obv_divergence": true,
+        "volume_dryout": false
+      },
+      "can_trade": true,
+      "last_close": 2.4102,
+      "change_pct": 19.32,
+      "avg_volume": 6614930.9
+    },
+    {
+      "ticker": "PCSA",
+      "score": 100.0,
+      "stage": "Stage 4 (폭발 임박 🔥)",
+      "stage_number": 4,
+      "signals": {
+        "tight_range": true,
+        "accumulation_bar": false,
+        "obv_divergence": true,
+        "volume_dryout": true
+      },
+      "can_trade": true,
+      "last_close": 3.1664,
+      "change_pct": 8.07,
+      "avg_volume": 2307347.05
+    },
+    {
+      "ticker": "PSKY",
+      "score": 100.0,
+      "stage": "Stage 4 (폭발 임박 🔥)",
+      "stage_number": 4,
+      "signals": {
+        "tight_range": true,
+        "accumulation_bar": false,
+        "obv_divergence": true,
+        "volume_dryout": true
+      },
+      "can_trade": true,
+      "last_close": 12.935,
+      "change_pct": -1.86,
+      "avg_volume": 11294829.45
+    },
+    {
+      "ticker": "SGOC",
+      "score": 100.0,
+      "stage": "Stage 4 (폭발 임박 🔥)",
+      "stage_number": 4,
+      "signals": {
+        "tight_range": true,
+        "accumulation_bar": false,
+        "obv_divergence": true,
+        "volume_dryout": true
+      },
+      "can_trade": true,
+      "last_close": 6.2,
+      "change_pct": -0.32,
+      "avg_volume": 887947.6
+    },
+    {
+      "ticker": "SJB",
+      "score": 100.0,
+      "stage": "Stage 4 (폭발 임박 🔥)",
+      "stage_number": 4,
+      "signals": {
+        "tight_range": true,
+        "accumulation_bar": false,
+        "obv_divergence": true,
+        "volume_dryout": false
+      },
+      "can_trade": true,
+      "last_close": 15.2503,
+      "change_pct": -0.13,
+      "avg_volume": 111453.4
+    },
+    {
+      "ticker": "SPGC",
+      "score": 100.0,
+      "stage": "Stage 4 (폭발 임박 🔥)",
+      "stage_number": 4,
+      "signals": {
+        "tight_range": true,
+        "accumulation_bar": false,
+        "obv_divergence": true,
+        "volume_dryout": false
+      },
+      "can_trade": true,
+      "last_close": 3.0,
+      "change_pct": -28.57,
+      "avg_volume": 1799158.65
+    },
+    {
+      "ticker": "VWTR",
+      "score": 100.0,
+      "stage": "Stage 4 (폭발 임박 🔥)",
+      "stage_number": 4,
+      "signals": {
+        "tight_range": true,
+        "accumulation_bar": false,
+        "obv_divergence": true,
+        "volume_dryout": false
+      },
+      "can_trade": true,
+      "last_close": 15.75,
+      "change_pct": 0.0,
+      "avg_volume": 334949.9
+    },
+    {
+      "ticker": "WOK",
+      "score": 100.0,
+      "stage": "Stage 4 (폭발 임박 🔥)",
+      "stage_number": 4,
+      "signals": {
+        "tight_range": true,
+        "accumulation_bar": false,
+        "obv_divergence": true,
+        "volume_dryout": false
+      },
+      "can_trade": true,
+      "last_close": 2.1406,
+      "change_pct": -7.73,
+      "avg_volume": 1721940.65
+    },
+    {
+      "ticker": "AACI",
+      "score": 80.0,
+      "stage": "Stage 4 (Tight Range)",
+      "stage_number": 4,
+      "signals": {
+        "tight_range": true,
+        "accumulation_bar": false,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true,
+      "last_close": 10.29,
+      "change_pct": -0.05,
+      "avg_volume": 310464.0
+    },
+    {
+      "ticker": "ADER",
+      "score": 80.0,
+      "stage": "Stage 4 (Tight Range)",
+      "stage_number": 4,
+      "signals": {
+        "tight_range": true,
+        "accumulation_bar": false,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true,
+      "last_close": 11.08,
+      "change_pct": 0.09,
+      "avg_volume": 102717.55
+    },
+    {
+      "ticker": "AGCC",
+      "score": 80.0,
+      "stage": "Stage 4 (Tight Range)",
+      "stage_number": 4,
+      "signals": {
+        "tight_range": true,
+        "accumulation_bar": false,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true,
+      "last_close": 10.78,
+      "change_pct": 2.96,
+      "avg_volume": 237315.75
+    },
+    {
+      "ticker": "ANIX",
+      "score": 80.0,
+      "stage": "Stage 4 (Tight Range)",
+      "stage_number": 4,
+      "signals": {
+        "tight_range": true,
+        "accumulation_bar": false,
+        "obv_divergence": false,
+        "volume_dryout": true
+      },
+      "can_trade": true,
+      "last_close": 3.16,
+      "change_pct": 0.0,
+      "avg_volume": 515576.65
+    },
+    {
+      "ticker": "APGB",
+      "score": 80.0,
+      "stage": "Stage 4 (Tight Range)",
+      "stage_number": 4,
+      "signals": {
+        "tight_range": true,
+        "accumulation_bar": false,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true,
+      "last_close": 10.58,
+      "change_pct": 0.0,
+      "avg_volume": 218624.5
+    },
+    {
+      "ticker": "ARBK",
+      "score": 80.0,
+      "stage": "Stage 4 (Tight Range)",
+      "stage_number": 4,
+      "signals": {
+        "tight_range": true,
+        "accumulation_bar": false,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true,
+      "last_close": 4.21,
+      "change_pct": 14.09,
+      "avg_volume": 320654.3
+    },
+    {
+      "ticker": "ARTV",
+      "score": 80.0,
+      "stage": "Stage 4 (Tight Range)",
+      "stage_number": 4,
+      "signals": {
+        "tight_range": true,
+        "accumulation_bar": false,
+        "obv_divergence": false,
+        "volume_dryout": true
+      },
+      "can_trade": true,
+      "last_close": 4.27,
+      "change_pct": 0.95,
+      "avg_volume": 2772392.5
+    },
+    {
+      "ticker": "ARYE",
+      "score": 80.0,
+      "stage": "Stage 4 (Tight Range)",
+      "stage_number": 4,
+      "signals": {
+        "tight_range": true,
+        "accumulation_bar": false,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true,
+      "last_close": 10.36,
+      "change_pct": 0.0,
+      "avg_volume": 73109.75
+    },
+    {
+      "ticker": "BGIO",
+      "score": 80.0,
+      "stage": "Stage 4 (Tight Range)",
+      "stage_number": 4,
+      "signals": {
+        "tight_range": true,
+        "accumulation_bar": false,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true,
+      "last_close": 2.63,
+      "change_pct": 0.0,
+      "avg_volume": 215633.2
+    },
+    {
+      "ticker": "BLU",
+      "score": 80.0,
+      "stage": "Stage 4 (Tight Range)",
+      "stage_number": 4,
+      "signals": {
+        "tight_range": true,
+        "accumulation_bar": false,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true,
+      "last_close": 14.74,
+      "change_pct": 0.0,
+      "avg_volume": 3030140.2
+    },
+    {
+      "ticker": "BTF",
+      "score": 80.0,
+      "stage": "Stage 4 (Tight Range)",
+      "stage_number": 4,
+      "signals": {
+        "tight_range": true,
+        "accumulation_bar": false,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true,
+      "last_close": 5.56,
+      "change_pct": 2.77,
+      "avg_volume": 184868.3
+    },
+    {
+      "ticker": "CBMG",
+      "score": 80.0,
+      "stage": "Stage 4 (Tight Range)",
+      "stage_number": 4,
+      "signals": {
+        "tight_range": true,
+        "accumulation_bar": false,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true,
+      "last_close": 19.75,
+      "change_pct": 0.0,
+      "avg_volume": 197629.45
+    },
+    {
+      "ticker": "CCRC",
+      "score": 80.0,
+      "stage": "Stage 4 (Tight Range)",
+      "stage_number": 4,
+      "signals": {
+        "tight_range": true,
+        "accumulation_bar": false,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true,
+      "last_close": 6.5,
+      "change_pct": 0.31,
+      "avg_volume": 58816.75
+    },
+    {
+      "ticker": "CDOR",
+      "score": 80.0,
+      "stage": "Stage 4 (Tight Range)",
+      "stage_number": 4,
+      "signals": {
+        "tight_range": true,
+        "accumulation_bar": true,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true,
+      "last_close": 7.95,
+      "change_pct": 0.0,
+      "avg_volume": 195138.05
+    },
+    {
+      "ticker": "CHN",
+      "score": 80.0,
+      "stage": "Stage 4 (Tight Range)",
+      "stage_number": 4,
+      "signals": {
+        "tight_range": true,
+        "accumulation_bar": true,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true,
+      "last_close": 18.19,
+      "change_pct": -0.05,
+      "avg_volume": 67036.55
+    },
+    {
+      "ticker": "CPAQ",
+      "score": 80.0,
+      "stage": "Stage 4 (Tight Range)",
+      "stage_number": 4,
+      "signals": {
+        "tight_range": true,
+        "accumulation_bar": true,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true,
+      "last_close": 10.33,
+      "change_pct": 0.0,
+      "avg_volume": 108627.1
+    },
+    {
+      "ticker": "CRON",
+      "score": 80.0,
+      "stage": "Stage 4 (Tight Range)",
+      "stage_number": 4,
+      "signals": {
+        "tight_range": true,
+        "accumulation_bar": false,
+        "obv_divergence": false,
+        "volume_dryout": true
+      },
+      "can_trade": true,
+      "last_close": 2.715,
+      "change_pct": 0.56,
+      "avg_volume": 4186854.55
+    },
+    {
+      "ticker": "CURI",
+      "score": 80.0,
+      "stage": "Stage 4 (Tight Range)",
+      "stage_number": 4,
+      "signals": {
+        "tight_range": true,
+        "accumulation_bar": false,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true,
+      "last_close": 3.685,
+      "change_pct": -1.99,
+      "avg_volume": 609860.75
+    },
+    {
+      "ticker": "DBVT",
+      "score": 80.0,
+      "stage": "Stage 4 (Tight Range)",
+      "stage_number": 4,
+      "signals": {
+        "tight_range": true,
+        "accumulation_bar": false,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true,
+      "last_close": 17.5224,
+      "change_pct": -8.02,
+      "avg_volume": 671103.4
+    },
+    {
+      "ticker": "DCT",
+      "score": 80.0,
+      "stage": "Stage 4 (Tight Range)",
+      "stage_number": 4,
+      "signals": {
+        "tight_range": true,
+        "accumulation_bar": false,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true,
+      "last_close": 18.99,
+      "change_pct": 0.0,
+      "avg_volume": 1827754.6
+    },
+    {
+      "ticker": "DESP",
+      "score": 80.0,
+      "stage": "Stage 4 (Tight Range)",
+      "stage_number": 4,
+      "signals": {
+        "tight_range": true,
+        "accumulation_bar": false,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true,
+      "last_close": 19.5,
+      "change_pct": 0.15,
+      "avg_volume": 1909546.65
+    },
+    {
+      "ticker": "DLTH",
+      "score": 80.0,
+      "stage": "Stage 4 (Tight Range)",
+      "stage_number": 4,
+      "signals": {
+        "tight_range": true,
+        "accumulation_bar": false,
+        "obv_divergence": false,
+        "volume_dryout": true
+      },
+      "can_trade": true,
+      "last_close": 2.07,
+      "change_pct": 0.0,
+      "avg_volume": 211668.35
+    },
+    {
+      "ticker": "DSEY",
+      "score": 80.0,
+      "stage": "Stage 4 (Tight Range)",
+      "stage_number": 4,
+      "signals": {
+        "tight_range": true,
+        "accumulation_bar": false,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true,
+      "last_close": 8.39,
+      "change_pct": 0.0,
+      "avg_volume": 1590124.35
+    },
+    {
+      "ticker": "DVAX",
+      "score": 80.0,
+      "stage": "Stage 4 (Tight Range)",
+      "stage_number": 4,
+      "signals": {
+        "tight_range": true,
+        "accumulation_bar": false,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true,
+      "last_close": 15.375,
+      "change_pct": -0.03,
+      "avg_volume": 4112294.15
+    },
+    {
+      "ticker": "ENR",
+      "score": 80.0,
+      "stage": "Stage 4 (Tight Range)",
+      "stage_number": 4,
+      "signals": {
+        "tight_range": true,
+        "accumulation_bar": false,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true,
+      "last_close": 20.0,
+      "change_pct": 0.35,
+      "avg_volume": 1155842.05
+    },
+    {
+      "ticker": "ETHZ",
+      "score": 80.0,
+      "stage": "Stage 4 (Tight Range)",
+      "stage_number": 4,
+      "signals": {
+        "tight_range": true,
+        "accumulation_bar": false,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true,
+      "last_close": 5.45,
+      "change_pct": 6.65,
+      "avg_volume": 991391.55
+    },
+    {
+      "ticker": "EVRI",
+      "score": 80.0,
+      "stage": "Stage 4 (Tight Range)",
+      "stage_number": 4,
+      "signals": {
+        "tight_range": true,
+        "accumulation_bar": false,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true,
+      "last_close": 14.24,
+      "change_pct": 0.07,
+      "avg_volume": 1374724.5
+    },
+    {
+      "ticker": "EXFO",
+      "score": 80.0,
+      "stage": "Stage 4 (Tight Range)",
+      "stage_number": 4,
+      "signals": {
+        "tight_range": true,
+        "accumulation_bar": false,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true,
+      "last_close": 6.245,
+      "change_pct": -0.08,
+      "avg_volume": 169753.35
+    },
+    {
+      "ticker": "FCAX",
+      "score": 80.0,
+      "stage": "Stage 4 (Tight Range)",
+      "stage_number": 4,
+      "signals": {
+        "tight_range": true,
+        "accumulation_bar": false,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true,
+      "last_close": 10.13,
+      "change_pct": 0.0,
+      "avg_volume": 879535.3
+    },
+    {
+      "ticker": "FLWS",
+      "score": 80.0,
+      "stage": "Stage 4 (Tight Range)",
+      "stage_number": 4,
+      "signals": {
+        "tight_range": true,
+        "accumulation_bar": false,
+        "obv_divergence": false,
+        "volume_dryout": true
+      },
+      "can_trade": true,
+      "last_close": 3.75,
+      "change_pct": 1.63,
+      "avg_volume": 1516636.45
+    },
+    {
+      "ticker": "FOLD",
+      "score": 80.0,
+      "stage": "Stage 4 (Tight Range)",
+      "stage_number": 4,
+      "signals": {
+        "tight_range": true,
+        "accumulation_bar": false,
+        "obv_divergence": false,
+        "volume_dryout": true
+      },
+      "can_trade": true,
+      "last_close": 14.245,
+      "change_pct": -0.18,
+      "avg_volume": 17636030.95
+    },
+    {
+      "ticker": "FTAA",
+      "score": 80.0,
+      "stage": "Stage 4 (Tight Range)",
+      "stage_number": 4,
+      "signals": {
+        "tight_range": true,
+        "accumulation_bar": false,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true,
+      "last_close": 10.165,
+      "change_pct": 0.05,
+      "avg_volume": 134456.65
+    },
+    {
+      "ticker": "GALT",
+      "score": 80.0,
+      "stage": "Stage 4 (Tight Range)",
+      "stage_number": 4,
+      "signals": {
+        "tight_range": true,
+        "accumulation_bar": false,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true,
+      "last_close": 4.04,
+      "change_pct": -0.25,
+      "avg_volume": 778546.3
+    },
+    {
+      "ticker": "GER",
+      "score": 80.0,
+      "stage": "Stage 4 (Tight Range)",
+      "stage_number": 4,
+      "signals": {
+        "tight_range": true,
+        "accumulation_bar": false,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true,
+      "last_close": 15.67,
+      "change_pct": -0.32,
+      "avg_volume": 264004.35
+    },
+    {
+      "ticker": "OKLL",
+      "change_pct": 23.82172131147542,
+      "price": 23.9,
+      "volume": 2207341.0,
+      "dollar_volume": 52755449.9,
+      "source": "realtime_gainer",
+      "discovered_at": "2026-01-06T00:16:54.839634",
+      "score": 50.0,
+      "stage": "Gainer (실시간)",
+      "stage_number": 3,
+      "signals": {
+        "realtime_gainer": true,
+        "tight_range": false,
+        "accumulation_bar": false,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true
+    },
+    {
+      "ticker": "BVC",
+      "change_pct": 841.4285714285714,
+      "price": 13.18,
+      "volume": 78716,
+      "dollar_volume": 1037476.88,
+      "source": "realtime_gainer",
+      "discovered_at": "2026-01-06T00:23:46.995684",
+      "score": 50.0,
+      "stage": "Gainer (실시간)",
+      "stage_number": 3,
+      "signals": {
+        "realtime_gainer": true,
+        "tight_range": false,
+        "accumulation_bar": false,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true
+    },
+    {
+      "ticker": "VSNT",
+      "change_pct": 212.0849420849421,
+      "price": 40.53,
+      "volume": 2493567.0,
+      "dollar_volume": 101064270.51,
+      "source": "realtime_gainer",
+      "discovered_at": "2026-01-06T00:23:46.999041",
+      "score": 50.0,
+      "stage": "Gainer (실시간)",
+      "stage_number": 3,
+      "signals": {
+        "realtime_gainer": true,
+        "tight_range": false,
+        "accumulation_bar": false,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true
+    },
+    {
+      "ticker": "TMDE",
+      "change_pct": 194.58239277652368,
+      "price": 1.305,
+      "volume": 39575155.0,
+      "dollar_volume": 51645577.275,
+      "source": "realtime_gainer",
+      "discovered_at": "2026-01-06T00:23:47.008714",
+      "score": 50.0,
+      "stage": "Gainer (실시간)",
+      "stage_number": 3,
+      "signals": {
+        "realtime_gainer": true,
+        "tight_range": false,
+        "accumulation_bar": false,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true
+    },
+    {
+      "ticker": "ARBEW",
+      "change_pct": 86.75,
+      "price": 0.1494,
+      "volume": 15806,
+      "dollar_volume": 2361.4164,
+      "source": "realtime_gainer",
+      "discovered_at": "2026-01-06T00:23:47.016045",
+      "score": 50.0,
+      "stage": "Gainer (실시간)",
+      "stage_number": 3,
+      "signals": {
+        "realtime_gainer": true,
+        "tight_range": false,
+        "accumulation_bar": false,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true
+    },
+    {
+      "ticker": "VRME",
+      "change_pct": 83.07144974799884,
+      "price": 1.236,
+      "volume": 97946530.0,
+      "dollar_volume": 121061911.08,
+      "source": "realtime_gainer",
+      "discovered_at": "2026-01-06T00:23:47.022529",
+      "score": 50.0,
+      "stage": "Gainer (실시간)",
+      "stage_number": 3,
+      "signals": {
+        "realtime_gainer": true,
+        "tight_range": false,
+        "accumulation_bar": false,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true
+    },
+    {
+      "ticker": "MNTS",
+      "change_pct": 63.24041811846688,
+      "price": 9.2904,
+      "volume": 40817889.0,
+      "dollar_volume": 379214515.9656,
+      "source": "realtime_gainer",
+      "discovered_at": "2026-01-06T00:23:47.028858",
+      "score": 50.0,
+      "stage": "Gainer (실시간)",
+      "stage_number": 3,
+      "signals": {
+        "realtime_gainer": true,
+        "tight_range": false,
+        "accumulation_bar": false,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true
+    },
+    {
+      "ticker": "MNTSW",
+      "change_pct": 55.96707818930044,
+      "price": 0.0388,
+      "volume": 720510,
+      "dollar_volume": 27955.788,
+      "source": "realtime_gainer",
+      "discovered_at": "2026-01-06T00:23:47.034829",
+      "score": 50.0,
+      "stage": "Gainer (실시간)",
+      "stage_number": 3,
+      "signals": {
+        "realtime_gainer": true,
+        "tight_range": false,
+        "accumulation_bar": false,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true
+    },
+    {
+      "ticker": "ALCYW",
+      "change_pct": 53.846153846153854,
+      "price": 0.4,
+      "volume": 28887,
+      "dollar_volume": 11554.800000000001,
+      "source": "realtime_gainer",
+      "discovered_at": "2026-01-06T00:23:47.041218",
+      "score": 50.0,
+      "stage": "Gainer (실시간)",
+      "stage_number": 3,
+      "signals": {
+        "realtime_gainer": true,
+        "tight_range": false,
+        "accumulation_bar": false,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true
+    },
+    {
+      "ticker": "LHSW",
+      "change_pct": 51.56219748747939,
+      "price": 0.8376,
+      "volume": 6887960.0,
+      "dollar_volume": 5769355.296,
+      "source": "realtime_gainer",
+      "discovered_at": "2026-01-06T00:23:47.048122",
+      "score": 50.0,
+      "stage": "Gainer (실시간)",
+      "stage_number": 3,
+      "signals": {
+        "realtime_gainer": true,
+        "tight_range": false,
+        "accumulation_bar": false,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true
+    },
+    {
+      "ticker": "INBS",
+      "change_pct": 42.07984790874526,
+      "price": 11.26,
+      "volume": 4046199.0,
+      "dollar_volume": 45560200.74,
+      "source": "realtime_gainer",
+      "discovered_at": "2026-01-06T00:23:47.054729",
+      "score": 50.0,
+      "stage": "Gainer (실시간)",
+      "stage_number": 3,
+      "signals": {
+        "realtime_gainer": true,
+        "tight_range": false,
+        "accumulation_bar": false,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true
+    },
+    {
+      "ticker": "PASG",
+      "change_pct": 34.559452523524385,
+      "price": 15.37,
+      "volume": 103467,
+      "dollar_volume": 1590287.7899999998,
+      "source": "realtime_gainer",
+      "discovered_at": "2026-01-06T00:23:47.060765",
+      "score": 50.0,
+      "stage": "Gainer (실시간)",
+      "stage_number": 3,
+      "signals": {
+        "realtime_gainer": true,
+        "tight_range": false,
+        "accumulation_bar": false,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true
+    },
+    {
+      "ticker": "UFG",
+      "change_pct": 32.758620689655174,
+      "price": 0.9623,
+      "volume": 6374203.0,
+      "dollar_volume": 6133895.5469,
+      "source": "realtime_gainer",
+      "discovered_at": "2026-01-06T00:23:47.070055",
+      "score": 50.0,
+      "stage": "Gainer (실시간)",
+      "stage_number": 3,
+      "signals": {
+        "realtime_gainer": true,
+        "tight_range": false,
+        "accumulation_bar": false,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true
+    },
+    {
+      "ticker": "PDYNW",
+      "change_pct": 31.0344827586207,
+      "price": 0.095,
+      "volume": 46447,
+      "dollar_volume": 4412.465,
+      "source": "realtime_gainer",
+      "discovered_at": "2026-01-06T00:23:47.076296",
+      "score": 50.0,
+      "stage": "Gainer (실시간)",
+      "stage_number": 3,
+      "signals": {
+        "realtime_gainer": true,
+        "tight_range": false,
+        "accumulation_bar": false,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true
+    },
+    {
+      "ticker": "SMUP",
+      "change_pct": 29.87551867219916,
+      "price": 1.565,
+      "volume": 2352694.0,
+      "dollar_volume": 3681966.11,
+      "source": "realtime_gainer",
+      "discovered_at": "2026-01-06T00:23:47.082726",
+      "score": 50.0,
+      "stage": "Gainer (실시간)",
+      "stage_number": 3,
+      "signals": {
+        "realtime_gainer": true,
+        "tight_range": false,
+        "accumulation_bar": false,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true
+    },
+    {
+      "ticker": "SMU",
+      "change_pct": 29.84351713859911,
+      "price": 17.5,
+      "volume": 2639199.0,
+      "dollar_volume": 46185982.5,
+      "source": "realtime_gainer",
+      "discovered_at": "2026-01-06T00:23:47.089680",
+      "score": 50.0,
+      "stage": "Gainer (실시간)",
+      "stage_number": 3,
+      "signals": {
+        "realtime_gainer": true,
+        "tight_range": false,
+        "accumulation_bar": false,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true
+    },
+    {
+      "ticker": "SOWG",
+      "change_pct": 29.7847585805701,
+      "price": 0.4476,
+      "volume": 32036816.0,
+      "dollar_volume": 14339678.8416,
+      "source": "realtime_gainer",
+      "discovered_at": "2026-01-06T00:23:47.097196",
+      "score": 50.0,
+      "stage": "Gainer (실시간)",
+      "stage_number": 3,
+      "signals": {
+        "realtime_gainer": true,
+        "tight_range": false,
+        "accumulation_bar": false,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true
+    },
+    {
+      "ticker": "MASK",
+      "change_pct": 26.74603174603175,
+      "price": 0.3169,
+      "volume": 58887658.0,
+      "dollar_volume": 18661498.8202,
+      "source": "realtime_gainer",
+      "discovered_at": "2026-01-06T00:23:47.104208",
+      "score": 50.0,
+      "stage": "Gainer (실시간)",
+      "stage_number": 3,
+      "signals": {
+        "realtime_gainer": true,
+        "tight_range": false,
+        "accumulation_bar": false,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true
+    },
+    {
+      "ticker": "KITTW",
+      "change_pct": 26.05042016806723,
+      "price": 0.075,
+      "volume": 209626,
+      "dollar_volume": 15721.949999999999,
+      "source": "realtime_gainer",
+      "discovered_at": "2026-01-06T00:23:47.110961",
+      "score": 50.0,
+      "stage": "Gainer (실시간)",
+      "stage_number": 3,
+      "signals": {
+        "realtime_gainer": true,
+        "tight_range": false,
+        "accumulation_bar": false,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true
+    },
+    {
+      "ticker": "MVSTW",
+      "change_pct": 25.971143174250837,
+      "price": 0.1135,
+      "volume": 77666,
+      "dollar_volume": 8815.091,
+      "source": "realtime_gainer",
+      "discovered_at": "2026-01-06T00:23:47.117336",
+      "score": 50.0,
+      "stage": "Gainer (실시간)",
+      "stage_number": 3,
+      "signals": {
+        "realtime_gainer": true,
+        "tight_range": false,
+        "accumulation_bar": false,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true
+    },
+    {
+      "ticker": "PXIU",
+      "change_pct": 25.730994152046783,
+      "price": 2.15,
+      "volume": 278622,
+      "dollar_volume": 599037.2999999999,
+      "source": "realtime_gainer",
+      "discovered_at": "2026-01-06T00:23:47.124092",
+      "score": 50.0,
+      "stage": "Gainer (실시간)",
+      "stage_number": 3,
+      "signals": {
+        "realtime_gainer": true,
+        "tight_range": false,
+        "accumulation_bar": false,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true
+    },
+    {
+      "ticker": "GHRS",
+      "change_pct": 25.6797583081571,
+      "price": 16.73,
+      "volume": 3855370.0,
+      "dollar_volume": 64500340.1,
+      "source": "realtime_gainer",
+      "discovered_at": "2026-01-06T00:23:47.131579",
+      "score": 50.0,
+      "stage": "Gainer (실시간)",
+      "stage_number": 3,
+      "signals": {
+        "realtime_gainer": true,
+        "tight_range": false,
+        "accumulation_bar": false,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true
+    },
+    {
+      "ticker": "PERF.WS",
+      "change_pct": 33.4448160535117,
+      "price": 0.0399,
+      "volume": 34806,
+      "dollar_volume": 1388.7594,
+      "source": "realtime_gainer",
+      "discovered_at": "2026-01-06T00:24:02.797925",
+      "score": 50.0,
+      "stage": "Gainer (실시간)",
+      "stage_number": 3,
+      "signals": {
+        "realtime_gainer": true,
+        "tight_range": false,
+        "accumulation_bar": false,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true
+    }
+  ]
+}

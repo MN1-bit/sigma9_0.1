@@ -89,6 +89,7 @@ class AppState:
         self.sub_manager = None      # SubscriptionManager
         self.trailing_stop = None    # TrailingStopManager (Step 4.A.0.b)
         self.ignition_monitor = None # IgnitionMonitor [Step 4.A.4]
+        self.realtime_scanner = None # RealtimeScanner [Step 4.A.5]
         
 # 전역 상태 (의존성 주입용)
 app_state = AppState()
@@ -298,7 +299,7 @@ async def lifespan(app: FastAPI):
     # 7. IgnitionMonitor 자동 시작 [Bugfix: Ignition Score 자동 계산]
     if app_state.ignition_monitor:
         try:
-            from backend.data.watchlist_store import load_watchlist, save_watchlist
+            from backend.data.watchlist_store import load_watchlist, merge_watchlist
             watchlist = load_watchlist()
             
             # Watchlist가 없으면 Scanner 자동 실행
@@ -315,9 +316,8 @@ async def lifespan(app: FastAPI):
                     results = await scanner.scan_with_strategy(strategy, limit=30)
                     
                     if results:
-                        # Watchlist 저장
-                        save_watchlist(results)
-                        watchlist = results
+                        # [Issue 6.2 Fix] 덮어쓰기 대신 병합
+                        watchlist = merge_watchlist(results, update_existing=True)
                         logger.info(f"✅ Auto-scanner completed: {len(results)} stocks found")
                     else:
                         logger.warning("⚠️ Auto-scanner returned no results")
@@ -332,12 +332,49 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             logger.warning(f"⚠️ IgnitionMonitor auto-start skipped: {e}")
     
+    # 8. RealtimeScanner 초기화 [Step 4.A.5]
+    if os.getenv("REALTIME_SCANNER_ENABLED", "true").lower() == "true":
+        try:
+            from backend.core.realtime_scanner import initialize_realtime_scanner
+            from backend.data.polygon_client import PolygonClient
+            from backend.data.watchlist_store import load_watchlist
+            
+            # PolygonClient 인스턴스 생성 (API Key 필요)
+            api_key = os.getenv("MASSIVE_API_KEY", "")
+            if api_key:
+                polygon_client = PolygonClient(api_key)
+                await polygon_client.__aenter__()  # HTTP Client 초기화
+                
+                app_state.realtime_scanner = initialize_realtime_scanner(
+                    polygon_client=polygon_client,
+                    ws_manager=ws_manager,
+                    ignition_monitor=app_state.ignition_monitor,
+                    poll_interval=1.0  # 1초 폴링
+                )
+                
+                # 기존 Watchlist 로드 후 시작
+                existing_watchlist = load_watchlist()
+                await app_state.realtime_scanner.start(initial_watchlist=existing_watchlist)
+                logger.info("🔥 RealtimeScanner started (1s polling for gainers)")
+            else:
+                logger.warning("⚠️ RealtimeScanner skipped: MASSIVE_API_KEY not set")
+        except Exception as e:
+            logger.warning(f"⚠️ RealtimeScanner init skipped: {e}")
+    
     yield  # 서버 실행 중
     
     # ─────────────────────────────────────────────────────────────
     # SHUTDOWN
     # ─────────────────────────────────────────────────────────────
     logger.info("🛑 Server Shutting Down...")
+    
+    # RealtimeScanner 종료 [Step 4.A.5]
+    if app_state.realtime_scanner:
+        try:
+            await app_state.realtime_scanner.stop()
+            logger.info("✅ RealtimeScanner stopped")
+        except Exception as e:
+            logger.error(f"❌ RealtimeScanner shutdown error: {e}")
     
     # IgnitionMonitor 종료 [Bugfix: Ignition Score 자동 종료]
     if app_state.ignition_monitor:

@@ -55,6 +55,12 @@ class WatchlistItem:
     last_close: float = 0.0
     change_pct: float = 0.0
     avg_volume: float = 0.0  # [4.A.4] DolVol 계산용
+    # [Issue 01-003] 추가 필드
+    dollar_volume: float = 0.0
+    price: float = 0.0
+    volume: float = 0.0
+    stage_number: int = 0
+    source: str = ""
     
     def to_display_string(self) -> str:
         """표시용 문자열 생성"""
@@ -70,7 +76,13 @@ class WatchlistItem:
             stage=data.get("stage", ""),
             last_close=data.get("last_close", 0),
             change_pct=data.get("change_pct", 0),
-            avg_volume=data.get("avg_volume", 0)  # [4.A.4]
+            avg_volume=data.get("avg_volume", 0),
+            # [Issue 01-003] 추가 필드 파싱
+            dollar_volume=data.get("dollar_volume", 0),
+            price=data.get("price", 0),
+            volume=data.get("volume", 0),
+            stage_number=data.get("stage_number", 0),
+            source=data.get("source", ""),
         )
 
 

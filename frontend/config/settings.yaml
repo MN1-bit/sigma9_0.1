@@ -4,6 +4,10 @@ backend:
   use_ssl: false
   timeout: 30
   reconnect_interval: 5
+
+# Score 계산 버전: "v1" (step 함수) 또는 "v2" (가중합, 기본값)
+score_version: "v2"
+
 gui:
   theme: dark
   acrylic_enabled: true
@@ -28,9 +32,9 @@ window:
 tables:
   tier1_column_widths:
   - 0
-  - 50
-  - 53
-  - 40
+  - 73
+  - 64
+  - 43
   - 55
   tier2_column_widths:
   - 0

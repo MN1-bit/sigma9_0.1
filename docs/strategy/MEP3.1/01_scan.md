@@ -22,16 +22,16 @@ $$
 
 ---
 
-## 입력 신호 (1m 봉 기반 피처)
+## 입력 신호 (피처 세트)
 
-| 카테고리 | 피처 | 계산 방식 |
-|----------|------|----------|
-| 관심/유동성 | $vol_{1m}$ | 1m 봉 거래량 |
-| 과열/변동 | $range_{1m}$ | (High - Low) / Open |
-| 체결 가속 | $tick\_intensity_{1m}$ | 1m 내 체결 건수 |
-| 압력/불균형 | $ofi_{1m}$ | 1m 내 OFI 누적 |
-| 비용(핵심) | $spread_{1m}$ | 1m 평균 스프레드 |
-| 레벨 이벤트 | Touch/Hold/Fail + ActiveLevel | 레벨 상호작용 |
+| 카테고리 | 피처 |
+|----------|------|
+| 관심/유동성 | $q^{self}_{vol}$, $r^{xs}_{vol}$ |
+| 과열/변동 | $q^{self}_{range}$, $r^{xs}_{range}$ |
+| 체결 가속 | $q^{self}_{tick}$ |
+| 압력/불균형 | $q^{self}_{ofid}$ |
+| 비용(핵심) | $q^{self}_{spread}$ + $r^{xs}_{spread}$ |
+| 레벨 이벤트 | Touch/Hold/Fail + ActiveLevel |
 
 ---
 

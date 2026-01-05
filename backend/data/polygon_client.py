@@ -586,6 +586,37 @@ class PolygonClient:
         logger.info(f"✅ Day Gainers: {len(gainers)}개 종목")
         return gainers
     
+    async def get_gainers(self) -> list[dict]:
+        """
+        Top Gainers 조회 (1초 폴링용 최적화)
+        
+        fetch_day_gainers()의 래퍼로, 필요한 필드만 추출합니다.
+        RealtimeScanner에서 1초 간격으로 호출됩니다.
+        
+        Returns:
+            list[dict]: 급등주 리스트 (최소 필드)
+                - ticker: 종목 심볼
+                - change_pct: 변동률 (%)
+                - price: 현재가
+                - volume: 거래량
+        
+        Note:
+            - 응답 크기: ~10KB, 21개 종목
+            - 1초 폴링 시 600KB/분 (무시 가능한 수준)
+        """
+        gainers = await self.fetch_day_gainers()
+        
+        # 필요한 필드만 추출 (메모리 최적화)
+        return [
+            {
+                "ticker": g["ticker"],
+                "change_pct": g.get("todaysChangePerc", g.get("change_pct", 0)),
+                "price": g.get("last_price", 0),
+                "volume": g.get("volume", 0),
+            }
+            for g in gainers
+        ]
+    
     async def close(self) -> None:
         """
         HTTP 클라이언트 연결 종료
