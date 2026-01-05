@@ -51,7 +51,8 @@ class WatchlistItem:
     """Watchlist 항목"""
     ticker: str
     score: float
-    stage: str
+    score_v2: float = 0.0  # [02-001] v2 연속 점수
+    stage: str = ""
     last_close: float = 0.0
     change_pct: float = 0.0
     avg_volume: float = 0.0  # [4.A.4] DolVol 계산용
@@ -73,6 +74,7 @@ class WatchlistItem:
         return cls(
             ticker=data.get("ticker", ""),
             score=data.get("score", 0),
+            score_v2=data.get("score_v2", 0.0),  # [02-001] v2 점수 파싱
             stage=data.get("stage", ""),
             last_close=data.get("last_close", 0),
             change_pct=data.get("change_pct", 0),

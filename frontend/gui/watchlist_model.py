@@ -198,10 +198,22 @@ class WatchlistModel(QStandardItemModel):
                 display_text = f"{score_v2:.1f}"
                 score_item = QStandardItem(display_text)
                 score_item.setData(score_v2, Qt.ItemDataRole.UserRole)
+            elif score_v2 == -1:
+                # [Phase 7] 신규/IPO 종목 (일봉 5일 미만)
+                score_item = QStandardItem("🆕")
+                score_item.setToolTip("신규/IPO 종목 - 일봉 데이터 부족 (5일 미만)")
+                score_item.setForeground(self._color_warning)
+                score_item.setData(-1, Qt.ItemDataRole.UserRole)
+            elif score_v2 == 0:
+                # [Phase 8] 매집 신호 없음 (score_v2 = 0)
+                score_item = QStandardItem("➖")
+                score_item.setToolTip("매집 신호 없음 (Warrant 또는 패턴 미탐지)")
+                score_item.setForeground(self._color_warning)
+                score_item.setData(0, Qt.ItemDataRole.UserRole)
             else:
-                # score_v2가 없으면 경고 표시
+                # score_v2가 None → 계산 오류
                 score_item = QStandardItem("⚠️")
-                score_item.setToolTip("score_v2 없음")
+                score_item.setToolTip("score_v2 계산 실패")
                 score_item.setForeground(self._color_warning)
                 score_item.setData(0, Qt.ItemDataRole.UserRole)
         else:

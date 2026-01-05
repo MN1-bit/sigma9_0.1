@@ -2,7 +2,7 @@
 
 **작성일**: 2026-01-06  
 **우선순위**: 🟢 Low (01-001 해결 후)  
-**상태**: ✅ 구현 완료
+**상태**: ✅ 구현 완료 (Phase 5 수정 2026-01-06)
 
 
 ---
@@ -370,3 +370,134 @@ scanner = initialize_realtime_scanner(
 1. 백엔드 실행 후 Realtime Gainer 탐지 시 로그 확인
 2. GUI에서 Day Gainer의 Score가 소수점(v2) 형식인지 확인
 3. DB에 일봉이 없는 종목은 50점 fallback 확인
+
+---
+
+## Phase 5: score_v2 GUI 미표시 문제 (⚠️ 경고 이모지) 원인 분석
+
+> **작성일**: 2026-01-06
+> **증상**: GUI Watchlist에서 Score 컬럼에 숫자 대신 ⚠️ 경고 이모지가 표시됨
+
+### 5.1 문제 재현 조건
+
+1. 백엔드 서버 실행
+2. GUI 실행 및 Connect
+3. Watchlist에 종목이 표시되지만 Score 컬럼에 ⚠️ 표시
+
+### 5.2 데이터 흐름 분석
+
+```
+[Backend]                          [Frontend]
+─────────────────────────────────────────────────────────────
+realtime_scanner.py                backend_client.py
+  └─ _periodic_watchlist_broadcast   └─ WatchlistItem.from_dict()
+     └─ score_v2 hydration              └─ ❌ score_v2 파싱 안 함!
+        (score → score_v2 복사)     
+                                    dashboard.py
+                                      └─ _update_watchlist_panel()
+                                         └─ item.get("score_v2") → None
+                                    
+                                    watchlist_model.py
+                                      └─ _set_row_data()
+                                         └─ score_v2 is None → ⚠️ 표시
+```
+
+### 5.3 근본 원인 (Root Cause)
+
+#### 원인 1: 프론트엔드 `WatchlistItem` 클래스 누락
+
+**파일**: `frontend/services/backend_client.py` (라인 49-86)
+
+```python
+@dataclass
+class WatchlistItem:
+    ticker: str
+    score: float
+    stage: str
+    # ❌ score_v2 필드 없음!
+    
+    @classmethod
+    def from_dict(cls, data: dict) -> "WatchlistItem":
+        return cls(
+            ticker=data.get("ticker", ""),
+            score=data.get("score", 0),
+            # ❌ score_v2 파싱 안 함!
+        )
+```
+
+#### 원인 2: `realtime_scanner.py`의 hydration 조건
+
+**파일**: `backend/core/realtime_scanner.py` (라인 355-357)
+
+```python
+# [02-001] score_v2 hydration: 없으면 score로 채움
+if "score_v2" not in item and "score" in item:
+    item["score_v2"] = item["score"]
+```
+
+- Day Gainer의 경우 `score` 자체가 없으면 `score_v2`도 생성되지 않음
+- 초기 watchlist 저장 시 `score_v2`가 계산되지 않았을 수 있음
+
+#### 원인 3: Scanner의 score_v2 계산 누락
+
+**파일**: `backend/core/scanner.py`
+
+- Daily Scan 시 `calculate_watchlist_score_detailed()`가 `score_v2`를 반환
+- 하지만 결과를 watchlist에 저장할 때 `score_v2` 필드가 누락될 수 있음
+
+### 5.4 해결 방안
+
+#### 수정 1: 프론트엔드 WatchlistItem 수정
+
+**파일**: `frontend/services/backend_client.py`
+
+```diff
+ @dataclass
+ class WatchlistItem:
+     ticker: str
+     score: float
++    score_v2: float = 0.0  # [02-001] v2 연속 점수
+     stage: str
+     # ... 기타 필드
+     
+     @classmethod
+     def from_dict(cls, data: dict) -> "WatchlistItem":
+         return cls(
+             ticker=data.get("ticker", ""),
+             score=data.get("score", 0),
++            score_v2=data.get("score_v2", 0.0),  # [02-001] v2 점수 파싱
+             stage=data.get("stage", ""),
+             # ... 기타 필드
+         )
+```
+
+#### 수정 2: realtime_scanner.py hydration 강화
+
+**파일**: `backend/core/realtime_scanner.py`
+
+```diff
+ # [02-001] score_v2 hydration: 없으면 score로 채움
+-if "score_v2" not in item and "score" in item:
+-    item["score_v2"] = item["score"]
++# score_v2가 없으면 score로 대체, 둘 다 없으면 0
++if "score_v2" not in item or item.get("score_v2") is None:
++    item["score_v2"] = item.get("score", 0.0) or 0.0
+```
+
+#### 수정 3: Scanner 저장 시 score_v2 포함 확인
+
+watchlist 저장 시 `score_v2` 필드가 반드시 포함되도록 보장.
+
+### 5.5 수정 파일 요약
+
+| 파일 | 변경 내용 |
+|------|----------|
+| `frontend/services/backend_client.py` | `WatchlistItem`에 `score_v2` 필드 추가, `from_dict()` 수정 |
+| `backend/core/realtime_scanner.py` | hydration 로직 강화 (None 처리) |
+
+### 5.6 검증 계획
+
+1. 백엔드 실행 후 Watchlist에 종목 추가
+2. GUI에서 Score 컬럼에 숫자(예: `67.5`)가 표시되는지 확인
+3. Day Gainer의 경우 `50.0` 또는 계산된 score_v2가 표시되는지 확인
+

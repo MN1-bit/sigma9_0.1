@@ -339,6 +339,40 @@ async def get_watchlist():
     return []
 
 
+@router.post("/watchlist/recalculate", summary="Score V2 재계산")
+async def recalculate_watchlist_scores():
+    """
+    [Phase 9] 전체 Watchlist의 score_v2를 재계산합니다.
+    
+    📌 동작:
+        1. 순차 재계산 (종목당 100ms 딜레이)
+        2. DB에서 일봉 조회 → score_v2 계산
+        3. Watchlist 저장 및 브로드캐스트
+    
+    Returns:
+        success: 성공 종목 수
+        failed: 실패 종목 수
+        skipped: 스킵 종목 수 (데이터 부족)
+        timestamp: 완료 시각
+    """
+    from backend.core.realtime_scanner import get_scanner_instance
+    
+    scanner = get_scanner_instance()
+    
+    if not scanner:
+        raise HTTPException(status_code=500, detail="RealtimeScanner not initialized")
+    
+    try:
+        result = await scanner.recalculate_all_scores()
+        return {
+            "status": "success",
+            **result
+        }
+    except Exception as e:
+        logger.error(f"Score V2 재계산 실패: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 # Position Endpoints
 # ═══════════════════════════════════════════════════════════════════════════

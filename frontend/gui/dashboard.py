@@ -41,7 +41,7 @@ try:
         QSlider, QPushButton, QSplitter, QTextEdit, QListWidget,
         QWidget, QSizePolicy, QComboBox, QTableWidgetItem
     )
-    from PyQt6.QtCore import Qt, QTimer
+    from PyQt6.QtCore import Qt, QTimer, pyqtSlot
 except ModuleNotFoundError:
     from PySide6.QtGui import QIcon, QColor, QFont
     from PySide6.QtWidgets import (
@@ -641,7 +641,13 @@ class Sigma9Dashboard(CustomWindow):
         # ═══════════════════════════════════════════════════════════════════
         # 2. Tier 1 Watchlist (하단)
         # [Issue 01-004] QTableWidget → QTableView + WatchlistModel 전환
+        # [Phase 9] Score V2 Refresh 버튼 + Last Updated 라벨 추가
         # ═══════════════════════════════════════════════════════════════════
+        
+        # Tier 1 헤더 레이아웃 (라벨 + 버튼 + 업데이트 시각)
+        tier1_header = QHBoxLayout()
+        tier1_header.setSpacing(8)
+        
         tier1_label = QLabel("📋 Watchlist")
         tier1_label.setStyleSheet(f"""
             color: {c['text_secondary']}; 
@@ -650,7 +656,44 @@ class Sigma9Dashboard(CustomWindow):
             background: transparent;
             border: none;
         """)
-        layout.addWidget(tier1_label)
+        tier1_header.addWidget(tier1_label)
+        
+        tier1_header.addStretch()
+        
+        # [Phase 9] Last Updated 라벨
+        self._score_v2_updated_label = QLabel("Score V2: --:--")
+        self._score_v2_updated_label.setStyleSheet(f"""
+            color: {c['text_secondary']};
+            font-size: 9px;
+            background: transparent;
+            border: none;
+        """)
+        self._score_v2_updated_label.setToolTip("마지막 Score V2 재계산 시각")
+        tier1_header.addWidget(self._score_v2_updated_label)
+        
+        # [Phase 9] Score V2 Refresh 버튼
+        self._refresh_score_v2_btn = QPushButton("🔄")
+        self._refresh_score_v2_btn.setToolTip("Score V2 재계산 (Watchlist 전체 아님)")
+        self._refresh_score_v2_btn.setFixedSize(24, 24)
+        self._refresh_score_v2_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: transparent;
+                border: 1px solid {c['border']};
+                border-radius: 4px;
+                color: {c['text_secondary']};
+                font-size: 12px;
+            }}
+            QPushButton:hover {{
+                background-color: {c['surface']};
+                border-color: {c['primary']};
+                color: {c['primary']};
+            }}
+        """)
+        self._refresh_score_v2_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._refresh_score_v2_btn.clicked.connect(self._on_refresh_score_v2)
+        tier1_header.addWidget(self._refresh_score_v2_btn)
+        
+        layout.addLayout(tier1_header)
         
         # [Issue 01-004] Model/View 아키텍처: 모델과 뷰 분리
         self.watchlist_model = WatchlistModel()
@@ -840,6 +883,78 @@ class Sigma9Dashboard(CustomWindow):
         if hasattr(self, 'backend_client') and self.backend_client.is_connected():
             self.backend_client.run_scanner_sync()
             self.log("[INFO] Watchlist auto-refreshed")
+    
+    def _on_refresh_score_v2(self):
+        """
+        [Phase 9] Score V2 재계산 버튼 클릭 핸들러
+        
+        Watchlist 전체가 아닌 Score V2만 재계산합니다.
+        API 호출: POST /api/watchlist/recalculate
+        """
+        import threading
+        from datetime import datetime
+        
+        if not hasattr(self, 'backend_client') or not self.backend_client.is_connected():
+            self.log("[WARN] Backend 미연결 - Score V2 재계산 불가")
+            return
+        
+        self.log("[INFO] Score V2 재계산 시작...")
+        self._refresh_score_v2_btn.setEnabled(False)
+        self._refresh_score_v2_btn.setText("⏳")
+        
+        # [Phase 9 FIX] 스레드 안전 UI 업데이트를 위한 인스턴스 변수
+        self._pending_score_v2_result = None
+        
+        def recalculate_in_background():
+            try:
+                import requests
+                from datetime import datetime
+                # 백엔드 API 호출
+                base_url = self.backend_client._base_url or "http://localhost:8000"
+                response = requests.post(f"{base_url}/api/watchlist/recalculate", timeout=120)
+                
+                if response.status_code == 200:
+                    result = response.json()
+                    self._pending_score_v2_result = {
+                        "success": True,
+                        "timestamp": result.get("timestamp", datetime.now().strftime("%H:%M:%S")),
+                        "count_success": result.get("success", 0),
+                        "count_failed": result.get("failed", 0),
+                    }
+                else:
+                    self._pending_score_v2_result = {
+                        "success": False,
+                        "error": f"HTTP {response.status_code}"
+                    }
+            except Exception as e:
+                self._pending_score_v2_result = {
+                    "success": False,
+                    "error": str(e)
+                }
+            
+            # GUI 스레드에서 업데이트 실행
+            from PyQt6.QtCore import QMetaObject, Qt, Q_ARG
+            QMetaObject.invokeMethod(self, "_apply_score_v2_result", Qt.ConnectionType.QueuedConnection)
+        
+        thread = threading.Thread(target=recalculate_in_background, daemon=True)
+        thread.start()
+    
+    @pyqtSlot()
+    def _apply_score_v2_result(self):
+        """[Phase 9] 스레드 안전 UI 업데이트"""
+        result = getattr(self, '_pending_score_v2_result', None)
+        if result is None:
+            return
+        
+        self._refresh_score_v2_btn.setEnabled(True)
+        self._refresh_score_v2_btn.setText("🔄")
+        
+        if result.get("success"):
+            timestamp = result.get("timestamp", "--:--:--")
+            self._score_v2_updated_label.setText(f"Score V2: {timestamp}")
+            self.log(f"[INFO] Score V2 재계산 완료: {result.get('count_success', 0)}개 성공, {result.get('count_failed', 0)}개 실패")
+        else:
+            self.log(f"[ERROR] Score V2 재계산 실패: {result.get('error', 'Unknown')}")
 
 
     def _create_center_panel(self) -> QFrame:

@@ -348,6 +348,7 @@ async def lifespan(app: FastAPI):
                 app_state.realtime_scanner = initialize_realtime_scanner(
                     polygon_client=polygon_client,
                     ws_manager=ws_manager,
+                    db=app_state.db,  # [02-001b] DB 주입 (score_v2 계산용)
                     ignition_monitor=app_state.ignition_monitor,
                     poll_interval=1.0  # 1초 폴링
                 )

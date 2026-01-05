@@ -1,7 +1,7 @@
 {
   "version": "1.0",
-  "generated_at": "2026-01-06T04:57:22.090377",
-  "item_count": 103,
+  "generated_at": "2026-01-06T03:54:20.760645",
+  "item_count": 102,
   "watchlist": [
     {
       "ticker": "AMCI",
@@ -1161,50 +1161,8 @@
       "dollar_volume": 59211.36,
       "source": "realtime_gainer",
       "discovered_at": "2026-01-06T00:37:33.158772",
-      "score": 0.0,
-      "stage": "No Signal",
-      "stage_number": 0,
-      "signals": {
-        "realtime_gainer": true,
-        "tight_range": false,
-        "accumulation_bar": false,
-        "obv_divergence": false,
-        "volume_dryout": false
-      },
-      "can_trade": true,
-      "score_v2": 0.0
-    },
-    {
-      "ticker": "BVC",
-      "change_pct": 800.357142857143,
-      "price": 14.3,
-      "volume": 141268,
-      "dollar_volume": 2020132.4000000001,
-      "source": "realtime_gainer",
-      "discovered_at": "2026-01-06T00:42:09.793263",
-      "score": 0.0,
-      "stage": "No Signal",
-      "stage_number": 0,
-      "signals": {
-        "realtime_gainer": true,
-        "tight_range": false,
-        "accumulation_bar": false,
-        "obv_divergence": false,
-        "volume_dryout": false
-      },
-      "can_trade": true,
-      "score_v2": 0.0
-    },
-    {
-      "ticker": "VSNT",
-      "change_pct": 209.7683397683398,
-      "price": 40,
-      "volume": 8051415.0,
-      "dollar_volume": 322056600.0,
-      "source": "realtime_gainer",
-      "discovered_at": "2026-01-06T00:42:09.796311",
       "score": 50.0,
-      "stage": "신규/IPO (데이터 부족)",
+      "stage": "Gainer (실시간)",
       "stage_number": 3,
       "signals": {
         "realtime_gainer": true,
@@ -1213,20 +1171,59 @@
         "obv_divergence": false,
         "volume_dryout": false
       },
-      "can_trade": true,
-      "score_v2": -1
+      "can_trade": true
+    },
+    {
+      "ticker": "BVC",
+      "change_pct": 800.357142857143,
+      "price": 12.605,
+      "volume": 92097,
+      "dollar_volume": 1160882.685,
+      "source": "realtime_gainer",
+      "discovered_at": "2026-01-06T00:42:09.793263",
+      "score": 50.0,
+      "stage": "Gainer (실시간)",
+      "stage_number": 3,
+      "signals": {
+        "realtime_gainer": true,
+        "tight_range": false,
+        "accumulation_bar": false,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true
+    },
+    {
+      "ticker": "VSNT",
+      "change_pct": 209.7683397683398,
+      "price": 40.115,
+      "volume": 3026450.0,
+      "dollar_volume": 121406041.75,
+      "source": "realtime_gainer",
+      "discovered_at": "2026-01-06T00:42:09.796311",
+      "score": 50.0,
+      "stage": "Gainer (실시간)",
+      "stage_number": 3,
+      "signals": {
+        "realtime_gainer": true,
+        "tight_range": false,
+        "accumulation_bar": false,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true
     },
     {
       "ticker": "TMDE",
       "change_pct": 166.3656884875846,
-      "price": 1.0597,
-      "volume": 106131054.0,
-      "dollar_volume": 112467077.9238,
+      "price": 1.1701,
+      "volume": 54553536.0,
+      "dollar_volume": 63833092.47359999,
       "source": "realtime_gainer",
       "discovered_at": "2026-01-06T00:42:09.806753",
-      "score": 0.0,
-      "stage": "No Signal",
-      "stage_number": 0,
+      "score": 50.0,
+      "stage": "Gainer (실시간)",
+      "stage_number": 3,
       "signals": {
         "realtime_gainer": true,
         "tight_range": false,
@@ -1234,20 +1231,19 @@
         "obv_divergence": false,
         "volume_dryout": false
       },
-      "can_trade": true,
-      "score_v2": 0.0
+      "can_trade": true
     },
     {
       "ticker": "VRME",
       "change_pct": 94.1743255262378,
-      "price": 1.03,
-      "volume": 179658694.0,
-      "dollar_volume": 185048454.82,
+      "price": 1.2992,
+      "volume": 115930311.0,
+      "dollar_volume": 150616660.0512,
       "source": "realtime_gainer",
       "discovered_at": "2026-01-06T00:42:09.814886",
-      "score": 0.0,
-      "stage": "No Signal",
-      "stage_number": 0,
+      "score": 50.0,
+      "stage": "Gainer (실시간)",
+      "stage_number": 3,
       "signals": {
         "realtime_gainer": true,
         "tight_range": false,
@@ -1255,20 +1251,19 @@
         "obv_divergence": false,
         "volume_dryout": false
       },
-      "can_trade": true,
-      "score_v2": 0.0
+      "can_trade": true
     },
     {
       "ticker": "ARBEW",
       "change_pct": 78.06249999999999,
-      "price": 0.181,
-      "volume": 126929,
-      "dollar_volume": 22974.148999999998,
+      "price": 0.14245,
+      "volume": 27696,
+      "dollar_volume": 3945.2952,
       "source": "realtime_gainer",
       "discovered_at": "2026-01-06T00:42:09.821405",
-      "score": 0.0,
-      "stage": "No Signal",
-      "stage_number": 0,
+      "score": 50.0,
+      "stage": "Gainer (실시간)",
+      "stage_number": 3,
       "signals": {
         "realtime_gainer": true,
         "tight_range": false,
@@ -1276,20 +1271,19 @@
         "obv_divergence": false,
         "volume_dryout": false
       },
-      "can_trade": true,
-      "score_v2": 0.0
+      "can_trade": true
     },
     {
       "ticker": "MNTSW",
       "change_pct": 74.07407407407408,
-      "price": 0.034,
-      "volume": 1223792.0,
-      "dollar_volume": 41608.928,
+      "price": 0.0423,
+      "volume": 753142,
+      "dollar_volume": 31857.9066,
       "source": "realtime_gainer",
       "discovered_at": "2026-01-06T00:42:09.827329",
-      "score": 0.0,
-      "stage": "No Signal",
-      "stage_number": 0,
+      "score": 50.0,
+      "stage": "Gainer (실시간)",
+      "stage_number": 3,
       "signals": {
         "realtime_gainer": true,
         "tight_range": false,
@@ -1297,20 +1291,19 @@
         "obv_divergence": false,
         "volume_dryout": false
       },
-      "can_trade": true,
-      "score_v2": 0.0
+      "can_trade": true
     },
     {
       "ticker": "MNTS",
       "change_pct": 71.08013937282229,
-      "price": 9.2,
-      "volume": 60142033.0,
-      "dollar_volume": 553306703.5999999,
+      "price": 9.79,
+      "volume": 44479435.0,
+      "dollar_volume": 435453668.65,
       "source": "realtime_gainer",
       "discovered_at": "2026-01-06T00:42:09.833438",
-      "score": 30.0,
-      "stage": "Stage 2 (OBV Divergence)",
-      "stage_number": 2,
+      "score": 50.0,
+      "stage": "Gainer (실시간)",
+      "stage_number": 3,
       "signals": {
         "realtime_gainer": true,
         "tight_range": false,
@@ -1318,20 +1311,19 @@
         "obv_divergence": false,
         "volume_dryout": false
       },
-      "can_trade": true,
-      "score_v2": 35.0
+      "can_trade": true
     },
     {
       "ticker": "LHSW",
       "change_pct": 52.11014469459248,
-      "price": 0.79785,
-      "volume": 25149825.0,
-      "dollar_volume": 20065787.87625,
+      "price": 0.8329,
+      "volume": 15339047.0,
+      "dollar_volume": 12775892.246299999,
       "source": "realtime_gainer",
       "discovered_at": "2026-01-06T00:42:09.839735",
-      "score": 30.0,
-      "stage": "Stage 2 (OBV Divergence)",
-      "stage_number": 2,
+      "score": 50.0,
+      "stage": "Gainer (실시간)",
+      "stage_number": 3,
       "signals": {
         "realtime_gainer": true,
         "tight_range": false,
@@ -1339,20 +1331,19 @@
         "obv_divergence": false,
         "volume_dryout": false
       },
-      "can_trade": true,
-      "score_v2": 35.0
+      "can_trade": true
     },
     {
       "ticker": "INBS",
       "change_pct": 43.599493029150835,
-      "price": 13.132,
-      "volume": 17451861.0,
-      "dollar_volume": 229177838.65199998,
+      "price": 11.33,
+      "volume": 4554513.0,
+      "dollar_volume": 51602632.29,
       "source": "realtime_gainer",
       "discovered_at": "2026-01-06T00:42:09.845933",
-      "score": 0.0,
-      "stage": "No Signal",
-      "stage_number": 0,
+      "score": 50.0,
+      "stage": "Gainer (실시간)",
+      "stage_number": 3,
       "signals": {
         "realtime_gainer": true,
         "tight_range": false,
@@ -1360,8 +1351,7 @@
         "obv_divergence": false,
         "volume_dryout": false
       },
-      "can_trade": true,
-      "score_v2": 0.0
+      "can_trade": true
     },
     {
       "ticker": "PERF.WS",
@@ -1371,9 +1361,9 @@
       "dollar_volume": 5942.08,
       "source": "realtime_gainer",
       "discovered_at": "2026-01-06T00:42:09.852234",
-      "score": 10.0,
-      "stage": "Stage 1 (Volume Dry-out)",
-      "stage_number": 1,
+      "score": 50.0,
+      "stage": "Gainer (실시간)",
+      "stage_number": 3,
       "signals": {
         "realtime_gainer": true,
         "tight_range": false,
@@ -1381,20 +1371,19 @@
         "obv_divergence": false,
         "volume_dryout": false
       },
-      "can_trade": true,
-      "score_v2": 8.8
+      "can_trade": true
     },
     {
       "ticker": "BKSY.WS",
       "change_pct": 33.287950987066026,
-      "price": 0.10105,
-      "volume": 52551,
-      "dollar_volume": 5310.27855,
+      "price": 0.0979,
+      "volume": 36225,
+      "dollar_volume": 3546.4275000000002,
       "source": "realtime_gainer",
       "discovered_at": "2026-01-06T00:42:09.858661",
-      "score": 0.0,
-      "stage": "No Signal",
-      "stage_number": 0,
+      "score": 50.0,
+      "stage": "Gainer (실시간)",
+      "stage_number": 3,
       "signals": {
         "realtime_gainer": true,
         "tight_range": false,
@@ -1402,20 +1391,19 @@
         "obv_divergence": false,
         "volume_dryout": false
       },
-      "can_trade": true,
-      "score_v2": 4.2
+      "can_trade": true
     },
     {
       "ticker": "PASG",
       "change_pct": 31.308810949529516,
-      "price": 16.43,
-      "volume": 337057,
-      "dollar_volume": 5537846.51,
+      "price": 15.35,
+      "volume": 131760,
+      "dollar_volume": 2022516.0,
       "source": "realtime_gainer",
       "discovered_at": "2026-01-06T00:42:09.864861",
-      "score": 0.0,
-      "stage": "No Signal",
-      "stage_number": 0,
+      "score": 50.0,
+      "stage": "Gainer (실시간)",
+      "stage_number": 3,
       "signals": {
         "realtime_gainer": true,
         "tight_range": false,
@@ -1423,20 +1411,19 @@
         "obv_divergence": false,
         "volume_dryout": false
       },
-      "can_trade": true,
-      "score_v2": 0.0
+      "can_trade": true
     },
     {
       "ticker": "SMU",
       "change_pct": 31.147540983606568,
-      "price": 18.145,
-      "volume": 4203027.0,
-      "dollar_volume": 76263924.91499999,
+      "price": 17.6,
+      "volume": 2912380.0,
+      "dollar_volume": 51257888.00000001,
       "source": "realtime_gainer",
       "discovered_at": "2026-01-06T00:42:09.870905",
-      "score": 0.0,
-      "stage": "No Signal",
-      "stage_number": 0,
+      "score": 50.0,
+      "stage": "Gainer (실시간)",
+      "stage_number": 3,
       "signals": {
         "realtime_gainer": true,
         "tight_range": false,
@@ -1444,8 +1431,7 @@
         "obv_divergence": false,
         "volume_dryout": false
       },
-      "can_trade": true,
-      "score_v2": 0.0
+      "can_trade": true
     },
     {
       "ticker": "PDYNW",
@@ -1455,9 +1441,9 @@
       "dollar_volume": 6324.8003,
       "source": "realtime_gainer",
       "discovered_at": "2026-01-06T00:42:09.877044",
-      "score": 0.0,
-      "stage": "No Signal",
-      "stage_number": 0,
+      "score": 50.0,
+      "stage": "Gainer (실시간)",
+      "stage_number": 3,
       "signals": {
         "realtime_gainer": true,
         "tight_range": false,
@@ -1465,8 +1451,7 @@
         "obv_divergence": false,
         "volume_dryout": false
       },
-      "can_trade": true,
-      "score_v2": 0.0
+      "can_trade": true
     },
     {
       "ticker": "SMUP",
@@ -1476,9 +1461,9 @@
       "dollar_volume": 4149437.9082000004,
       "source": "realtime_gainer",
       "discovered_at": "2026-01-06T00:42:09.884103",
-      "score": 0.0,
-      "stage": "No Signal",
-      "stage_number": 0,
+      "score": 50.0,
+      "stage": "Gainer (실시간)",
+      "stage_number": 3,
       "signals": {
         "realtime_gainer": true,
         "tight_range": false,
@@ -1486,20 +1471,19 @@
         "obv_divergence": false,
         "volume_dryout": false
       },
-      "can_trade": true,
-      "score_v2": 1.2
+      "can_trade": true
     },
     {
       "ticker": "MVSTW",
       "change_pct": 29.633740288568262,
-      "price": 0.139,
-      "volume": 119901,
-      "dollar_volume": 16666.239,
+      "price": 0.1168,
+      "volume": 81166,
+      "dollar_volume": 9480.1888,
       "source": "realtime_gainer",
       "discovered_at": "2026-01-06T00:42:09.890549",
-      "score": 0.0,
-      "stage": "No Signal",
-      "stage_number": 0,
+      "score": 50.0,
+      "stage": "Gainer (실시간)",
+      "stage_number": 3,
       "signals": {
         "realtime_gainer": true,
         "tight_range": false,
@@ -1507,20 +1491,19 @@
         "obv_divergence": false,
         "volume_dryout": false
       },
-      "can_trade": true,
-      "score_v2": 1.2
+      "can_trade": true
     },
     {
       "ticker": "UFG",
       "change_pct": 28.062068965517245,
-      "price": 1.2001,
-      "volume": 16278245.0,
-      "dollar_volume": 19535521.8245,
+      "price": 0.9285,
+      "volume": 6669810.0,
+      "dollar_volume": 6192918.585,
       "source": "realtime_gainer",
       "discovered_at": "2026-01-06T00:42:09.897348",
-      "score": 0.0,
-      "stage": "No Signal",
-      "stage_number": 0,
+      "score": 50.0,
+      "stage": "Gainer (실시간)",
+      "stage_number": 3,
       "signals": {
         "realtime_gainer": true,
         "tight_range": false,
@@ -1528,8 +1511,7 @@
         "obv_divergence": false,
         "volume_dryout": false
       },
-      "can_trade": true,
-      "score_v2": 0.0
+      "can_trade": true
     },
     {
       "ticker": "SLDPW",
@@ -1539,9 +1521,9 @@
       "dollar_volume": 39330.20494,
       "source": "realtime_gainer",
       "discovered_at": "2026-01-06T00:42:09.904225",
-      "score": 0.0,
-      "stage": "No Signal",
-      "stage_number": 0,
+      "score": 50.0,
+      "stage": "Gainer (실시간)",
+      "stage_number": 3,
       "signals": {
         "realtime_gainer": true,
         "tight_range": false,
@@ -1549,8 +1531,7 @@
         "obv_divergence": false,
         "volume_dryout": false
       },
-      "can_trade": true,
-      "score_v2": 0.0
+      "can_trade": true
     },
     {
       "ticker": "YMAT",
@@ -1560,9 +1541,9 @@
       "dollar_volume": 70149.84,
       "source": "realtime_gainer",
       "discovered_at": "2026-01-06T00:42:09.910478",
-      "score": 10.0,
-      "stage": "Stage 1 (Volume Dry-out)",
-      "stage_number": 1,
+      "score": 50.0,
+      "stage": "Gainer (실시간)",
+      "stage_number": 3,
       "signals": {
         "realtime_gainer": true,
         "tight_range": false,
@@ -1570,20 +1551,19 @@
         "obv_divergence": false,
         "volume_dryout": false
       },
-      "can_trade": true,
-      "score_v2": 11.5
+      "can_trade": true
     },
     {
       "ticker": "PXIU",
       "change_pct": 26.31578947368422,
-      "price": 2.43,
-      "volume": 622196,
-      "dollar_volume": 1511936.28,
+      "price": 2.16,
+      "volume": 412059,
+      "dollar_volume": 890047.4400000001,
       "source": "realtime_gainer",
       "discovered_at": "2026-01-06T00:42:09.917192",
-      "score": 0.0,
-      "stage": "No Signal",
-      "stage_number": 0,
+      "score": 50.0,
+      "stage": "Gainer (실시간)",
+      "stage_number": 3,
       "signals": {
         "realtime_gainer": true,
         "tight_range": false,
@@ -1591,8 +1571,7 @@
         "obv_divergence": false,
         "volume_dryout": false
       },
-      "can_trade": true,
-      "score_v2": 0.0
+      "can_trade": true
     },
     {
       "ticker": "VICR",
@@ -1602,9 +1581,9 @@
       "dollar_volume": 162250384.0,
       "source": "realtime_gainer",
       "discovered_at": "2026-01-06T00:42:13.598381",
-      "score": 0.0,
-      "stage": "No Signal",
-      "stage_number": 0,
+      "score": 50.0,
+      "stage": "Gainer (실시간)",
+      "stage_number": 3,
       "signals": {
         "realtime_gainer": true,
         "tight_range": false,
@@ -1612,8 +1591,7 @@
         "obv_divergence": false,
         "volume_dryout": false
       },
-      "can_trade": true,
-      "score_v2": 0.0
+      "can_trade": true
     },
     {
       "ticker": "MASK",
@@ -1623,9 +1601,9 @@
       "dollar_volume": 19041852.67325,
       "source": "realtime_gainer",
       "discovered_at": "2026-01-06T00:42:14.818725",
-      "score": 30.0,
-      "stage": "Stage 2 (OBV Divergence)",
-      "stage_number": 2,
+      "score": 50.0,
+      "stage": "Gainer (실시간)",
+      "stage_number": 3,
       "signals": {
         "realtime_gainer": true,
         "tight_range": false,
@@ -1633,8 +1611,7 @@
         "obv_divergence": false,
         "volume_dryout": false
       },
-      "can_trade": true,
-      "score_v2": 41.5
+      "can_trade": true
     },
     {
       "ticker": "OKLL",
@@ -1644,9 +1621,9 @@
       "dollar_volume": 68076049.9575,
       "source": "realtime_gainer",
       "discovered_at": "2026-01-06T00:43:01.387590",
-      "score": 0.0,
-      "stage": "No Signal",
-      "stage_number": 0,
+      "score": 50.0,
+      "stage": "Gainer (실시간)",
+      "stage_number": 3,
       "signals": {
         "realtime_gainer": true,
         "tight_range": false,
@@ -1654,8 +1631,7 @@
         "obv_divergence": false,
         "volume_dryout": false
       },
-      "can_trade": true,
-      "score_v2": 6.0
+      "can_trade": true
     },
     {
       "ticker": "ABLVW",
@@ -1665,9 +1641,9 @@
       "dollar_volume": 407.12760000000003,
       "source": "realtime_gainer",
       "discovered_at": "2026-01-06T00:59:00.988282",
-      "score": 30.0,
-      "stage": "Stage 2 (OBV Divergence)",
-      "stage_number": 2,
+      "score": 50.0,
+      "stage": "Gainer (실시간)",
+      "stage_number": 3,
       "signals": {
         "realtime_gainer": true,
         "tight_range": false,
@@ -1675,8 +1651,7 @@
         "obv_divergence": false,
         "volume_dryout": false
       },
-      "can_trade": true,
-      "score_v2": 27.2
+      "can_trade": true
     },
     {
       "ticker": "ASTI",
@@ -1686,9 +1661,9 @@
       "dollar_volume": 24018039.038200002,
       "source": "realtime_gainer",
       "discovered_at": "2026-01-06T00:59:00.992556",
-      "score": 0.0,
-      "stage": "No Signal",
-      "stage_number": 0,
+      "score": 50.0,
+      "stage": "Gainer (실시간)",
+      "stage_number": 3,
       "signals": {
         "realtime_gainer": true,
         "tight_range": false,
@@ -1696,8 +1671,7 @@
         "obv_divergence": false,
         "volume_dryout": false
       },
-      "can_trade": true,
-      "score_v2": 0.0
+      "can_trade": true
     },
     {
       "ticker": "TDTH",
@@ -1707,9 +1681,9 @@
       "dollar_volume": 1493401.03,
       "source": "realtime_gainer",
       "discovered_at": "2026-01-06T00:59:01.003457",
-      "score": 0.0,
-      "stage": "No Signal",
-      "stage_number": 0,
+      "score": 50.0,
+      "stage": "Gainer (실시간)",
+      "stage_number": 3,
       "signals": {
         "realtime_gainer": true,
         "tight_range": false,
@@ -1717,8 +1691,7 @@
         "obv_divergence": false,
         "volume_dryout": false
       },
-      "can_trade": true,
-      "score_v2": 0.0
+      "can_trade": true
     },
     {
       "ticker": "RGC",
@@ -1728,9 +1701,9 @@
       "dollar_volume": 26310991.0,
       "source": "realtime_gainer",
       "discovered_at": "2026-01-06T00:59:01.012203",
-      "score": 0.0,
-      "stage": "No Signal",
-      "stage_number": 0,
+      "score": 50.0,
+      "stage": "Gainer (실시간)",
+      "stage_number": 3,
       "signals": {
         "realtime_gainer": true,
         "tight_range": false,
@@ -1738,8 +1711,7 @@
         "obv_divergence": false,
         "volume_dryout": false
       },
-      "can_trade": true,
-      "score_v2": 0.0
+      "can_trade": true
     },
     {
       "ticker": "AVXX",
@@ -1749,9 +1721,9 @@
       "dollar_volume": 1524921.3,
       "source": "realtime_gainer",
       "discovered_at": "2026-01-06T00:59:01.020133",
-      "score": 30.0,
-      "stage": "Stage 2 (OBV Divergence)",
-      "stage_number": 2,
+      "score": 50.0,
+      "stage": "Gainer (실시간)",
+      "stage_number": 3,
       "signals": {
         "realtime_gainer": true,
         "tight_range": false,
@@ -1759,8 +1731,7 @@
         "obv_divergence": false,
         "volume_dryout": false
       },
-      "can_trade": true,
-      "score_v2": 35.0
+      "can_trade": true
     },
     {
       "ticker": "QSIAW",
@@ -1770,9 +1741,9 @@
       "dollar_volume": 4967.1295,
       "source": "realtime_gainer",
       "discovered_at": "2026-01-06T00:59:02.255298",
-      "score": 0.0,
-      "stage": "No Signal",
-      "stage_number": 0,
+      "score": 50.0,
+      "stage": "Gainer (실시간)",
+      "stage_number": 3,
       "signals": {
         "realtime_gainer": true,
         "tight_range": false,
@@ -1780,8 +1751,7 @@
         "obv_divergence": false,
         "volume_dryout": false
       },
-      "can_trade": true,
-      "score_v2": 0.0
+      "can_trade": true
     },
     {
       "ticker": "AMBR",
@@ -1791,9 +1761,9 @@
       "dollar_volume": 680742.12,
       "source": "realtime_gainer",
       "discovered_at": "2026-01-06T00:59:13.373166",
-      "score": 0.0,
-      "stage": "No Signal",
-      "stage_number": 0,
+      "score": 50.0,
+      "stage": "Gainer (실시간)",
+      "stage_number": 3,
       "signals": {
         "realtime_gainer": true,
         "tight_range": false,
@@ -1801,8 +1771,7 @@
         "obv_divergence": false,
         "volume_dryout": false
       },
-      "can_trade": true,
-      "score_v2": 0.0
+      "can_trade": true
     },
     {
       "ticker": "RITR",
@@ -1812,9 +1781,9 @@
       "dollar_volume": 81986.56,
       "source": "realtime_gainer",
       "discovered_at": "2026-01-06T00:59:47.771566",
-      "score": 0.0,
-      "stage": "No Signal",
-      "stage_number": 0,
+      "score": 50.0,
+      "stage": "Gainer (실시간)",
+      "stage_number": 3,
       "signals": {
         "realtime_gainer": true,
         "tight_range": false,
@@ -1822,8 +1791,7 @@
         "obv_divergence": false,
         "volume_dryout": false
       },
-      "can_trade": true,
-      "score_v2": 0.0
+      "can_trade": true
     },
     {
       "ticker": "WYHG",
@@ -1833,9 +1801,9 @@
       "dollar_volume": 23712.228000000003,
       "source": "realtime_gainer",
       "discovered_at": "2026-01-06T01:00:26.190292",
-      "score": 0.0,
-      "stage": "No Signal",
-      "stage_number": 0,
+      "score": 50.0,
+      "stage": "Gainer (실시간)",
+      "stage_number": 3,
       "signals": {
         "realtime_gainer": true,
         "tight_range": false,
@@ -1843,8 +1811,7 @@
         "obv_divergence": false,
         "volume_dryout": false
       },
-      "can_trade": true,
-      "score_v2": 0.0
+      "can_trade": true
     },
     {
       "ticker": "NNEX",
@@ -1854,9 +1821,9 @@
       "dollar_volume": 210408.66,
       "source": "realtime_gainer",
       "discovered_at": "2026-01-06T01:09:25.434670",
-      "score": 30.0,
-      "stage": "Stage 2 (OBV Divergence)",
-      "stage_number": 2,
+      "score": 50.0,
+      "stage": "Gainer (실시간)",
+      "stage_number": 3,
       "signals": {
         "realtime_gainer": true,
         "tight_range": false,
@@ -1864,8 +1831,7 @@
         "obv_divergence": false,
         "volume_dryout": false
       },
-      "can_trade": true,
-      "score_v2": 35.0
+      "can_trade": true
     },
     {
       "ticker": "CELGr",
@@ -1875,9 +1841,9 @@
       "dollar_volume": 1608.42,
       "source": "realtime_gainer",
       "discovered_at": "2026-01-06T01:10:50.325740",
-      "score": 0.0,
-      "stage": "No Signal",
-      "stage_number": 0,
+      "score": 50.0,
+      "stage": "Gainer (실시간)",
+      "stage_number": 3,
       "signals": {
         "realtime_gainer": true,
         "tight_range": false,
@@ -1885,8 +1851,7 @@
         "obv_divergence": false,
         "volume_dryout": false
       },
-      "can_trade": true,
-      "score_v2": 0.0
+      "can_trade": true
     },
     {
       "ticker": "SLAI",
@@ -1896,29 +1861,8 @@
       "dollar_volume": 503935.10099999997,
       "source": "realtime_gainer",
       "discovered_at": "2026-01-06T01:11:02.606167",
-      "score": 0.0,
-      "stage": "No Signal",
-      "stage_number": 0,
-      "signals": {
-        "realtime_gainer": true,
-        "tight_range": false,
-        "accumulation_bar": false,
-        "obv_divergence": false,
-        "volume_dryout": false
-      },
-      "can_trade": true,
-      "score_v2": 0.0
-    },
-    {
-      "ticker": "JCSE",
-      "change_pct": 44.85981308411214,
-      "price": 1.83,
-      "volume": 42854172.0,
-      "dollar_volume": 78423134.76,
-      "source": "realtime_gainer",
-      "discovered_at": "2026-01-06T01:33:45.558520",
       "score": 50.0,
-      "stage": "Stage 3 (Accum Bar)",
+      "stage": "Gainer (실시간)",
       "stage_number": 3,
       "signals": {
         "realtime_gainer": true,
@@ -1927,20 +1871,19 @@
         "obv_divergence": false,
         "volume_dryout": false
       },
-      "can_trade": true,
-      "score_v2": 25.0
+      "can_trade": true
     },
     {
-      "ticker": "KIDZW",
-      "change_pct": 37.31343283582088,
-      "price": 0.0182,
-      "volume": 717316,
-      "dollar_volume": 13055.1512,
+      "ticker": "JCSE",
+      "change_pct": 44.85981308411214,
+      "price": 1.5101,
+      "volume": 17580705.0,
+      "dollar_volume": 26548622.6205,
       "source": "realtime_gainer",
-      "discovered_at": "2026-01-06T01:33:45.562708",
-      "score": 0.0,
-      "stage": "No Signal",
-      "stage_number": 0,
+      "discovered_at": "2026-01-06T01:33:45.558520",
+      "score": 50.0,
+      "stage": "Gainer (실시간)",
+      "stage_number": 3,
       "signals": {
         "realtime_gainer": true,
         "tight_range": false,
@@ -1948,8 +1891,27 @@
         "obv_divergence": false,
         "volume_dryout": false
       },
-      "can_trade": true,
-      "score_v2": 13.5
+      "can_trade": true
+    },
+    {
+      "ticker": "KIDZW",
+      "change_pct": 37.31343283582088,
+      "price": 0.0184,
+      "volume": 621576,
+      "dollar_volume": 11436.9984,
+      "source": "realtime_gainer",
+      "discovered_at": "2026-01-06T01:33:45.562708",
+      "score": 50.0,
+      "stage": "Gainer (실시간)",
+      "stage_number": 3,
+      "signals": {
+        "realtime_gainer": true,
+        "tight_range": false,
+        "accumulation_bar": false,
+        "obv_divergence": false,
+        "volume_dryout": false
+      },
+      "can_trade": true
     },
     {
       "ticker": "NPWR.WS",
@@ -1959,9 +1921,9 @@
       "dollar_volume": 8862.455399999999,
       "source": "realtime_gainer",
       "discovered_at": "2026-01-06T01:33:45.574309",
-      "score": 0.0,
-      "stage": "No Signal",
-      "stage_number": 0,
+      "score": 50.0,
+      "stage": "Gainer (실시간)",
+      "stage_number": 3,
       "signals": {
         "realtime_gainer": true,
         "tight_range": false,
@@ -1969,8 +1931,7 @@
         "obv_divergence": false,
         "volume_dryout": false
       },
-      "can_trade": true,
-      "score_v2": 0.0
+      "can_trade": true
     },
     {
       "ticker": "FUSEW",
@@ -1980,9 +1941,9 @@
       "dollar_volume": 2800.0000000000005,
       "source": "realtime_gainer",
       "discovered_at": "2026-01-06T01:34:29.958797",
-      "score": 0.0,
-      "stage": "No Signal",
-      "stage_number": 0,
+      "score": 50.0,
+      "stage": "Gainer (실시간)",
+      "stage_number": 3,
       "signals": {
         "realtime_gainer": true,
         "tight_range": false,
@@ -1990,20 +1951,19 @@
         "obv_divergence": false,
         "volume_dryout": false
       },
-      "can_trade": true,
-      "score_v2": 0.0
+      "can_trade": true
     },
     {
       "ticker": "ALCYW",
       "change_pct": 34.615384615384606,
-      "price": 0.39,
-      "volume": 42885,
-      "dollar_volume": 16725.15,
+      "price": 0.311,
+      "volume": 29974,
+      "dollar_volume": 9321.914,
       "source": "realtime_gainer",
       "discovered_at": "2026-01-06T01:36:08.225372",
-      "score": 0.0,
-      "stage": "No Signal",
-      "stage_number": 0,
+      "score": 50.0,
+      "stage": "Gainer (실시간)",
+      "stage_number": 3,
       "signals": {
         "realtime_gainer": true,
         "tight_range": false,
@@ -2011,8 +1971,7 @@
         "obv_divergence": false,
         "volume_dryout": false
       },
-      "can_trade": true,
-      "score_v2": 0.0
+      "can_trade": true
     },
     {
       "ticker": "CDTG",
@@ -2022,9 +1981,9 @@
       "dollar_volume": 30152.239999999998,
       "source": "realtime_gainer",
       "discovered_at": "2026-01-06T01:40:58.218203",
-      "score": 10.0,
-      "stage": "Stage 1 (Volume Dry-out)",
-      "stage_number": 1,
+      "score": 50.0,
+      "stage": "Gainer (실시간)",
+      "stage_number": 3,
       "signals": {
         "realtime_gainer": true,
         "tight_range": false,
@@ -2032,20 +1991,19 @@
         "obv_divergence": false,
         "volume_dryout": false
       },
-      "can_trade": true,
-      "score_v2": 1.5
+      "can_trade": true
     },
     {
       "ticker": "DVLT",
       "change_pct": 32.67326732673268,
-      "price": 1.405,
-      "volume": 265530758.0,
-      "dollar_volume": 373070714.99,
+      "price": 1.325,
+      "volume": 195230509.0,
+      "dollar_volume": 258680424.42499998,
       "source": "realtime_gainer",
       "discovered_at": "2026-01-06T01:44:32.317401",
-      "score": 0.0,
-      "stage": "No Signal",
-      "stage_number": 0,
+      "score": 50.0,
+      "stage": "Gainer (실시간)",
+      "stage_number": 3,
       "signals": {
         "realtime_gainer": true,
         "tight_range": false,
@@ -2053,20 +2011,19 @@
         "obv_divergence": false,
         "volume_dryout": false
       },
-      "can_trade": true,
-      "score_v2": 0.0
+      "can_trade": true
     },
     {
       "ticker": "ONMDW",
       "change_pct": 53.900000000000006,
-      "price": 0.1497,
-      "volume": 14243,
-      "dollar_volume": 2132.1771,
+      "price": 0.1539,
+      "volume": 12730,
+      "dollar_volume": 1959.1470000000002,
       "source": "realtime_gainer",
       "discovered_at": "2026-01-06T01:53:43.106273",
-      "score": 30.0,
-      "stage": "Stage 2 (OBV Divergence)",
-      "stage_number": 2,
+      "score": 50.0,
+      "stage": "Gainer (실시간)",
+      "stage_number": 3,
       "signals": {
         "realtime_gainer": true,
         "tight_range": false,
@@ -2074,8 +2031,7 @@
         "obv_divergence": false,
         "volume_dryout": false
       },
-      "can_trade": true,
-      "score_v2": 35.0
+      "can_trade": true
     },
     {
       "ticker": "MOBX",
@@ -2085,10 +2041,10 @@
       "dollar_volume": 54680978.78430001,
       "source": "realtime_gainer",
       "discovered_at": "2026-01-06T02:15:07.589941",
-      "score": 30.0,
-      "score_v2": 35.0,
-      "stage": "Stage 2 (OBV Divergence)",
-      "stage_number": 2,
+      "score": 50.0,
+      "score_v2": 50.0,
+      "stage": "Gainer (실시간)",
+      "stage_number": 3,
       "signals": {
         "realtime_gainer": true,
         "tight_range": false,
@@ -2106,10 +2062,10 @@
       "dollar_volume": 1857114.72,
       "source": "realtime_gainer",
       "discovered_at": "2026-01-06T02:25:51.574328",
-      "score": 0.0,
-      "score_v2": 0.0,
-      "stage": "No Signal",
-      "stage_number": 0,
+      "score": 50.0,
+      "score_v2": 50.0,
+      "stage": "Gainer (실시간)",
+      "stage_number": 3,
       "signals": {
         "realtime_gainer": true,
         "tight_range": false,
@@ -2122,15 +2078,15 @@
     {
       "ticker": "MRNOW",
       "change_pct": 47.72727272727274,
-      "price": 0.048,
-      "volume": 93309,
-      "dollar_volume": 4478.832,
+      "price": 0.0325,
+      "volume": 12369,
+      "dollar_volume": 401.9925,
       "source": "realtime_gainer",
       "discovered_at": "2026-01-06T03:00:51.383378",
-      "score": 10.0,
-      "score_v2": 4.9,
-      "stage": "Stage 1 (Volume Dry-out)",
-      "stage_number": 1,
+      "score": 50.0,
+      "score_v2": 50.0,
+      "stage": "Gainer (실시간)",
+      "stage_number": 3,
       "signals": {
         "realtime_gainer": true,
         "tight_range": false,
@@ -2143,15 +2099,15 @@
     {
       "ticker": "BFRGW",
       "change_pct": 42.8125,
-      "price": 0.3099,
-      "volume": 43545,
-      "dollar_volume": 13494.595500000001,
+      "price": 0.3199,
+      "volume": 43256,
+      "dollar_volume": 13837.5944,
       "source": "realtime_gainer",
       "discovered_at": "2026-01-06T03:00:51.388747",
-      "score": 30.0,
-      "score_v2": 35.0,
-      "stage": "Stage 2 (OBV Divergence)",
-      "stage_number": 2,
+      "score": 50.0,
+      "score_v2": 50.0,
+      "stage": "Gainer (실시간)",
+      "stage_number": 3,
       "signals": {
         "realtime_gainer": true,
         "tight_range": false,
@@ -2164,15 +2120,15 @@
     {
       "ticker": "CUBWW",
       "change_pct": 37.49338974087785,
-      "price": 0.26,
-      "volume": 12423,
-      "dollar_volume": 3229.98,
+      "price": 0.2246,
+      "volume": 12070,
+      "dollar_volume": 2710.922,
       "source": "realtime_gainer",
       "discovered_at": "2026-01-06T03:01:03.742345",
-      "score": 0.0,
-      "score_v2": 7.5,
-      "stage": "No Signal",
-      "stage_number": 0,
+      "score": 50.0,
+      "score_v2": 50.0,
+      "stage": "Gainer (실시간)",
+      "stage_number": 3,
       "signals": {
         "realtime_gainer": true,
         "tight_range": false,
@@ -2185,15 +2141,15 @@
     {
       "ticker": "MRNO",
       "change_pct": 35.73883161512029,
-      "price": 0.8474,
-      "volume": 7663747.0,
-      "dollar_volume": 6494259.2078,
+      "price": 0.79,
+      "volume": 92188,
+      "dollar_volume": 72828.52,
       "source": "realtime_gainer",
       "discovered_at": "2026-01-06T03:04:46.828799",
-      "score": 80.0,
-      "score_v2": 23.4,
-      "stage": "Stage 4 (Tight Range)",
-      "stage_number": 4,
+      "score": 50.0,
+      "score_v2": 50.0,
+      "stage": "Gainer (실시간)",
+      "stage_number": 3,
       "signals": {
         "realtime_gainer": true,
         "tight_range": false,
@@ -2206,15 +2162,15 @@
     {
       "ticker": "KITTW",
       "change_pct": 34.453781512605055,
-      "price": 0.0855,
-      "volume": 344450,
-      "dollar_volume": 29450.475000000002,
+      "price": 0.08,
+      "volume": 308475,
+      "dollar_volume": 24678.0,
       "source": "realtime_gainer",
       "discovered_at": "2026-01-06T03:06:33.893216",
-      "score": 30.0,
-      "score_v2": 35.0,
-      "stage": "Stage 2 (OBV Divergence)",
-      "stage_number": 2,
+      "score": 50.0,
+      "score_v2": 50.0,
+      "stage": "Gainer (실시간)",
+      "stage_number": 3,
       "signals": {
         "realtime_gainer": true,
         "tight_range": false,
@@ -2228,30 +2184,10 @@
       "ticker": "PBMWW",
       "change_pct": 37.56906077348064,
       "price": 0.0249,
-      "volume": 38805,
-      "dollar_volume": 966.2444999999999,
+      "volume": 29805,
+      "dollar_volume": 742.1445,
       "source": "realtime_gainer",
       "discovered_at": "2026-01-06T03:54:20.759646",
-      "score": 0.0,
-      "score_v2": 0.0,
-      "stage": "No Signal",
-      "stage_number": 0,
-      "signals": {
-        "tight_range": false,
-        "accumulation_bar": false,
-        "obv_divergence": false,
-        "volume_dryout": false
-      },
-      "can_trade": false
-    },
-    {
-      "ticker": "DTSS",
-      "change_pct": 37.34658094681472,
-      "price": 0.873,
-      "volume": 282141,
-      "dollar_volume": 246309.093,
-      "source": "realtime_gainer",
-      "discovered_at": "2026-01-06T04:07:18.672364",
       "score": 0.0,
       "score_v2": 0.0,
       "stage": "No Signal",

@@ -1,0 +1,70 @@
+=== 50.0점 종목 상세 분석 ===
+
+[MOBX] 일봉: 20일
+  score (v1): 30.0
+  score_v2:   35.0
+  stage:      Stage 2 (OBV Divergence)
+  signals:    {'tight_range': False, 'accumulation_bar': False, 'obv_divergence': True, 'volume_dryout': False}
+  intensities:
+    - tight_range: 0.00 (0%)
+    - obv_divergence: 1.00 (100%)
+    - accumulation_bar: 0.00 (0%)
+    - volume_dryout: 0.00 (0%)
+
+[ACFN] 일봉: 20일
+  score (v1): 0.0
+  score_v2:   0.0
+  stage:      No Signal
+  signals:    {'tight_range': False, 'accumulation_bar': False, 'obv_divergence': False, 'volume_dryout': False}
+  intensities:
+    - tight_range: 0.00 (0%)
+    - obv_divergence: 0.00 (0%)
+    - accumulation_bar: 0.00 (0%)
+    - volume_dryout: 0.00 (0%)
+
+[MRNOW] 일봉: 20일
+  score (v1): 10.0
+  score_v2:   4.9
+  stage:      Stage 1 (Volume Dry-out)
+  signals:    {'tight_range': False, 'accumulation_bar': False, 'obv_divergence': False, 'volume_dryout': True}
+  intensities:
+    - tight_range: 0.00 (0%)
+    - obv_divergence: 0.00 (0%)
+    - accumulation_bar: 0.00 (0%)
+    - volume_dryout: 0.49 (49%)
+
+[BFRGW] 일봉: 20일
+  score (v1): 30.0
+  score_v2:   35.0
+  stage:      Stage 2 (OBV Divergence)
+  signals:    {'tight_range': False, 'accumulation_bar': False, 'obv_divergence': True, 'volume_dryout': False}
+  intensities:
+    - tight_range: 0.00 (0%)
+    - obv_divergence: 1.00 (100%)
+    - accumulation_bar: 0.00 (0%)
+    - volume_dryout: 0.00 (0%)
+
+[CUBWW] 일봉: 20일
+  score (v1): 0.0
+  score_v2:   7.5
+  stage:      No Signal
+  signals:    {'tight_range': False, 'accumulation_bar': False, 'obv_divergence': False, 'volume_dryout': False}
+  intensities:
+    - tight_range: 0.25 (25%)
+    - obv_divergence: 0.00 (0%)
+    - accumulation_bar: 0.00 (0%)
+    - volume_dryout: 0.00 (0%)
+
+[MRTNO] 일봉: 0일 → 데이터 부족
+
+[KITTW] 일봉: 20일
+  score (v1): 30.0
+  score_v2:   35.0
+  stage:      Stage 2 (OBV Divergence)
+  signals:    {'tight_range': False, 'accumulation_bar': False, 'obv_divergence': True, 'volume_dryout': False}
+  intensities:
+    - tight_range: 0.00 (0%)
+    - obv_divergence: 1.00 (100%)
+    - accumulation_bar: 0.00 (0%)
+    - volume_dryout: 0.00 (0%)
+
