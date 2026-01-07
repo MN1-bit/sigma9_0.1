@@ -4,103 +4,164 @@
 Tier1 Watchlist의 `change%` 컬럼이 실시간으로 업데이트되지 않음.
 
 ## 근본 원인
-`dashboard.py`의 `_on_tick_received()` 메서드에서 **Tier2 테이블만** 실시간 가격 업데이트를 수행함.
-Tier1 Watchlist는 백엔드 브로드캐스트(1초 간격)에 의존하여 change%가 고정됨.
+현재 아키텍처는 **Tier2 종목만** T 채널(틱)을 구독하여 실시간 가격을 수신함.
+Tier1 종목은 Gainers API 폴링(1초)에 의존하지만, 이는 **Top 21개 급등주만** 반환하므로 Watchlist 전체 종목을 커버하지 못함.
 
-```python
-# 현재 코드 (라인 1856~1868)
-if hasattr(self, '_tier2_cache') and ticker in self._tier2_cache:
-    self._tier2_cache[ticker].price = price
-    # Tier2 테이블만 업데이트
-```
+## 제안된 해결책: Massive A 채널 (1초봉) 구독
 
-## 제안된 해결책
+### 왜 A 채널인가?
 
-### Phase 1: 가격 캐시 활용
-1. `_on_tick_received()`에서 가격 캐시 업데이트 시, Tier1에도 해당 종목이 있는지 확인
-2. `watchlist_model.update_price(ticker, new_price, new_change_pct)` 메서드 추가
-3. `change_pct` 재계산: `(new_price - prev_close) / prev_close * 100`
+| 채널 | 설명 | 초당 메시지 | 적합성 |
+|------|------|-----------|--------|
+| **T** | 틱 (매 체결) | 수십~수백/종목 | ⚠️ 부하 높음 |
+| **AM** | 1분봉 | 1/분/종목 | ❌ 너무 느림 |
+| **A** | **1초봉** | **1/초/종목** | ✅ 최적 |
 
-### Phase 2: prev_close 저장
-- `_watchlist_data` 캐시에 `prev_close` 필드 저장 (백엔드 브로드캐스트에서 수신)
+Tier1 종목 50개 × 1메시지/초 = **50 메시지/초** (가벼움)
 
 ---
 
-## 수정 파일
+## 구현 계획
 
-### [MODIFY] [watchlist_model.py](file:///d:/Codes/Sigma9-0.1/frontend/gui/watchlist_model.py)
+### Phase 1: SubscriptionManager 확장
 
-**추가**: `update_price()` 메서드
+#### [MODIFY] [subscription_manager.py](file:///d:/Codes/Sigma9-0.1/backend/core/subscription_manager.py)
+
+**변경 1**: Tier1용 A 채널 구독 메서드 추가
+
 ```python
-def update_price(self, ticker: str, price: float, change_pct: float):
+async def subscribe_tier1_second_bars(self, tickers: List[str]):
     """
-    실시간 가격 및 change% 업데이트
+    Tier1 종목 1초봉(A 채널) 구독
+    
+    change% 실시간 업데이트를 위해 모든 Tier1 종목에 1초봉 구독
     
     Args:
-        ticker: 종목 코드
-        price: 현재 가격
-        change_pct: 등락율
+        tickers: Tier1 종목 목록
     """
-    if ticker not in self._ticker_to_row:
+    if not self.massive_ws or not self.massive_ws.is_connected:
         return
     
-    row = self._ticker_to_row[ticker]
+    from backend.data.massive_ws_client import Channel
     
-    # Change % 컬럼 업데이트
-    sign = "+" if change_pct >= 0 else ""
-    change_item = QStandardItem(f"{sign}{change_pct:.1f}%")
-    change_item.setData(change_pct, Qt.ItemDataRole.UserRole)
-    if change_pct >= 0:
-        change_item.setForeground(self._color_success)
-    else:
-        change_item.setForeground(self._color_danger)
-    self.setItem(row, self.COL_CHANGE, change_item)
+    if not hasattr(self, '_second_bar_subscribed'):
+        self._second_bar_subscribed: Set[str] = set()
+    
+    new_tickers = [t for t in tickers if t not in self._second_bar_subscribed]
+    if new_tickers:
+        await self.massive_ws.subscribe(new_tickers, Channel.A)
+        self._second_bar_subscribed.update(new_tickers)
+        logger.info(f"📋 Second bar (A) subscribed: {len(new_tickers)} tickers")
+```
+
+**변경 2**: `sync_watchlist()` 호출 시 A 채널 자동 구독
+
+```python
+async def sync_watchlist(self, watchlist: List[str]):
+    # ... 기존 AM 채널 동기화 로직 ...
+    
+    # [NEW] Tier1 종목 A 채널 구독 (change% 실시간 업데이트)
+    await self.subscribe_tier1_second_bars(list(watchlist_set))
 ```
 
 ---
 
-### [MODIFY] [dashboard.py](file:///d:/Codes/Sigma9-0.1/frontend/gui/dashboard.py)
+### Phase 2: 1초봉 수신 및 가격 캐시 업데이트
 
-**수정 1**: `_update_watchlist_panel()` (라인 1350~1393)
-- `_prev_close_cache` 추가하여 prev_close 저장
+#### [MODIFY] [massive_ws_client.py](file:///d:/Codes/Sigma9-0.1/backend/data/massive_ws_client.py)
 
-```python
-# _watchlist_data에 prev_close 추가 저장
-if isinstance(item, WatchlistItem):
-    prev_close = getattr(item, 'prev_close', 0) or getattr(item, 'last_close', 0)
-else:
-    prev_close = item.get("prev_close", 0) or item.get("last_close", 0)
-
-self._watchlist_data[ticker] = {
-    # ... 기존 필드 ...
-    "prev_close": prev_close,
-}
-```
-
-**수정 2**: `_on_tick_received()` (라인 1827~)
-- Tier1 업데이트 로직 추가
+**변경**: A 채널 메시지 파싱 추가 (이미 T, AM이 있으므로 A 추가)
 
 ```python
-# [NEW] Tier1 Watchlist 실시간 업데이트
-if hasattr(self, '_watchlist_data') and ticker in self._watchlist_data:
-    data = self._watchlist_data[ticker]
-    prev_close = data.get("prev_close", 0)
-    if prev_close > 0:
-        new_change_pct = (price - prev_close) / prev_close * 100
-        self.watchlist_model.update_price(ticker, price, new_change_pct)
+elif ev == "A":
+    # Aggregate Second (1초봉)
+    bar = {
+        "type": "second_bar",
+        "ticker": data.get("sym"),
+        "timeframe": "1s",
+        "time": data.get("s", 0) / 1000,
+        "open": data.get("o"),
+        "high": data.get("h"),
+        "low": data.get("l"),
+        "close": data.get("c"),
+        "volume": data.get("v"),
+        "vwap": data.get("a"),
+    }
+    
+    if self.on_second_bar:
+        self.on_second_bar(bar)
+    
+    return bar
 ```
+
+---
+
+### Phase 3: RealtimeScanner 가격 캐시 연동
+
+#### [MODIFY] [realtime_scanner.py](file:///d:/Codes/Sigma9-0.1/backend/core/realtime_scanner.py)
+
+**변경**: A 채널 콜백 등록 및 `_latest_prices` 업데이트
+
+```python
+# start() 메서드에서:
+if massive_ws:
+    massive_ws.on_second_bar = self._on_second_bar_received
+
+def _on_second_bar_received(self, bar: dict):
+    """1초봉 수신 시 가격 캐시 업데이트"""
+    ticker = bar.get("ticker")
+    price = bar.get("close", 0)
+    volume = bar.get("volume", 0)
+    
+    if ticker and price > 0:
+        self._latest_prices[ticker] = (price, volume)
+```
+
+이미 `_periodic_watchlist_broadcast()`에서 `_latest_prices`를 사용해 `change_pct`를 재계산하므로, 자동으로 GUI에 반영됨.
+
+---
+
+### Phase 4: Frontend 업데이트
+
+> [!NOTE]
+> Frontend 수정 불필요. 현재 `_update_watchlist_panel()`이 이미 `change_pct` 값을 수신하여 표시 중.
+
+---
+
+## 예상 효과
+
+| 항목 | 수정 전 | 수정 후 |
+|------|--------|--------|
+| change% 업데이트 빈도 | Gainers에 있을 때만 (불확실) | **매 1초** |
+| 커버리지 | Top 21 급등주만 | **Tier1 전체** |
+| 추가 부하 | - | 50 메시지/초 (미미) |
 
 ---
 
 ## 검증 계획
 
+### 자동 테스트
+- 없음 (실시간 WebSocket 테스트는 Mocking 필요)
+
 ### 수동 테스트
 1. 애플리케이션 실행: `python -m frontend.main`
 2. 백엔드 연결 후 Watchlist에 종목이 표시될 때까지 대기
-3. Watchlist에서 종목 선택 → 차트 로드
-4. Tier2로 승격된 종목이 있다면, Tier1의 동일 종목 change%도 함께 업데이트되는지 확인
-5. 확인 포인트: Tier1과 Tier2의 change%가 실시간으로 동기화됨
+3. Tier1 종목의 `change%` 컬럼이 1초마다 변경되는지 확인
+4. 로그에서 `📋 Second bar (A) subscribed` 메시지 확인
 
-> [!NOTE]
-> 이 기능은 Tier2에 승격된 종목에 대해 틱 구독이 활성화된 경우에만 동작합니다.
-> Tier1 전용 종목은 여전히 1초 브로드캐스트에 의존합니다.
+---
+
+## 대안 고려사항
+
+### 왜 T 채널(틱)을 사용하지 않는가?
+
+T 채널은 매 체결마다 메시지가 발생하여:
+- NVDA 같은 고거래량 종목: **초당 수백 틱**
+- 50개 종목 × 100틱/초 = **5,000 메시지/초**
+
+A 채널(1초봉)은 정확히 **50 메시지/초**로 99% 적은 부하.
+
+### Gainers API만으로 충분하지 않은 이유
+
+Gainers API는 **Top 21개 급등주만** 반환.
+Watchlist에 추가된 후 순위가 떨어지면 price 업데이트가 중단됨.

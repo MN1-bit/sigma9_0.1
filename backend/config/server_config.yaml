@@ -57,9 +57,9 @@ market_data:
 # ═══════════════════════════════════════════════════════════════════════════
 # Polygon.io Settings (데이터 소스)
 # ═══════════════════════════════════════════════════════════════════════════
-polygon:
+massive:
   enabled: true               # Polygon 데이터 소스 활성화
-  base_url: "https://api.polygon.io"
+  base_url: "https://api.massive.com"
   rate_limit: 5               # Free Tier: 5 req/min
   retry_count: 3              # API 실패 시 재시도 횟수
   retry_delay: 2.0            # 재시도 대기 시간 (초)

@@ -54,7 +54,7 @@ class DailyBar(Base):
     """
     일별 OHLCV 데이터 모델
     
-    Polygon.io의 Grouped Daily API에서 받아온 데이터를 저장합니다.
+    Massive.com의 Grouped Daily API에서 받아온 데이터를 저장합니다.
     각 종목(ticker)과 날짜(date)의 조합이 Primary Key입니다.
     
     Attributes:
@@ -129,7 +129,7 @@ class IntradayBar(Base):
     """
     Intraday OHLCV 데이터 모델 (1m, 5m, 15m, 1h)
     
-    Polygon.io의 Aggregates API에서 받아온 분봉/시봉 데이터를 저장합니다.
+    Massive.com의 Aggregates API에서 받아온 분봉/시봉 데이터를 저장합니다.
     각 종목(ticker), 타임프레임(timeframe), 타임스탬프(timestamp)의 조합이 Primary Key입니다.
     
     Attributes:
@@ -212,7 +212,7 @@ class Ticker(Base):
     종목 메타정보 및 펀더멘털 데이터 모델
     
     Universe Filter에 사용되는 시가총액, Float 등의 정보를 저장합니다.
-    Polygon.io의 Ticker Details API에서 가져옵니다.
+    Massive.com의 Ticker Details API에서 가져옵니다.
     
     Attributes:
         ticker: 종목 심볼 (Primary Key)

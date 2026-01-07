@@ -268,7 +268,7 @@ class TradingScheduler:
                 return
             
             # 기본 업데이트 로직
-            from backend.data.polygon_loader import update_market_data
+            from backend.data.massive_loader import update_market_data
             
             if self.db:
                 await update_market_data(self.db)

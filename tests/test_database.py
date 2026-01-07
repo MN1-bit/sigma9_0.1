@@ -327,7 +327,7 @@ async def test_bulk_insert_performance(temp_db):
     대량 데이터 삽입 성능 테스트
     
     5000개 종목 × 1일 = 5000 레코드
-    실제 Polygon Grouped Daily 응답 규모
+    실제 Massive Grouped Daily 응답 규모
     """
     import time
     

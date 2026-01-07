@@ -319,7 +319,7 @@ class IgnitionMonitor:
         # https://polygon.io/docs/stocks/get_v2_snapshot_locale_us_markets_stocks_tickers
         try:
             # 전체 스냅샷 조회
-            url = f"https://api.polygon.io/v2/snapshot/locale/us/markets/stocks/tickers"
+            url = f"https://api.massive.com/v2/snapshot/locale/us/markets/stocks/tickers"
             params = {
                 "tickers": ",".join(tickers[:50]),  # 최대 50개
                 "apiKey": self._api_key

@@ -641,7 +641,7 @@ class Sigma9Dashboard(CustomWindow):
         # ═══════════════════════════════════════════════════════════════════
         # 2. Tier 1 Watchlist (하단)
         # [Issue 01-004] QTableWidget → QTableView + WatchlistModel 전환
-        # [Phase 9] Score V2 Refresh 버튼 + Last Updated 라벨 추가
+        # [Phase 9] Score V3 Refresh 버튼 + Last Updated 라벨 추가
         # ═══════════════════════════════════════════════════════════════════
         
         # Tier 1 헤더 레이아웃 (라벨 + 버튼 + 업데이트 시각)
@@ -661,19 +661,19 @@ class Sigma9Dashboard(CustomWindow):
         tier1_header.addStretch()
         
         # [Phase 9] Last Updated 라벨
-        self._score_v2_updated_label = QLabel("Score V2: --:--")
+        self._score_v2_updated_label = QLabel("Score V3: --:--")
         self._score_v2_updated_label.setStyleSheet(f"""
             color: {c['text_secondary']};
             font-size: 9px;
             background: transparent;
             border: none;
         """)
-        self._score_v2_updated_label.setToolTip("마지막 Score V2 재계산 시각")
+        self._score_v2_updated_label.setToolTip("마지막 Score V3 재계산 시각")
         tier1_header.addWidget(self._score_v2_updated_label)
         
         # [Phase 9] Score V2 Refresh 버튼
         self._refresh_score_v2_btn = QPushButton("🔄")
-        self._refresh_score_v2_btn.setToolTip("Score V2 재계산 (Watchlist 전체 아님)")
+        self._refresh_score_v2_btn.setToolTip("Score V3 재계산 (Watchlist 전체 아님)")
         self._refresh_score_v2_btn.setFixedSize(24, 24)
         self._refresh_score_v2_btn.setStyleSheet(f"""
             QPushButton {{
@@ -886,19 +886,19 @@ class Sigma9Dashboard(CustomWindow):
     
     def _on_refresh_score_v2(self):
         """
-        [Phase 9] Score V2 재계산 버튼 클릭 핸들러
+        [Phase 9] Score V3 재계산 버튼 클릭 핸들러
         
-        Watchlist 전체가 아닌 Score V2만 재계산합니다.
+        Watchlist 전체가 아닌 Score V3만 재계산합니다.
         API 호출: POST /api/watchlist/recalculate
         """
         import threading
         from datetime import datetime
         
         if not hasattr(self, 'backend_client') or not self.backend_client.is_connected():
-            self.log("[WARN] Backend 미연결 - Score V2 재계산 불가")
+            self.log("[WARN] Backend 미연결 - Score V3 재계산 불가")
             return
         
-        self.log("[INFO] Score V2 재계산 시작...")
+        self.log("[INFO] Score V3 재계산 시작...")
         self._refresh_score_v2_btn.setEnabled(False)
         self._refresh_score_v2_btn.setText("⏳")
         
@@ -951,10 +951,10 @@ class Sigma9Dashboard(CustomWindow):
         
         if result.get("success"):
             timestamp = result.get("timestamp", "--:--:--")
-            self._score_v2_updated_label.setText(f"Score V2: {timestamp}")
-            self.log(f"[INFO] Score V2 재계산 완료: {result.get('count_success', 0)}개 성공, {result.get('count_failed', 0)}개 실패")
+            self._score_v2_updated_label.setText(f"Score V3: {timestamp}")
+            self.log(f"[INFO] Score V3 재계산 완료: {result.get('count_success', 0)}개 성공, {result.get('count_failed', 0)}개 실패")
         else:
-            self.log(f"[ERROR] Score V2 재계산 실패: {result.get('error', 'Unknown')}")
+            self.log(f"[ERROR] Score V3 재계산 실패: {result.get('error', 'Unknown')}")
 
 
     def _create_center_panel(self) -> QFrame:
@@ -1508,13 +1508,13 @@ class Sigma9Dashboard(CustomWindow):
                 ticker = item.ticker
                 change_pct = item.change_pct
                 score = item.score
-                score_v2 = getattr(item, 'score_v2', None)  # [02-001] v2 점수 (없으면 None)
+                score_v3 = getattr(item, 'score_v3', None)  # [03-001] v3 점수 (없으면 None)
                 dollar_volume = getattr(item, 'dollar_volume', 0) or getattr(item, 'avg_volume', 0) * getattr(item, 'last_close', 0)
             else:
                 ticker = item.get("ticker", "UNKNOWN")
                 change_pct = item.get("change_pct", 0.0)
                 score = item.get("score", 0)
-                score_v2 = item.get("score_v2")  # [02-001] v2 점수 (없으면 None)
+                score_v3 = item.get("score_v3")  # [03-001] v3 점수 (없으면 None)
                 dollar_volume = item.get("dollar_volume", 0) or item.get("avg_volume", 0) * item.get("last_close", 0)
             
             # [Issue 6.3 Fix] Watchlist 캐시에 저장
@@ -1527,14 +1527,21 @@ class Sigma9Dashboard(CustomWindow):
             # Ignition Score (캐시에서)
             ignition_score = self._ignition_cache.get(ticker, 0.0)
             
+            # [02-001c FIX] intensities 추출
+            if isinstance(item, WatchlistItem):
+                intensities = getattr(item, 'intensities', {})
+            else:
+                intensities = item.get("intensities", {})
+            
             # Model 업데이트 (WatchlistModel이 정렬/색상/포맷 처리)
             item_data = {
                 "ticker": ticker,
                 "change_pct": change_pct,
                 "dollar_volume": dollar_volume,
                 "score": score,
-                "score_v2": score_v2,  # [02-001] v2 점수 추가
+                "score_v3": score_v3,  # [03-001] v3 점수 추가
                 "ignition": ignition_score,
+                "intensities": intensities,  # [02-001c] 신호 강도 추가
             }
             self.watchlist_model.update_item(item_data)
         

@@ -1,21 +1,21 @@
 # ============================================================================
-# Symbol Mapping Service - Polygon ↔ IBKR 티커 매핑
+# Symbol Mapping Service - Massive ↔ IBKR 티커 매핑
 # ============================================================================
 # 📌 이 파일의 역할:
-#   - Polygon.io 티커 ↔ IBKR 티커 간 변환
+#   - Massive.com 티커 ↔ IBKR 티커 간 변환
 #   - 일부 종목은 양 데이터 소스에서 다른 심볼을 사용
 #   - 예: BRK.A (IBKR) ↔ BRK/A (Polygon)
 #
 # 📖 사용 예시:
 #   >>> mapper = SymbolMapper()
-#   >>> ibkr_symbol = mapper.polygon_to_ibkr("BRK/A")
+#   >>> ibkr_symbol = mapper.MASSIVE_TO_IBKR("BRK/A")
 #   >>> print(ibkr_symbol)  # "BRK.A"
 # ============================================================================
 
 """
 Symbol Mapping Service
 
-Polygon.io와 IBKR 간 티커 심볼 차이를 처리합니다.
+Massive.com와 IBKR 간 티커 심볼 차이를 처리합니다.
 
 주요 차이점:
     - 클래스 주식: Polygon은 "/" 사용 (BRK/A), IBKR은 "." 사용 (BRK.A)
@@ -32,15 +32,15 @@ import re
 # 정적 매핑 테이블
 # ═══════════════════════════════════════════════════════════════════════════
 
-# Polygon → IBKR 수동 매핑 (알려진 불일치 케이스)
-# 키: Polygon 심볼, 값: IBKR 심볼
-POLYGON_TO_IBKR_MANUAL: Dict[str, str] = {
+# Massive → IBKR 수동 매핑 (알려진 불일치 케이스)
+# 키: Massive 심볼, 값: IBKR 심볼
+MASSIVE_TO_IBKR_MANUAL: Dict[str, str] = {
     # 클래스 주식 예시 (슬래시 → 점)
     # 대부분은 자동 변환으로 처리됨, 예외만 여기에 추가
 }
 
-# IBKR → Polygon 수동 매핑
-IBKR_TO_POLYGON_MANUAL: Dict[str, str] = {
+# IBKR → Massive 수동 매핑
+IBKR_TO_MASSIVE_MANUAL: Dict[str, str] = {
     # 역방향 매핑
 }
 
@@ -59,20 +59,20 @@ EXCLUDED_PATTERNS = [
 
 class SymbolMapper:
     """
-    Polygon.io ↔ IBKR 심볼 매퍼
+    Massive.com ↔ IBKR 심볼 매퍼
     
     티커 심볼 형식 차이를 자동으로 처리합니다.
     
     주요 기능:
-        - polygon_to_ibkr(): Polygon 심볼 → IBKR 심볼
-        - ibkr_to_polygon(): IBKR 심볼 → Polygon 심볼
+        - MASSIVE_TO_IBKR(): Massive 심볼 → IBKR 심볼
+        - IBKR_TO_MASSIVE(): IBKR 심볼 → Massive 심볼
         - is_tradeable(): IBKR에서 거래 가능한 심볼인지 확인
     
     Example:
         >>> mapper = SymbolMapper()
-        >>> mapper.polygon_to_ibkr("BRK/A")
+        >>> mapper.MASSIVE_TO_IBKR("BRK/A")
         'BRK.A'
-        >>> mapper.ibkr_to_polygon("BRK.A")
+        >>> mapper.IBKR_TO_MASSIVE("BRK.A")
         'BRK/A'
     """
     
@@ -82,23 +82,23 @@ class SymbolMapper:
         self._excluded_patterns = [re.compile(p) for p in EXCLUDED_PATTERNS]
         
         # 역방향 매핑 테이블 생성
-        self._polygon_to_ibkr = POLYGON_TO_IBKR_MANUAL.copy()
-        self._ibkr_to_polygon = IBKR_TO_POLYGON_MANUAL.copy()
+        self._MASSIVE_TO_IBKR = MASSIVE_TO_IBKR_MANUAL.copy()
+        self._IBKR_TO_MASSIVE = IBKR_TO_MASSIVE_MANUAL.copy()
         
-        # POLYGON_TO_IBKR_MANUAL의 역방향 자동 생성
-        for polygon_sym, ibkr_sym in POLYGON_TO_IBKR_MANUAL.items():
-            if ibkr_sym not in self._ibkr_to_polygon:
-                self._ibkr_to_polygon[ibkr_sym] = polygon_sym
+        # MASSIVE_TO_IBKR_MANUAL의 역방향 자동 생성
+        for massive_sym, ibkr_sym in MASSIVE_TO_IBKR_MANUAL.items():
+            if ibkr_sym not in self._IBKR_TO_MASSIVE:
+                self._IBKR_TO_MASSIVE[ibkr_sym] = massive_sym
         
-        logger.debug(f"🔄 SymbolMapper 초기화 (수동 매핑: {len(self._polygon_to_ibkr)}개)")
+        logger.debug(f"🔄 SymbolMapper 초기화 (수동 매핑: {len(self._MASSIVE_TO_IBKR)}개)")
     
     # ═══════════════════════════════════════════════════════════════════════
     # 변환 메서드
     # ═══════════════════════════════════════════════════════════════════════
     
-    def polygon_to_ibkr(self, polygon_symbol: str) -> Optional[str]:
+    def MASSIVE_TO_IBKR(self, massive_symbol: str) -> Optional[str]:
         """
-        Polygon 심볼 → IBKR 심볼 변환
+        Massive 심볼 → IBKR 심볼 변환
         
         변환 규칙:
             1. 수동 매핑 테이블 확인
@@ -107,29 +107,29 @@ class SymbolMapper:
             4. 제외 패턴 체크
         
         Args:
-            polygon_symbol: Polygon.io 심볼 (예: "BRK/A", "AAPL")
+            massive_symbol: Massive.com 심볼 (예: "BRK/A", "AAPL")
         
         Returns:
             str: IBKR 심볼, 또는 None (거래 불가 심볼)
         
         Example:
-            >>> mapper.polygon_to_ibkr("BRK/A")
+            >>> mapper.MASSIVE_TO_IBKR("BRK/A")
             'BRK.A'
-            >>> mapper.polygon_to_ibkr("AAPL")
+            >>> mapper.MASSIVE_TO_IBKR("AAPL")
             'AAPL'
         """
-        if not polygon_symbol:
+        if not massive_symbol:
             return None
         
-        symbol = polygon_symbol.upper().strip()
+        symbol = massive_symbol.upper().strip()
         
         # 1. 제외 패턴 체크
         if self._is_excluded(symbol):
             return None
         
         # 2. 수동 매핑 확인
-        if symbol in self._polygon_to_ibkr:
-            return self._polygon_to_ibkr[symbol]
+        if symbol in self._MASSIVE_TO_IBKR:
+            return self._MASSIVE_TO_IBKR[symbol]
         
         # 3. 자동 변환: "/" → "." (클래스 주식)
         # 예: BRK/A → BRK.A, GOOG/L → GOOG.L
@@ -137,18 +137,18 @@ class SymbolMapper:
         
         return ibkr_symbol
     
-    def ibkr_to_polygon(self, ibkr_symbol: str) -> Optional[str]:
+    def IBKR_TO_MASSIVE(self, ibkr_symbol: str) -> Optional[str]:
         """
-        IBKR 심볼 → Polygon 심볼 변환
+        IBKR 심볼 → Massive 심볼 변환
         
         Args:
             ibkr_symbol: IBKR 심볼 (예: "BRK.A", "AAPL")
         
         Returns:
-            str: Polygon.io 심볼, 또는 None (변환 불가)
+            str: Massive.com 심볼, 또는 None (변환 불가)
         
         Example:
-            >>> mapper.ibkr_to_polygon("BRK.A")
+            >>> mapper.IBKR_TO_MASSIVE("BRK.A")
             'BRK/A'
         """
         if not ibkr_symbol:
@@ -157,27 +157,27 @@ class SymbolMapper:
         symbol = ibkr_symbol.upper().strip()
         
         # 1. 수동 매핑 확인
-        if symbol in self._ibkr_to_polygon:
-            return self._ibkr_to_polygon[symbol]
+        if symbol in self._IBKR_TO_MASSIVE:
+            return self._IBKR_TO_MASSIVE[symbol]
         
         # 2. 자동 변환: "." → "/" (클래스 주식)
         # 주의: 일부 "."은 클래스가 아닌 다른 의미일 수 있음
         # 단순 변환만 수행, 복잡한 케이스는 수동 매핑 필요
-        polygon_symbol = symbol.replace(".", "/")
+        massive_symbol = symbol.replace(".", "/")
         
-        return polygon_symbol
+        return massive_symbol
     
-    def is_tradeable(self, polygon_symbol: str) -> bool:
+    def is_tradeable(self, massive_symbol: str) -> bool:
         """
         IBKR에서 거래 가능한 심볼인지 확인
         
         Args:
-            polygon_symbol: Polygon.io 심볼
+            massive_symbol: Massive.com 심볼
         
         Returns:
             bool: 거래 가능 여부
         """
-        return self.polygon_to_ibkr(polygon_symbol) is not None
+        return self.MASSIVE_TO_IBKR(massive_symbol) is not None
     
     # ═══════════════════════════════════════════════════════════════════════
     # 유틸리티
@@ -193,14 +193,14 @@ class SymbolMapper:
     def batch_convert(
         self, 
         symbols: list[str], 
-        direction: str = "polygon_to_ibkr"
+        direction: str = "MASSIVE_TO_IBKR"
     ) -> Dict[str, Optional[str]]:
         """
         여러 심볼 일괄 변환
         
         Args:
             symbols: 변환할 심볼 리스트
-            direction: "polygon_to_ibkr" 또는 "ibkr_to_polygon"
+            direction: "MASSIVE_TO_IBKR" 또는 "IBKR_TO_MASSIVE"
         
         Returns:
             dict: {원본 심볼: 변환된 심볼 또는 None}
@@ -211,8 +211,8 @@ class SymbolMapper:
         """
         result = {}
         convert_fn = (
-            self.polygon_to_ibkr if direction == "polygon_to_ibkr" 
-            else self.ibkr_to_polygon
+            self.MASSIVE_TO_IBKR if direction == "MASSIVE_TO_IBKR" 
+            else self.IBKR_TO_MASSIVE
         )
         
         for sym in symbols:
@@ -236,14 +236,14 @@ def get_symbol_mapper() -> SymbolMapper:
     return _mapper_instance
 
 
-def polygon_to_ibkr(symbol: str) -> Optional[str]:
-    """편의 함수: Polygon → IBKR 변환"""
-    return get_symbol_mapper().polygon_to_ibkr(symbol)
+def MASSIVE_TO_IBKR(symbol: str) -> Optional[str]:
+    """편의 함수: Massive → IBKR 변환"""
+    return get_symbol_mapper().MASSIVE_TO_IBKR(symbol)
 
 
-def ibkr_to_polygon(symbol: str) -> Optional[str]:
-    """편의 함수: IBKR → Polygon 변환"""
-    return get_symbol_mapper().ibkr_to_polygon(symbol)
+def IBKR_TO_MASSIVE(symbol: str) -> Optional[str]:
+    """편의 함수: IBKR → Massive 변환"""
+    return get_symbol_mapper().IBKR_TO_MASSIVE(symbol)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -261,12 +261,12 @@ if __name__ == "__main__":
     
     # 테스트 케이스
     test_cases = [
-        ("AAPL", "polygon_to_ibkr"),
-        ("BRK/A", "polygon_to_ibkr"),
-        ("GOOG", "polygon_to_ibkr"),
-        ("SPY", "polygon_to_ibkr"),
-        ("TEST.WS", "polygon_to_ibkr"),  # 제외 패턴
-        ("BRK.A", "ibkr_to_polygon"),
+        ("AAPL", "MASSIVE_TO_IBKR"),
+        ("BRK/A", "MASSIVE_TO_IBKR"),
+        ("GOOG", "MASSIVE_TO_IBKR"),
+        ("SPY", "MASSIVE_TO_IBKR"),
+        ("TEST.WS", "MASSIVE_TO_IBKR"),  # 제외 패턴
+        ("BRK.A", "IBKR_TO_MASSIVE"),
     ]
     
     print("\n" + "=" * 60)
@@ -274,11 +274,11 @@ if __name__ == "__main__":
     print("=" * 60)
     
     for symbol, direction in test_cases:
-        if direction == "polygon_to_ibkr":
-            result = mapper.polygon_to_ibkr(symbol)
+        if direction == "MASSIVE_TO_IBKR":
+            result = mapper.MASSIVE_TO_IBKR(symbol)
             print(f"  Polygon→IBKR: {symbol:10} → {result}")
         else:
-            result = mapper.ibkr_to_polygon(symbol)
+            result = mapper.IBKR_TO_MASSIVE(symbol)
             print(f"  IBKR→Polygon: {symbol:10} → {result}")
     
     # 배치 변환 테스트

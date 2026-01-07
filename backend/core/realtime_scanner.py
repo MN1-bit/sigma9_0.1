@@ -2,16 +2,16 @@
 # Realtime Gainers Scanner - 실시간 급등 종목 스캐너
 # ============================================================================
 # 📌 이 파일의 역할:
-#   - Polygon Gainers API를 1초 간격으로 폴링하여 급등 종목 탐지
+#   - Massive Gainers API를 1초 간격으로 폴링하여 급등 종목 탐지
 #   - 신규 종목 발견 시 Watchlist에 자동 추가 및 WebSocket 브로드캐스트
 #   - IgnitionMonitor에 자동 등록하여 실시간 모니터링 시작
 #
 # 📡 사용 API:
-#   - Polygon Gainers: /v2/snapshot/locale/us/markets/stocks/gainers
+#   - Massive Gainers: /v2/snapshot/locale/us/markets/stocks/gainers
 #     → ~10KB, 21개 종목, 1초 폴링 시 600KB/분 (무시 가능)
 #
 # 📖 사용 예시:
-#   >>> scanner = RealtimeScanner(polygon_client, ws_manager)
+#   >>> scanner = RealtimeScanner(massive_client, ws_manager)
 #   >>> await scanner.start()
 #   # 1초마다 급등주 폴링 시작
 #   >>> await scanner.stop()
@@ -20,7 +20,7 @@
 """
 Realtime Gainers Scanner Module
 
-Polygon Gainers API를 1초 간격으로 폴링하여 실시간 급등 종목을 탐지합니다.
+Massive Gainers API를 1초 간격으로 폴링하여 실시간 급등 종목을 탐지합니다.
 이전에 알려지지 않은 신규 종목이 발견되면:
 1. Watchlist에 자동 추가
 2. WebSocket으로 GUI에 브로드캐스트
@@ -43,7 +43,7 @@ class RealtimeScanner:
     ═══════════════════════════════════════════════════════════════════════
     역할:
     ═══════════════════════════════════════════════════════════════════════
-    - Polygon Gainers API를 1초마다 폴링
+    - Massive Gainers API를 1초마다 폴링
     - 신규 급등 종목 탐지 (Set diff)
     - Watchlist 자동 병합 + WebSocket 브로드캐스트
     
@@ -57,7 +57,7 @@ class RealtimeScanner:
     | Tier 2 승격 | ❌ 불가 | ✅ 자동 승격 |
     
     Attributes:
-        polygon_client: PolygonClient 인스턴스
+        massive_client: MassiveClient 인스턴스
         ws_manager: WebSocket ConnectionManager 인스턴스
         ignition_monitor: IgnitionMonitor 인스턴스 (Optional)
         poll_interval: 폴링 간격 (초, 기본값: 1.0)
@@ -65,7 +65,7 @@ class RealtimeScanner:
     
     def __init__(
         self,
-        polygon_client: Any,
+        massive_client: Any,
         ws_manager: Any,
         db: Optional[Any] = None,  # [02-001b] MarketDB 인스턴스
         ignition_monitor: Optional[Any] = None,
@@ -75,13 +75,13 @@ class RealtimeScanner:
         RealtimeScanner 초기화
         
         Args:
-            polygon_client: PolygonClient 인스턴스
+            massive_client: MassiveClient 인스턴스
             ws_manager: WebSocket ConnectionManager 인스턴스
-            db: MarketDB 인스턴스 (Optional, score_v2 계산용)
+            db: MarketDB 인스턴스 (Optional, score_v3 계산용)
             ignition_monitor: IgnitionMonitor 인스턴스 (Optional)
             poll_interval: 폴링 간격 (초, 기본값: 1.0)
         """
-        self.polygon_client = polygon_client
+        self.massive_client = massive_client
         self.ws_manager = ws_manager
         self.db = db  # [02-001b]
         self.ignition_monitor = ignition_monitor
@@ -93,7 +93,7 @@ class RealtimeScanner:
             try:
                 from backend.strategies.seismograph import SeismographStrategy
                 self.strategy = SeismographStrategy()
-                logger.info("📊 SeismographStrategy 초기화 완료 (score_v2 계산 활성화)")
+                logger.info("📊 SeismographStrategy 초기화 완료 (score_v3 계산 활성화)")
             except Exception as e:
                 logger.warning(f"⚠️ SeismographStrategy 초기화 실패: {e}")
         
@@ -222,7 +222,7 @@ class RealtimeScanner:
     async def _poll_gainers(self) -> None:
         """Gainers API 조회 및 신규 종목 탐지"""
         try:
-            gainers = await self.polygon_client.get_gainers()
+            gainers = await self.massive_client.get_gainers()
             
             if not gainers:
                 return
@@ -251,12 +251,12 @@ class RealtimeScanner:
         신규 급등 종목 처리
         
         1. DB에서 일봉 조회 → 없으면 API fetch
-        2. score_v2 계산
+        2. score_v3 계산
         3. Watchlist에 추가 (병합)
         4. WebSocket 브로드캐스트
         5. IgnitionMonitor에 등록 (있으면)
         
-        [02-001b] DB 기반 score_v2 계산 + Massive API fetch
+        [03-001] DB 기반 score_v3 계산 + Massive API fetch
         """
         ticker = item["ticker"]
         change_pct = item.get("change_pct", 0)
@@ -270,9 +270,9 @@ class RealtimeScanner:
         
         logger.info(f"🔥 신규 급등 종목 탐지: {ticker} +{change_pct:.1f}% @ ${price:.2f} (DolVol: ${dollar_volume:,.0f})")
         
-        # [02-001b] Score V2 계산 (DB + API fetch)
+        # [03-001] Score V3 계산 (DB + API fetch)
         score = None
-        score_v2 = None
+        score_v3 = None
         stage = "Gainer (실시간)"
         stage_number = 3
         signals = {
@@ -283,6 +283,7 @@ class RealtimeScanner:
             "volume_dryout": False,
         }
         can_trade = True
+        intensities = {}  # [02-001c] 신호 강도 데이터
         
         if self.db and self.strategy:
             try:
@@ -301,18 +302,19 @@ class RealtimeScanner:
                             for b in reversed(bars)]
                     result = self.strategy.calculate_watchlist_score_detailed(ticker, data)
                     score = result.get("score")
-                    score_v2 = result.get("score_v2")
+                    score_v3 = result.get("score_v3")
                     stage = result.get("stage", stage)
                     stage_number = result.get("stage_number", stage_number)
                     signals = result.get("signals", signals)
                     can_trade = result.get("can_trade", can_trade)
-                    logger.info(f"📊 {ticker}: score_v2={score_v2:.1f} (DB 기반)")
+                    intensities = result.get("intensities_v3", {})  # [03-003 FIX] V3 intensities 사용
+                    logger.info(f"📊 {ticker}: score_v3={score_v3:.1f} (DB 기반)")
                 else:
-                    logger.warning(f"⚠️ {ticker}: 일봉 데이터 부족, score_v2=None")
+                    logger.warning(f"⚠️ {ticker}: 일봉 데이터 부족, score_v3=None")
             except Exception as e:
                 logger.warning(f"⚠️ {ticker} score 계산 실패: {e}")
         
-        # 1. Watchlist 항목 생성 (score_v2 포함)
+        # 1. Watchlist 항목 생성 (score_v3 포함)
         watchlist_item = {
             "ticker": ticker,
             "change_pct": change_pct,
@@ -321,13 +323,14 @@ class RealtimeScanner:
             "dollar_volume": dollar_volume,
             "source": "realtime_gainer",
             "discovered_at": datetime.now().isoformat(),
-            # [02-001b] 계산된 score 값 사용 (없으면 None → GUI에서 ⚠️ 표시)
+            # [03-001] 계산된 score 값 사용 (없으면 None → GUI에서 ⚠️ 표시)
             "score": score,
-            "score_v2": score_v2,
+            "score_v3": score_v3,
             "stage": stage,
             "stage_number": stage_number,
             "signals": signals,
             "can_trade": can_trade,
+            "intensities": intensities,  # [02-001c] 신호 강도
         }
         
         # [Issue 6.2 Fix] 기존 Watchlist와 병합 (덮어쓰기 대신)
@@ -392,17 +395,17 @@ class RealtimeScanner:
         """
         from datetime import timedelta
         
-        if not self.polygon_client or not self.db:
-            logger.warning(f"⚠️ {ticker}: polygon_client 또는 db가 없어서 fetch 불가")
+        if not self.massive_client or not self.db:
+            logger.warning(f"⚠️ {ticker}: massive_client 또는 db가 없어서 fetch 불가")
             return 0
         
         try:
-            from backend.data.polygon_loader import PolygonLoader
+            from backend.data.massive_loader import MassiveLoader
             
             # 최근 N 거래일 계산
             end_date = datetime.now() - timedelta(days=1)
             start_date = end_date - timedelta(days=days)
-            trading_days = PolygonLoader.get_trading_days_between(start_date, end_date)
+            trading_days = MassiveLoader.get_trading_days_between(start_date, end_date)
             
             if not trading_days:
                 logger.warning(f"⚠️ {ticker}: 거래일 없음")
@@ -412,7 +415,7 @@ class RealtimeScanner:
             # 최근 10거래일만 fetch (API 부하 감소)
             for date in trading_days[-10:]:
                 try:
-                    bars = await self.polygon_client.fetch_grouped_daily(date)
+                    bars = await self.massive_client.fetch_grouped_daily(date)
                     if not bars:
                         continue
                     
@@ -460,12 +463,12 @@ class RealtimeScanner:
         - 실시간 가격으로 dollar_volume 재계산
         - 모든 필드가 최신 상태로 유지됨
         
-        [Phase 6] score_v2 없는 항목 실시간 계산
+        [Phase 6] score_v3 없는 항목 실시간 계산
         """
         logger.info("📡 Periodic Watchlist Broadcast 시작 (1초 간격)")
         
-        # [Phase 6] score_v2 계산이 필요한 티커 캐시 (중복 계산 방지)
-        _score_v2_calculated: set = set()
+        # [Phase 6] score_v3 계산이 필요한 티커 캐시 (중복 계산 방지)
+        _score_v3_calculated: set = set()
         
         while self._running:
             try:
@@ -483,7 +486,7 @@ class RealtimeScanner:
                 
                 # 실시간 가격/볼륨으로 dollar_volume 재계산 (Hydration)
                 hydrated_count = 0
-                score_v2_calculated_count = 0
+                score_v3_calculated_count = 0
                 watchlist_updated = False
                 
                 for item in watchlist:
@@ -499,9 +502,9 @@ class RealtimeScanner:
                         item["dollar_volume"] = price * volume
                         hydrated_count += 1
                     
-                    # [Phase 6] score_v2 없는 항목 실시간 계산
-                    score_v2 = item.get("score_v2")
-                    if (score_v2 is None or score_v2 == 0) and ticker not in _score_v2_calculated:
+                    # [Phase 6] score_v3 없는 항목 실시간 계산
+                    score_v3 = item.get("score_v3")
+                    if (score_v3 is None or score_v3 == 0) and ticker not in _score_v3_calculated:
                         if self.db and self.strategy:
                             try:
                                 bars = await self.db.get_daily_bars(ticker, days=20)
@@ -510,24 +513,25 @@ class RealtimeScanner:
                                             for b in reversed(bars)]
                                     result = self.strategy.calculate_watchlist_score_detailed(ticker, data)
                                     item["score"] = result.get("score")
-                                    item["score_v2"] = result.get("score_v2")
+                                    item["score_v3"] = result.get("score_v3")
                                     item["stage"] = result.get("stage", item.get("stage", ""))
                                     item["stage_number"] = result.get("stage_number", item.get("stage_number", 0))
-                                    score_v2_calculated_count += 1
+                                    item["intensities"] = result.get("intensities_v3", {})  # [03-001]
+                                    score_v3_calculated_count += 1
                                     watchlist_updated = True
-                                    logger.info(f"📊 {ticker}: score_v2={result.get('score_v2'):.1f} (Periodic 계산)")
+                                    logger.info(f"📊 {ticker}: score_v3={result.get('score_v3'):.1f} (Periodic 계산)")
                                 else:
                                     # [Phase 7] 일봉 5일 미만 → 신규/IPO 마커
-                                    item["score_v2"] = -1
+                                    item["score_v3"] = -1
                                     item["stage"] = "신규/IPO (데이터 부족)"
                                     watchlist_updated = True
                                     logger.info(f"🆕 {ticker}: 일봉 {len(bars) if bars else 0}일 미만 → 신규/IPO 마커")
-                                _score_v2_calculated.add(ticker)  # 성공/실패 상관없이 캐시에 추가
+                                _score_v3_calculated.add(ticker)  # 성공/실패 상관없이 캐시에 추가
                             except Exception as e:
-                                logger.debug(f"⚠️ {ticker} score_v2 계산 실패: {e}")
-                                _score_v2_calculated.add(ticker)
+                                logger.debug(f"⚠️ {ticker} score_v3 계산 실패: {e}")
+                                _score_v3_calculated.add(ticker)
                 
-                # [Phase 6] 계산된 score_v2를 저장소에 반영 (영구 저장)
+                # [Phase 6] 계산된 score_v3를 저장소에 반영 (영구 저장)
                 if watchlist_updated:
                     try:
                         save_watchlist(watchlist)
@@ -537,8 +541,8 @@ class RealtimeScanner:
                 # 브로드캐스트
                 if self.ws_manager:
                     await self.ws_manager.broadcast_watchlist(watchlist)
-                    if score_v2_calculated_count > 0:
-                        logger.debug(f"📤 Periodic Broadcast: {len(watchlist)}개 종목 ({hydrated_count}개 hydrated, {score_v2_calculated_count}개 score_v2 계산)")
+                    if score_v3_calculated_count > 0:
+                        logger.debug(f"📤 Periodic Broadcast: {len(watchlist)}개 종목 ({hydrated_count}개 hydrated, {score_v3_calculated_count}개 score_v3 계산)")
                     
             except asyncio.CancelledError:
                 break
@@ -553,7 +557,7 @@ class RealtimeScanner:
     
     async def recalculate_all_scores(self) -> dict:
         """
-        [Phase 9] 전체 Watchlist score_v2 순차 재계산
+        [Phase 9] 전체 Watchlist score_v3 순차 재계산
         
         부하 분산을 위해 1종목당 100ms 딜레이
         
@@ -572,7 +576,7 @@ class RealtimeScanner:
             return {"success": 0, "failed": 0, "skipped": 0, "timestamp": datetime.now().strftime("%H:%M:%S")}
         
         success, failed, skipped = 0, 0, 0
-        logger.info(f"🔄 Score V2 재계산 시작: {len(watchlist)}개 종목")
+        logger.info(f"🔄 Score V3 재계산 시작: {len(watchlist)}개 종목")
         
         for item in watchlist:
             ticker = item.get("ticker")
@@ -588,14 +592,15 @@ class RealtimeScanner:
                             for b in reversed(bars)]
                     result = self.strategy.calculate_watchlist_score_detailed(ticker, data)
                     item["score"] = result.get("score")
-                    item["score_v2"] = result.get("score_v2")
+                    item["score_v3"] = result.get("score_v3")
                     item["stage"] = result.get("stage", "")
                     item["stage_number"] = result.get("stage_number", 0)
+                    item["intensities"] = result.get("intensities_v3", {})  # [03-001]
                     success += 1
-                    logger.debug(f"📊 {ticker}: score_v2={result.get('score_v2'):.1f}")
+                    logger.debug(f"📊 {ticker}: score_v3={result.get('score_v3'):.1f}")
                 else:
                     # 일봉 부족 → 신규/IPO 마커
-                    item["score_v2"] = -1
+                    item["score_v3"] = -1
                     item["stage"] = "신규/IPO (데이터 부족)"
                     skipped += 1
                 
@@ -612,7 +617,7 @@ class RealtimeScanner:
             logger.warning(f"⚠️ Watchlist 저장 실패: {e}")
         
         timestamp = datetime.now().strftime("%H:%M:%S")
-        logger.info(f"✅ Score V2 재계산 완료: 성공={success}, 실패={failed}, 스킵={skipped} (at {timestamp})")
+        logger.info(f"✅ Score V3 재계산 완료: 성공={success}, 실패={failed}, 스킵={skipped} (at {timestamp})")
         
         # 브로드캐스트
         if self.ws_manager:
@@ -622,9 +627,9 @@ class RealtimeScanner:
     
     async def _periodic_score_recalculation(self) -> None:
         """
-        [Phase 9] 1시간마다 자동으로 score_v2 재계산
+        [Phase 9] 1시간마다 자동으로 score_v3 재계산
         """
-        logger.info("⏰ 자동 Score V2 재계산 시작 (1시간 간격)")
+        logger.info("⏰ 자동 Score V3 재계산 시작 (1시간 간격)")
         
         while self._running:
             try:
@@ -633,7 +638,7 @@ class RealtimeScanner:
                 if not self._running:
                     break
                 
-                logger.info("⏰ 1시간 경과 - 자동 Score V2 재계산 실행")
+                logger.info("⏰ 1시간 경과 - 자동 Score V3 재계산 실행")
                 await self.recalculate_all_scores()
                 
             except asyncio.CancelledError:
@@ -641,7 +646,7 @@ class RealtimeScanner:
             except Exception as e:
                 logger.warning(f"⚠️ 자동 재계산 오류: {e}")
         
-        logger.info("⏰ 자동 Score V2 재계산 종료")
+        logger.info("⏰ 자동 Score V3 재계산 종료")
     
     @property
     def is_running(self) -> bool:
@@ -672,7 +677,7 @@ def get_realtime_scanner() -> Optional[RealtimeScanner]:
 
 
 def initialize_realtime_scanner(
-    polygon_client: Any,
+    massive_client: Any,
     ws_manager: Any,
     db: Optional[Any] = None,  # [02-001b] MarketDB 인스턴스
     ignition_monitor: Optional[Any] = None,
@@ -682,9 +687,9 @@ def initialize_realtime_scanner(
     RealtimeScanner 초기화 (서버 시작 시 호출)
     
     Args:
-        polygon_client: PolygonClient 인스턴스
+        massive_client: MassiveClient 인스턴스
         ws_manager: WebSocket ConnectionManager 인스턴스
-        db: MarketDB 인스턴스 (Optional, score_v2 계산용)
+        db: MarketDB 인스턴스 (Optional, score_v3 계산용)
         ignition_monitor: IgnitionMonitor 인스턴스 (Optional)
         poll_interval: 폴링 간격 (초, 기본값: 1.0)
     
@@ -693,7 +698,7 @@ def initialize_realtime_scanner(
     """
     global _scanner_instance
     _scanner_instance = RealtimeScanner(
-        polygon_client=polygon_client,
+        massive_client=massive_client,
         ws_manager=ws_manager,
         db=db,  # [02-001b]
         ignition_monitor=ignition_monitor,

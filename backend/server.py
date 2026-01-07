@@ -167,11 +167,11 @@ async def lifespan(app: FastAPI):
     if api_key and app_state.db:
         try:
             logger.info("🔄 Checking daily data sync status...")
-            from backend.data.polygon_client import PolygonClient
-            from backend.data.polygon_loader import PolygonLoader
+            from backend.data.massive_client import MassiveClient
+            from backend.data.massive_loader import MassiveLoader
             
-            async with PolygonClient(api_key) as client:
-                loader = PolygonLoader(app_state.db, client)
+            async with MassiveClient(api_key) as client:
+                loader = MassiveLoader(app_state.db, client)
                 sync_status = await loader.get_sync_status()
                 
                 if not sync_status.get("is_up_to_date"):
@@ -336,17 +336,17 @@ async def lifespan(app: FastAPI):
     if os.getenv("REALTIME_SCANNER_ENABLED", "true").lower() == "true":
         try:
             from backend.core.realtime_scanner import initialize_realtime_scanner
-            from backend.data.polygon_client import PolygonClient
+            from backend.data.massive_client import MassiveClient
             from backend.data.watchlist_store import load_watchlist
             
-            # PolygonClient 인스턴스 생성 (API Key 필요)
+            # MassiveClient 인스턴스 생성 (API Key 필요)
             api_key = os.getenv("MASSIVE_API_KEY", "")
             if api_key:
-                polygon_client = PolygonClient(api_key)
-                await polygon_client.__aenter__()  # HTTP Client 초기화
+                massive_client = MassiveClient(api_key)
+                await massive_client.__aenter__()  # HTTP Client 초기화
                 
                 app_state.realtime_scanner = initialize_realtime_scanner(
-                    polygon_client=polygon_client,
+                    massive_client=massive_client,
                     ws_manager=ws_manager,
                     db=app_state.db,  # [02-001b] DB 주입 (score_v2 계산용)
                     ignition_monitor=app_state.ignition_monitor,

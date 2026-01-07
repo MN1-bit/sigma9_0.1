@@ -62,7 +62,7 @@ class WatchlistItem(BaseModel):
     """Watchlist 항목"""
     ticker: str
     score: float
-    score_v2: float = 0.0  # [02-001] v2 연속 점수
+    score_v3: float = 0.0  # [03-001] v3 Pinpoint Score
     stage: str
     last_close: float
     change_pct: float
@@ -300,7 +300,7 @@ async def get_engine_status():
 # Watchlist Endpoints
 # ═══════════════════════════════════════════════════════════════════════════
 
-@router.get("/watchlist", response_model=List[WatchlistItem], summary="Watchlist 조회")
+@router.get("/watchlist", summary="Watchlist 조회")
 async def get_watchlist():
     """
     현재 Watchlist를 조회합니다.
@@ -311,28 +311,16 @@ async def get_watchlist():
         - stage: 매집 단계 (Stage 1~4)
         - last_close: 최근 종가
         - change_pct: 변동률 (%)
+        - intensities: 신호 강도 dict
     """
     from backend.data.watchlist_store import load_watchlist
     
-    # WatchlistStore에서 실제 데이터 로드
+    # [02-001c FIX] 원시 dict를 그대로 반환 (Pydantic 변환 시 필드 손실 방지)
     raw_watchlist = load_watchlist()
     
     if raw_watchlist:
-        result = []
-        for item in raw_watchlist:
-            result.append(WatchlistItem(
-                ticker=item.get("ticker", ""),
-                score=item.get("score", 0.0),
-                score_v2=item.get("score_v2", 0.0),  # [02-001] v2 점수
-                stage=item.get("stage", "Unknown"),
-                last_close=item.get("last_close", 0.0),
-                change_pct=item.get("change_pct", 0.0),
-                avg_volume=item.get("avg_volume", 0.0),  # [4.A.4] DolVol용
-                intensities=item.get("intensities", {}),  # [02-001] 신호 강도
-            ))
-        logger.info(f"📋 Watchlist 반환: {len(result)}개 항목")
-        return result
-
+        logger.info(f"📋 Watchlist 반환: {len(raw_watchlist)}개 항목")
+        return raw_watchlist
     
     # 데이터가 없으면 빈 리스트 반환
     logger.warning("⚠️ Watchlist 비어 있음")
@@ -342,11 +330,11 @@ async def get_watchlist():
 @router.post("/watchlist/recalculate", summary="Score V2 재계산")
 async def recalculate_watchlist_scores():
     """
-    [Phase 9] 전체 Watchlist의 score_v2를 재계산합니다.
+    [Phase 9] 전체 Watchlist의 score_v3를 재계산합니다.
     
     📌 동작:
         1. 순차 재계산 (종목당 100ms 딜레이)
-        2. DB에서 일봉 조회 → score_v2 계산
+        2. DB에서 일봉 조회 → score_v3 계산
         3. Watchlist 저장 및 브로드캐스트
     
     Returns:
@@ -369,7 +357,7 @@ async def recalculate_watchlist_scores():
             **result
         }
     except Exception as e:
-        logger.error(f"Score V2 재계산 실패: {e}")
+        logger.error(f"Score V3 재계산 실패: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -539,7 +527,7 @@ async def run_scanner(strategy_name: str = "seismograph"):
 @router.get("/gainers", summary="당일 급등주 조회")
 async def get_day_gainers():
     """
-    Polygon.io API를 통해 당일 급등주 상위 20개를 조회합니다.
+    Massive.com API를 통해 당일 급등주 상위 20개를 조회합니다.
     
     📌 데이터:
         - 실시간 (장중)
@@ -550,14 +538,14 @@ async def get_day_gainers():
         list: 급등주 리스트 [{ticker, change_pct, last_price, volume}, ...]
     """
     import os
-    from backend.data.polygon_client import PolygonClient
+    from backend.data.massive_client import MassiveClient
     
     api_key = os.getenv("MASSIVE_API_KEY", "")
     if not api_key:
         raise HTTPException(status_code=500, detail="MASSIVE_API_KEY not configured")
     
     try:
-        async with PolygonClient(api_key) as client:
+        async with MassiveClient(api_key) as client:
             gainers = await client.fetch_day_gainers()
         
         return {
@@ -577,12 +565,12 @@ async def add_gainers_to_watchlist():
     당일 급등주를 현재 Watchlist에 병합합니다.
     
     📌 동작:
-        1. Polygon Gainers API로 급등주 조회
+        1. Massive Gainers API로 급등주 조회
         2. 현재 Watchlist와 병합 (중복 제거)
         3. score=0 (급등주)으로 표시
     """
     import os
-    from backend.data.polygon_client import PolygonClient
+    from backend.data.massive_client import MassiveClient
     from backend.data.watchlist_store import get_watchlist_store
     
     api_key = os.getenv("MASSIVE_API_KEY", "")
@@ -591,7 +579,7 @@ async def add_gainers_to_watchlist():
     
     try:
         # 급등주 조회
-        async with PolygonClient(api_key) as client:
+        async with MassiveClient(api_key) as client:
             gainers = await client.fetch_day_gainers()
         
         if not gainers:
@@ -761,7 +749,7 @@ async def get_intraday_chart(
     """
     import os
     from datetime import datetime, timedelta
-    from backend.data.polygon_client import PolygonClient
+    from backend.data.massive_client import MassiveClient
     
     # API Key 확인
     api_key = os.getenv("MASSIVE_API_KEY", "")
@@ -781,7 +769,7 @@ async def get_intraday_chart(
     logger.info(f"📊 Intraday 차트 조회: {ticker} {timeframe}m ({from_date} ~ {to_date})")
     
     try:
-        async with PolygonClient(api_key) as client:
+        async with MassiveClient(api_key) as client:
             bars = await client.fetch_intraday_bars(
                 ticker=ticker.upper(),
                 multiplier=timeframe,
@@ -1090,12 +1078,12 @@ async def get_zscore(ticker: str):
 @router.post("/sync/daily", summary="일봉 데이터 동기화")
 async def sync_daily_data():
     """
-    누락된 일봉 데이터를 Polygon.io에서 가져와 DB에 저장합니다.
+    누락된 일봉 데이터를 Massive.com에서 가져와 DB에 저장합니다.
     
     📌 동작:
         1. DB의 가장 최근 일봉 날짜 확인
         2. 최근 날짜 ~ 오늘 사이의 누락된 거래일 계산
-        3. 누락된 날짜만 Polygon API로 가져와 저장
+        3. 누락된 날짜만 Massive API로 가져와 저장
     
     📌 사용 시점:
         - 서버 시작 시 자동 호출
@@ -1110,8 +1098,8 @@ async def sync_daily_data():
     """
     import os
     from backend.data.database import MarketDB
-    from backend.data.polygon_client import PolygonClient
-    from backend.data.polygon_loader import PolygonLoader
+    from backend.data.massive_client import MassiveClient
+    from backend.data.massive_loader import MassiveLoader
     
     api_key = os.getenv("MASSIVE_API_KEY", "")
     if not api_key:
@@ -1124,9 +1112,9 @@ async def sync_daily_data():
         db = MarketDB("data/market_data.db")
         await db.initialize()
         
-        # PolygonLoader로 증분 업데이트
-        async with PolygonClient(api_key) as client:
-            loader = PolygonLoader(db, client)
+        # MassiveLoader로 증분 업데이트
+        async with MassiveClient(api_key) as client:
+            loader = MassiveLoader(db, client)
             
             # 동기화 상태 확인
             sync_status = await loader.get_sync_status()
@@ -1172,8 +1160,8 @@ async def get_sync_status():
     """
     import os
     from backend.data.database import MarketDB
-    from backend.data.polygon_client import PolygonClient
-    from backend.data.polygon_loader import PolygonLoader
+    from backend.data.massive_client import MassiveClient
+    from backend.data.massive_loader import MassiveLoader
     
     api_key = os.getenv("MASSIVE_API_KEY", "")
     if not api_key:
@@ -1187,8 +1175,8 @@ async def get_sync_status():
         db = MarketDB("data/market_data.db")
         await db.initialize()
         
-        async with PolygonClient(api_key) as client:
-            loader = PolygonLoader(db, client)
+        async with MassiveClient(api_key) as client:
+            loader = MassiveLoader(db, client)
             sync_status = await loader.get_sync_status()
         
         return {

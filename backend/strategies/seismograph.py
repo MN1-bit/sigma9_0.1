@@ -47,6 +47,12 @@ if str(backend_path) not in sys.path:
 from core.strategy_base import StrategyBase, Signal
 from core.technical_analysis import TechnicalAnalysis, DynamicStopLoss
 
+# V3 설정 임포트
+from strategies.score_v3_config import (
+    V3_WEIGHTS, ZSCORE_SIGMOID, SUPPORT_CONFIG, ACCUMBAR_CONFIG, SIGNAL_MODIFIER_CONFIG,
+    PERCENTILE_CONFIG, REDUNDANCY_PENALTY_CONFIG
+)
+
 
 # ═══════════════════════════════════════════════════════════════════════════
 # 틱 데이터 구조체
@@ -652,7 +658,483 @@ class SeismographStrategy(StrategyBase):
         except Exception:
             return 0.0
 
+    # ═══════════════════════════════════════════════════════════════════
+    # v3: Pinpoint Algorithm (Z-Score + Boost × Penalty)
+    # ═══════════════════════════════════════════════════════════════════
     
+    def calculate_watchlist_score_v3(
+        self, 
+        ticker: str, 
+        daily_data: Any,
+        current_vwap: Optional[float] = None
+    ) -> float:
+        """
+        v3.2: Pinpoint Algorithm (V3.2 개선)
+        
+        수식: Score = clip(Base + Harmony Bonus, 0, 100)
+        
+        V3.2 변경사항:
+        - 곱셈 부스트 → 가산 보너스 (스케일 보존)
+        - 0~100 클리핑 적용 (스케일 붕괴 방지)
+        - Support 이탈 연속 페널티
+        
+        Args:
+            ticker: 종목 코드
+            daily_data: 일봉 데이터 (60일 권장)
+            current_vwap: Massive API에서 수신한 VWAP (선택)
+        
+        Returns:
+            float: 0.0 ~ 100.0 점수 (V3.2: 클리핑 적용)
+        """
+        try:
+            if daily_data is None or len(daily_data) < 5:
+                return 0.0
+            
+            # V3 강도 계산
+            intensities = self._calculate_signal_intensities_v3(daily_data, current_vwap)
+            
+            # Base Score 계산
+            base_score = sum(
+                intensities.get(signal, 0.0) * weight
+                for signal, weight in V3_WEIGHTS.items()
+            ) * 100
+            
+            # V3.2: 가산 Harmony Bonus 계산
+            harmony_bonus = self._calculate_harmony_bonus(intensities)
+            
+            # V3.2 Phase 3: RedundancyPenalty (죽은 압축 필터링)
+            redundancy_penalty = self._calculate_redundancy_penalty(intensities)
+            
+            # V3.2: 0~100 클리핑 적용
+            raw_score = (base_score + harmony_bonus) * redundancy_penalty
+            final_score = min(100.0, max(0.0, raw_score))
+            return round(final_score, 1)
+            
+        except Exception:
+            return 0.0
+    
+    def _calculate_signal_intensities_v3(
+        self, 
+        data: Any,
+        current_vwap: Optional[float] = None
+    ) -> Dict[str, float]:
+        """
+        V3 신호 강도 계산 (0.0 ~ 1.0)
+        
+        V2 대비 변경:
+        - Tight Range: Z-Score Sigmoid
+        - Volume Dryout: 하방 경직성 추가
+        """
+        return {
+            "tight_range": self._calc_tight_range_intensity_v3(data),
+            "obv_divergence": self._calc_obv_divergence_intensity_v3(data),  # V3: Z-Score 표준화
+            "accumulation_bar": self._calc_accumulation_bar_intensity_v3(data),  # V3: 로그 스케일
+            "volume_dryout": self._calc_volume_dryout_intensity_v3(data),
+        }
+    
+    def _calc_tight_range_intensity_v3(self, data: Any) -> float:
+        """
+        V3.2 Tight Range 강도 계산 - Percentile 기반 정규화
+        
+        60일 ATR 히스토리에서 현재 ATR의 상대적 위치를 percentile로 계산.
+        레짐 변화에 강건 (Z-Score의 분산 의존성 제거)
+        
+        percentile 낮을수록(변동성 수축) → 강도 높음
+        """
+        try:
+            lookback = ZSCORE_SIGMOID.lookback_days
+            highs = self._get_column(data, 'high', lookback)
+            lows = self._get_column(data, 'low', lookback)
+            closes = self._get_column(data, 'close', lookback)
+            
+            if len(highs) < 20:
+                return 0.0
+            
+            # ATR 계산 (모든 일봉에 대해)
+            atr_list = []
+            for i in range(1, len(highs)):
+                h_l = highs[i] - lows[i]
+                h_pc = abs(highs[i] - closes[i - 1])
+                l_pc = abs(lows[i] - closes[i - 1])
+                atr_list.append(max(h_l, h_pc, l_pc))
+            
+            if len(atr_list) < PERCENTILE_CONFIG.min_samples:
+                return 0.0
+            
+            # 현재 ATR (최근 5일 평균)
+            current_atr = np.mean(atr_list[-5:])
+            
+            if PERCENTILE_CONFIG.use_percentile:
+                # V3.2: Percentile 기반 정규화
+                # percentile = (현재값보다 작은 값 개수) / 전체 개수
+                count_lower = sum(1 for x in atr_list if x < current_atr)
+                percentile = count_lower / len(atr_list)
+                
+                # intensity = 1 - percentile (낮을수록 높은 강도)
+                intensity = 1.0 - percentile
+            else:
+                # 기존: Z-Score Sigmoid
+                mean_atr = np.mean(atr_list)
+                std_atr = np.std(atr_list)
+                
+                if std_atr <= 0:
+                    return 0.0
+                
+                z = (current_atr - mean_atr) / std_atr
+                k = ZSCORE_SIGMOID.sigmoid_k
+                x0 = ZSCORE_SIGMOID.sigmoid_x0
+                intensity = 1 / (1 + np.exp(k * (z - x0)))
+            
+            return round(float(intensity), 2)
+            
+        except Exception:
+            return 0.0
+    
+    def _calc_volume_dryout_intensity_v3(self, data: Any) -> float:
+        """
+        V3.2 Volume Dryout 강도 계산 - Sigmoid 연속 페널티
+        
+        거래량 감소 + 가격 지지 동시 확인
+        - Volume Dryout: 최근 3일 vs 20일 비율
+        - V3.2: Support 이탈 → Sigmoid 연속 페널티
+        
+        수식: support_penalty = 1 / (1 + exp(-k * support_dist))
+        """
+        try:
+            volumes = self._get_column(data, 'volume', 20)
+            
+            if len(volumes) < 5:
+                return 0.0
+            
+            avg_20d = np.mean(volumes)
+            avg_3d = np.mean(volumes[-3:])
+            
+            if avg_20d <= 0:
+                return 0.0
+            
+            ratio = avg_3d / avg_20d
+            threshold = self.config["dryout_threshold"]["value"]
+            
+            # Volume Dryout 기본 강도
+            if ratio >= threshold:
+                volume_intensity = 0.0
+            else:
+                volume_intensity = 1.0 - (ratio / threshold)
+            
+            # V3.2: Sigmoid 기반 연속 Support 페널티
+            support_factor = self._calc_support_factor(data)
+            
+            # support_dist: 임계값(0.4) 기준 거리 정규화
+            # support_factor > 0.4 → positive → penalty 높음 (좋음)
+            # support_factor < 0.4 → negative → penalty 낮음 (나쁨)
+            min_loc = SUPPORT_CONFIG.min_price_location
+            support_dist = (support_factor - min_loc) / (1.0 - min_loc)  # -0.67 ~ 1.0 범위
+            
+            # Sigmoid 변환: 1 / (1 + exp(-k * support_dist))
+            k = SUPPORT_CONFIG.penalty_steepness
+            support_penalty = 1.0 / (1.0 + np.exp(-k * support_dist))
+            
+            # 최종 강도 = Volume Dryout × Support Penalty
+            intensity = volume_intensity * support_penalty
+            
+            return round(intensity, 2)
+            
+        except Exception:
+            return 0.0
+    
+    def _calc_obv_divergence_intensity_v3(self, data: Any) -> float:
+        """
+        V3.2 Absorption 강도 계산 (OBV Divergence 대체)
+        
+        핵심 개념: 거래량 많은데 가격 반응 작으면 → 흡수 발생
+        
+        수식:
+        - sv = Σ(sign(returns) × volume)  : Signed Volume
+        - pr = Σ(|returns|)               : Price Reaction
+        - absorption = sigmoid(z(sv_norm) - z(pr_norm))
+        
+        Returns:
+            float: 0.0 ~ 1.0
+        """
+        try:
+            closes = self._get_column(data, 'close', 20)
+            volumes = self._get_column(data, 'volume', 20)
+            
+            if len(closes) < 10 or len(volumes) < 10:
+                return 0.0
+            
+            # === 1. 최근 10일 Signed Volume 계산 ===
+            # sv = sum(sign(returns) * volume)
+            signed_volume = 0.0
+            price_reaction = 0.0
+            
+            for i in range(-10, 0):
+                if closes[i - 1] > 0:
+                    ret = (closes[i] - closes[i - 1]) / closes[i - 1]
+                    sign = 1 if ret > 0 else (-1 if ret < 0 else 0)
+                    signed_volume += sign * volumes[i]
+                    price_reaction += abs(ret)
+            
+            # === 2. 정규화 (Median 기반) ===
+            median_volume = sorted(volumes)[len(volumes) // 2]
+            if median_volume <= 0:
+                return 0.0
+            
+            sv_norm = signed_volume / median_volume
+            
+            # Price Reaction 정규화 (10일 평균 대비)
+            avg_pr = price_reaction / 10 if price_reaction > 0 else 0.01
+            
+            # === 3. Absorption 계산 ===
+            # 거래량 많은데(sv 높음) 가격 반응 작으면(pr 낮음) → 흡수
+            # sv_norm이 양수(매수 우세)이고 pr이 작으면 강도 높음
+            
+            # 5% 초과 상승 시 약한 페널티 (기존: 0점 → 개선: 0.3점)
+            if len(closes) >= 6:
+                price_change = (closes[-1] - closes[-5]) / closes[-5] if closes[-5] > 0 else 0
+                if price_change > 0.05:
+                    return 0.3  # 상승 중이면 흡수 약함으로 처리 (0 대신)
+            
+            # V3.2 Phase 4: 부드러운 페널티 (Option A)
+            # 매도 우세도 연속적 스케일로 표현
+            if sv_norm <= 0:
+                # 매도 우세: 0.0 ~ 0.5 범위
+                # sv_norm = -3 → 0.01, sv_norm = 0 → 0.5
+                intensity = 0.5 / (1 + np.exp(-sv_norm * 2))
+            else:
+                # 매수 우세: 0.5 ~ 1.0 범위
+                # 중심점 3.0으로 상향 → 1.0 도달 매우 어려움 (헤드룸 확보)
+                absorption_score = sv_norm / (avg_pr / 0.02 + 0.1)
+                intensity = 0.5 + 0.5 / (1 + np.exp(-absorption_score + 3.0))
+            
+            return round(float(intensity), 2)
+            
+        except Exception:
+            return 0.5  # 예외 시 중립 반환 (0 대신)
+    
+    def _calc_accumulation_bar_intensity_v3(
+        self, 
+        data: Any, 
+        float_shares: int = 10_000_000
+    ) -> float:
+        """
+        V3.1 Accumulation Bar 강도 계산 - 시간 분리 + 이상치 내성
+        
+        특징:
+        1. Base 0.5 + 가감점 구조 (중립 기준점)
+        2. 과거 10일간의 매집 기간 분석 (Dryout와 시간 분리)
+        3. Median + 비율 기반 (이상치에 강건)
+        4. Float 기반 동적 기간 계산
+        
+        Args:
+            data: OHLCV 캔들 데이터 (list of dict 또는 DataFrame)
+            float_shares: 유통 주식 수 (기본값 10M)
+        
+        Returns:
+            float: 0.0 ~ 1.0 (0.5 = 중립)
+        
+        참조: docs/Plan/bugfix/03-003_accumbar_v31_redesign.md
+        """
+        try:
+            cfg = ACCUMBAR_CONFIG
+            BASE_SCORE = cfg.base_score
+            
+            # === 1. 동적 기간 계산 ===
+            # Float 기반: 3M → 4일, 15M+ → 10일
+            dryout_days = min(10, max(3, 3 + float_shares // 3_000_000))
+            accum_start = dryout_days + cfg.accum_period_days  # 예: 4 + 10 = 14일 전
+            accum_end = dryout_days                            # 예: 4일 전
+            
+            # 데이터 부족 시 중립 반환
+            if len(data) < accum_start:
+                return BASE_SCORE
+            
+            # 매집 기간 데이터 추출 (DataFrame 또는 list 지원)
+            if hasattr(data, 'iloc'):
+                period = data.iloc[-accum_start:-accum_end]
+                period = [row.to_dict() for _, row in period.iterrows()]
+            else:
+                period = data[-accum_start:-accum_end]
+            
+            n = len(period)
+            if n == 0:
+                return BASE_SCORE
+            
+            adjustment = 0.0
+            
+            # === 2. 양봉 비율 (카운팅 - 이미 robust) ===
+            bullish_count = sum(
+                1 for d in period 
+                if float(d.get("close", d.get("Close", 0))) > float(d.get("open", d.get("Open", 0)))
+            )
+            bullish_ratio = bullish_count / n
+            
+            if bullish_ratio >= cfg.bullish_threshold_high:
+                adjustment += cfg.adj_bullish
+            elif bullish_ratio <= cfg.bullish_threshold_low:
+                adjustment -= cfg.adj_bullish
+            
+            # === 3. V3.2 방향성 있는 조용함 (Directional Quiet Days) ===
+            # 조용한 날 중 상단 마감 비율 측정
+            quiet_days_list = []
+            for d in period:
+                close = float(d.get("close", d.get("Close", 0)))
+                high = float(d.get("high", d.get("High", 0)))
+                low = float(d.get("low", d.get("Low", 0)))
+                if close > 0 and (high - low) / close < cfg.quiet_range_pct:
+                    # 조용한 날 발견 - 상단 마감 여부 기록
+                    midpoint = (high + low) / 2
+                    quiet_days_list.append(close > midpoint)
+            
+            if quiet_days_list:
+                # 조용한 날이 있으면: 상단 마감 비율로 판단
+                upper_close_ratio = sum(quiet_days_list) / len(quiet_days_list)
+                
+                if upper_close_ratio >= cfg.quiet_threshold_high:
+                    adjustment += cfg.adj_quiet  # 조용하면서 상단 마감 많음 = 매집
+                elif upper_close_ratio <= cfg.bullish_threshold_low:
+                    adjustment -= cfg.adj_quiet * 0.67  # 조용한데 하단 마감 = 분배
+            # 조용한 날이 없으면 adjustment 변화 없음 (변동성 있는 시장)
+            
+            # === 4. Body Ratio - Median (이상치 무시) ===
+            body_ratios = []
+            for d in period:
+                high = float(d.get("high", d.get("High", 0)))
+                low = float(d.get("low", d.get("Low", 0)))
+                open_p = float(d.get("open", d.get("Open", 0)))
+                close_p = float(d.get("close", d.get("Close", 0)))
+                if high != low:
+                    body_ratios.append(abs(close_p - open_p) / (high - low))
+            
+            if body_ratios:
+                body_median = sorted(body_ratios)[len(body_ratios) // 2]
+                if body_median >= cfg.body_ratio_high:
+                    adjustment += cfg.adj_body
+                elif body_median < cfg.body_ratio_low:
+                    adjustment -= cfg.adj_body
+            
+            # === 5. 거래량 - Median (하루 폭발 무시) ===
+            accum_vols = [
+                float(d.get("volume", d.get("Volume", 0))) 
+                for d in period
+            ]
+            
+            # 전체 데이터의 거래량
+            if hasattr(data, 'iloc'):
+                total_vols = [float(row.get("volume", row.get("Volume", 0))) for _, row in data.iterrows()]
+            else:
+                total_vols = [float(d.get("volume", d.get("Volume", 0))) for d in data]
+            
+            if accum_vols and total_vols:
+                accum_median = sorted(accum_vols)[len(accum_vols) // 2]
+                total_median = sorted(total_vols)[len(total_vols) // 2]
+                
+                if total_median > 0:
+                    if accum_median > total_median * cfg.volume_ratio_high:
+                        adjustment += cfg.adj_volume  # 매집 기간에 거래량 높음 = 좋음
+                    elif accum_median < total_median * cfg.volume_ratio_low:
+                        adjustment -= cfg.adj_volume  # 매집 기간에 거래량 낮음 = 매집 없음
+            
+            # === 6. 최종 점수 ===
+            intensity = max(0.0, min(1.0, BASE_SCORE + adjustment))
+            return round(intensity, 2)
+            
+        except Exception:
+            return 0.5  # 예외 시 중립 반환 (0.0 대신)
+
+    
+    def _calc_support_factor(self, data: Any) -> float:
+        """
+        하방 경직성 계산 (Price Location)
+        
+        Returns:
+            float: (Close - Low) / (High - Low), 0~1
+        """
+        try:
+            latest = data.iloc[-1] if hasattr(data, 'iloc') else data[-1]
+            
+            high = float(latest.get('high', latest.get('High', 0)))
+            low = float(latest.get('low', latest.get('Low', 0)))
+            close = float(latest.get('close', latest.get('Close', 0)))
+            
+            if high == low:
+                return 0.5
+            
+            return (close - low) / (high - low)
+            
+        except Exception:
+            return 0.5
+    
+    def _calculate_harmony_bonus(self, intensities: Dict[str, float]) -> float:
+        """
+        V3.2 Harmony Bonus 계산 (가산 방식)
+        
+        수식: harmony_bonus = B * max(0, min_intensity - threshold)
+        
+        모든 신호가 threshold(0.6) 이상일 때 보너스 부여.
+        min_intensity가 1.0일 때 최대 약 8점 추가 (20 * 0.4 = 8).
+        
+        Args:
+            intensities: 각 신호의 강도 (0.0 ~ 1.0)
+            
+        Returns:
+            float: 가산 보너스 점수 (0.0 ~ 8.0)
+        """
+        values = list(intensities.values())
+        if not values:
+            return 0.0
+        
+        cfg = SIGNAL_MODIFIER_CONFIG
+        min_intensity = min(values)
+        
+        # threshold 이하면 보너스 없음
+        if min_intensity < cfg.bonus_threshold:
+            return 0.0
+        
+        # harmony_bonus = B * max(0, min_intensity - threshold)
+        harmony_bonus = cfg.harmony_bonus_scale * (min_intensity - cfg.bonus_threshold)
+        return harmony_bonus
+    
+    def _calculate_signal_modifier(self, intensities: Dict[str, float]) -> float:
+        """
+        [Deprecated] V3.1 신호 수정자 (하위 호환용)
+        
+        V3.2에서는 _calculate_harmony_bonus() 사용.
+        이 메서드는 하위 호환을 위해 유지되며 1.0을 반환합니다.
+        """
+        return 1.0
+    
+    def _calculate_redundancy_penalty(self, intensities: Dict[str, float]) -> float:
+        """
+        V3.2 Phase 3 RedundancyPenalty 계산
+        
+        압축(TR)만 높고 흡수(OBV) 없으면 "죽은 압축" 패턴으로 감점
+        
+        조건:
+        - TR >= 0.6 (압축 상태)
+        - OBV <= 0.4 (흡수 없음)
+        → 0.7x 페널티
+        
+        Args:
+            intensities: 각 신호의 강도
+            
+        Returns:
+            float: 1.0 (정상) 또는 penalty_multiplier (0.7)
+        """
+        if not REDUNDANCY_PENALTY_CONFIG.enabled:
+            return 1.0
+        
+        tr = intensities.get("tight_range", 0.0)
+        obv = intensities.get("obv_divergence", 0.0)
+        
+        cfg = REDUNDANCY_PENALTY_CONFIG
+        
+        # 압축 상태인데 흡수 없으면 죽은 압축
+        if tr >= cfg.tr_threshold and obv <= cfg.obv_threshold:
+            return cfg.penalty_multiplier  # 0.7
+        
+        return 1.0
+
     def calculate_watchlist_score_detailed(
         self, 
         ticker: str, 
@@ -723,9 +1205,14 @@ class SeismographStrategy(StrategyBase):
             score_v2 = self.calculate_watchlist_score_v2(ticker, daily_data)
             intensities = self._calculate_signal_intensities(daily_data)
             
+            # [03-001] v3 Pinpoint Algorithm 추가
+            score_v3 = self.calculate_watchlist_score_v3(ticker, daily_data)
+            intensities_v3 = self._calculate_signal_intensities_v3(daily_data)
+            
             return {
                 "score": score,
                 "score_v2": score_v2,  # [02-001] 연속 점수 추가
+                "score_v3": score_v3,  # [03-001] Pinpoint Algorithm
                 "stage": stage_str,
                 "stage_number": stage_num,
                 "signals": {
@@ -735,6 +1222,7 @@ class SeismographStrategy(StrategyBase):
                     "volume_dryout": has_volume_dryout,
                 },
                 "intensities": intensities,  # [02-001] 신호 강도 추가
+                "intensities_v3": intensities_v3,  # [03-001] V3 강도
                 "can_trade": can_trade,
             }
 

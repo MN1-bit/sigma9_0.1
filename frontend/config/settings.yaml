@@ -4,7 +4,7 @@ backend:
   use_ssl: false
   timeout: 30
   reconnect_interval: 5
-score_version: v2
+score_version: v3
 gui:
   theme: dark
   acrylic_enabled: true
@@ -30,7 +30,7 @@ tables:
   tier1_column_widths:
   - 0
   - 73
-  - 76
+  - 50
   - 56
   - 55
   tier2_column_widths:

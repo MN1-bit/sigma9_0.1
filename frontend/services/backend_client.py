@@ -51,7 +51,7 @@ class WatchlistItem:
     """Watchlist 항목"""
     ticker: str
     score: float
-    score_v2: float = 0.0  # [02-001] v2 연속 점수
+    score_v3: float = 0.0  # [03-001] v3 Pinpoint Score
     stage: str = ""
     last_close: float = 0.0
     change_pct: float = 0.0
@@ -74,7 +74,7 @@ class WatchlistItem:
         return cls(
             ticker=data.get("ticker", ""),
             score=data.get("score", 0),
-            score_v2=data.get("score_v2", 0.0),  # [02-001] v2 점수 파싱
+            score_v3=data.get("score_v3", 0.0),  # [03-001] v3 점수 파싱
             stage=data.get("stage", ""),
             last_close=data.get("last_close", 0),
             change_pct=data.get("change_pct", 0),
@@ -406,9 +406,9 @@ class BackendClient(QObject):
             # 2. Watchlist 조회
             watchlist_data = await self.rest.get_watchlist()
             if watchlist_data:
-                items = [WatchlistItem.from_dict(item) for item in watchlist_data]
-                self.watchlist_updated.emit(items)
-                self.log_message.emit(f"📋 Watchlist loaded: {len(items)} items")
+                # [02-001c FIX] dict를 그대로 전달 (WatchlistItem 변환 시 intensities 손실 방지)
+                self.watchlist_updated.emit(watchlist_data)
+                self.log_message.emit(f"📋 Watchlist loaded: {len(watchlist_data)} items")
             
             # 3. 포지션 조회
             positions = await self.rest.get_positions()
@@ -515,9 +515,9 @@ class BackendClient(QObject):
         """Watchlist 새로고침"""
         watchlist_data = await self.rest.get_watchlist()
         if watchlist_data:
-            items = [WatchlistItem.from_dict(item) for item in watchlist_data]
-            self.watchlist_updated.emit(items)
-            self.log_message.emit(f"📋 Watchlist refreshed: {len(items)} items")
+            # [02-001c FIX] dict를 그대로 전달
+            self.watchlist_updated.emit(watchlist_data)
+            self.log_message.emit(f"📋 Watchlist refreshed: {len(watchlist_data)} items")
     
     # ─────────────────────────────────────────────────────────────
     # Strategy Management
@@ -556,8 +556,8 @@ class BackendClient(QObject):
     
     def _on_watchlist_updated(self, items: list):
         """Watchlist 업데이트 수신"""
-        watchlist = [WatchlistItem.from_dict(item) if isinstance(item, dict) else item for item in items]
-        self.watchlist_updated.emit(watchlist)
+        # [02-001c FIX] dict를 그대로 전달 (WatchlistItem 변환 시 intensities 손실 방지)
+        self.watchlist_updated.emit(items)
     
     def _on_status_changed(self, status_data: dict):
         """서버 상태 변경 수신"""

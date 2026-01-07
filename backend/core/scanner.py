@@ -2,7 +2,7 @@
 # Scanner Orchestrator - DB 기반 Watchlist 생성
 # ============================================================================
 # 📌 이 파일의 역할:
-#   - Polygon DB 데이터를 기반으로 Watchlist 생성
+#   - Massive DB 데이터를 기반으로 Watchlist 생성
 #   - SeismographStrategy의 calculate_watchlist_score() 실행
 #   - 상위 N개 종목을 Watchlist로 반환
 #
@@ -33,7 +33,7 @@ class Scanner:
     """
     DB 기반 Watchlist 생성 오케스트레이터
     
-    Polygon DB에 저장된 히스토리 데이터를 기반으로
+    Massive DB에 저장된 히스토리 데이터를 기반으로
     SeismographStrategy의 Accumulation Score를 계산하고
     상위 N개 종목을 Watchlist로 반환합니다.
     
@@ -148,7 +148,8 @@ class Scanner:
                         "ticker": ticker,
                         "score": result["score"],
                         "score_v2": result.get("score_v2", result["score"]),  # [02-001] v2 연속 점수
-                        "intensities": result.get("intensities", {}),  # [02-001] 신호 강도
+                        "score_v3": result.get("score_v3"),  # [03-003] V3 Pinpoint Algorithm
+                        "intensities": result.get("intensities_v3", {}),  # [03-003 FIX] V3 intensities 사용
                         "stage": result["stage"],
                         "stage_number": result["stage_number"],
                         "signals": result["signals"],

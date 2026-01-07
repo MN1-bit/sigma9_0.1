@@ -65,10 +65,10 @@ class MarketDataConfig:
 
 
 @dataclass
-class PolygonConfig:
-    """Polygon.io API 설정"""
+class MassiveConfig:
+    """Massive.com API 설정"""
     enabled: bool = True
-    base_url: str = "https://api.polygon.io"
+    base_url: str = "https://api.Massive.com"
     rate_limit: int = 5
     retry_count: int = 3
     retry_delay: float = 2.0
@@ -150,7 +150,7 @@ class ServerConfig:
     ibkr: IBKRConfig = field(default_factory=IBKRConfig)
     database: DatabaseConfig = field(default_factory=DatabaseConfig)
     market_data: MarketDataConfig = field(default_factory=MarketDataConfig)
-    polygon: PolygonConfig = field(default_factory=PolygonConfig)
+    polygon: MassiveConfig = field(default_factory=MassiveConfig)
     strategy: StrategyConfig = field(default_factory=StrategyConfig)
     risk: RiskConfig = field(default_factory=RiskConfig)
     scheduler: SchedulerConfig = field(default_factory=SchedulerConfig)
@@ -309,7 +309,7 @@ def load_server_config(config_path: Optional[str] = None) -> ServerConfig:
     # 데이터클래스로 변환
     config = ServerConfig()
     
-    for section_name in ["server", "ibkr", "database", "market_data", "polygon", 
+    for section_name in ["server", "ibkr", "database", "market_data", "massive", 
                          "strategy", "risk", "scheduler", "logging", "llm"]:
         if section_name in data:
             section_cls = type(getattr(config, section_name))

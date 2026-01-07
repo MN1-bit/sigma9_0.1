@@ -8,7 +8,7 @@
 # 🧬 PROJECT_DNA.md — Σ-IX (Sigma-Nine)
 
 > **For AI Agent (Google Antigravity)**  
-> **Version**: 2.0 | **Last Updated**: 2024-12-17  
+> **Version**: 3.0 | **Last Updated**: 2026-01-07  
 > **Philosophy**: "Detect the Accumulation, Strike the Ignition, Harvest the Surge."
 
 ---
@@ -83,8 +83,13 @@ Sigma9-0.1/
 │       └── ws_client.py              # WebSocket 클라이언트
 │
 ├── docs/
-│   └── Plan/
-│       └── masterplan.md             # 마스터 플랜 (상세 설계)
+│   └── context/                      # 📘 핵심 정책 문서
+│       ├── ARCHITECTURE.md           # 시스템 아키텍처
+│       ├── REFACTORING.md            # 리팩터링 가이드
+│       └── strategy/                 # 전략별 문서
+│           ├── seismograph.md        # Seismograph 전략
+│           ├── mep.md                # MEP 프로토콜
+│           └── ignition.md           # Ignition Score
 │
 └── tests/
     ├── test_strategies.py
@@ -251,11 +256,57 @@ WebSocket:
 
 | File | Description |
 |------|-------------|
-| `docs/Plan/masterplan.md` | 전체 설계 문서 (상세) |
-| `backend/core/strategy_base.py` | 전략 추상 인터페이스 |
+| `docs/context/ARCHITECTURE.md` | 시스템 아키텍처 |
+| `docs/context/REFACTORING.md` | 리팩터링 가이드 |
+| `docs/context/strategy/seismograph.md` | Seismograph 전략 (Score V3 포함) |
+| `docs/context/strategy/mep.md` | MEP 실행 프로토콜 |
+| `docs/context/strategy/ignition.md` | Ignition Score |
 | `backend/strategies/seismograph.py` | 메인 전략 구현 |
-| `backend/core/strategy_loader.py` | 플러그인 로더 |
-| `backend/llm/oracle.py` | LLM Intelligence Layer |
+
+---
+
+## 💻 Development Commands
+
+### Running the Application
+
+```bash
+# Backend Server (FastAPI)
+python -m backend
+# API docs: http://localhost:8000/docs
+
+# Frontend GUI (PyQt6)
+python -m frontend
+```
+
+### Testing & Linting
+
+```bash
+# 필수 검증 (모든 PR 전 실행)
+ruff format && ruff check .   # Lint + Format
+mypy backend/                 # Type checking
+lint-imports                  # 경계 위반 검사 (필수)
+pydeps backend --show-cycles --no-output  # 순환 의존성 검사
+
+# 테스트
+pytest                        # Run all tests
+```
+
+### 리팩터링 도구 정책
+
+> **참조**: `docs/context/REFACTORING.md` (상세 정책)
+
+| 도구 | 버전 | 강제 조건 |
+|------|------|-----------|
+| `import-linter` | 설치됨 | `lint-imports` 실패 시 PR 머지 불가 |
+| `pydeps` | 3.x | 순환 의존성 검출 시 리팩터링 필수 |
+| `dependency-injector` | 4.x | 전역 싱글톤 사용 금지 |
+
+### 코드 품질 기준
+
+- **신규 파일**: ≤ 500 라인
+- **신규 클래스**: ≤ 30 메서드
+- **금지 패턴**: `get_*_instance()`, 전역 `_instance` 변수
+- **DI 필수**: 신규 서비스는 `Container`에 등록 후 주입
 
 ---
 

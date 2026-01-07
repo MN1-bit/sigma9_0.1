@@ -57,9 +57,9 @@ class WatchlistModel(QStandardItemModel):
         # ticker → row 매핑 (빠른 조회용)
         self._ticker_to_row: dict[str, int] = {}
         
-        # [02-001 FIX] 설정은 lazy loading으로 변경 (GUI 초기화 블로킹 방지)
+        # [03-001 FIX] 설정은 lazy loading으로 변경 (GUI 초기화 블로킹 방지)
         self._settings = None
-        self._use_v2 = None  # 첫 호출 시 로드
+        self._use_v3 = None  # 첫 호출 시 로드
         
         # 색상 설정 (테마에서 가져오기)
         try:
@@ -183,37 +183,42 @@ class WatchlistModel(QStandardItemModel):
             dolvol_item.setData(0, Qt.ItemDataRole.UserRole)
         self.setItem(row, self.COL_DOLVOL, dolvol_item)
         
-        # Score (설정에 따라 v1 또는 v2 사용)
-        # [02-001 FIX] Lazy loading - 첫 호출 시에만 설정 로드
-        if self._use_v2 is None:
+        # Score (설정에 따라 v1 또는 v3 사용)
+        # [03-001] Lazy loading - 첫 호출 시에만 설정 로드
+        if self._use_v3 is None:
             from ..config.loader import load_settings
             self._settings = load_settings()
-            self._use_v2 = self._settings.get("score_version", "v2") == "v2"
+            self._use_v3 = self._settings.get("score_version", "v3") == "v3"
         
-        score_v2 = data.get("score_v2")
+        score_v3 = data.get("score_v3")
         score_v1 = data.get("score", 0) or 0
+        intensities = data.get("intensities", {})  # [03-001] 신호 강도
         
-        if self._use_v2:
-            if score_v2 is not None and score_v2 > 0:
-                display_text = f"{score_v2:.1f}"
+        if self._use_v3:
+            # [03-001] 모든 케이스에서 _build_score_tooltip 사용
+            tooltip = self._build_score_tooltip(score_v3, intensities)
+            
+            if score_v3 is not None and score_v3 > 0:
+                display_text = f"{score_v3:.1f}"
                 score_item = QStandardItem(display_text)
-                score_item.setData(score_v2, Qt.ItemDataRole.UserRole)
-            elif score_v2 == -1:
+                score_item.setData(score_v3, Qt.ItemDataRole.UserRole)
+                score_item.setToolTip(tooltip)  # [03-001]
+            elif score_v3 == -1:
                 # [Phase 7] 신규/IPO 종목 (일봉 5일 미만)
                 score_item = QStandardItem("🆕")
-                score_item.setToolTip("신규/IPO 종목 - 일봉 데이터 부족 (5일 미만)")
+                score_item.setToolTip(tooltip)  # [03-001]
                 score_item.setForeground(self._color_warning)
                 score_item.setData(-1, Qt.ItemDataRole.UserRole)
-            elif score_v2 == 0:
-                # [Phase 8] 매집 신호 없음 (score_v2 = 0)
+            elif score_v3 == 0:
+                # [Phase 8] 매집 신호 없음 (score_v3 = 0)
                 score_item = QStandardItem("➖")
-                score_item.setToolTip("매집 신호 없음 (Warrant 또는 패턴 미탐지)")
+                score_item.setToolTip(tooltip)  # [03-001]
                 score_item.setForeground(self._color_warning)
                 score_item.setData(0, Qt.ItemDataRole.UserRole)
             else:
-                # score_v2가 None → 계산 오류
+                # score_v3가 None → 계산 오류
                 score_item = QStandardItem("⚠️")
-                score_item.setToolTip("score_v2 계산 실패")
+                score_item.setToolTip(tooltip)  # [03-001]
                 score_item.setForeground(self._color_warning)
                 score_item.setData(0, Qt.ItemDataRole.UserRole)
         else:
@@ -260,3 +265,43 @@ class WatchlistModel(QStandardItemModel):
         elif value > 0:
             return f"${value:.0f}"
         return "⚠️"
+    
+    # ═══════════════════════════════════════════════════════════════════════════
+    # [03-001] Score V3 툴팁 생성
+    # ═══════════════════════════════════════════════════════════════════════════
+    
+    def _build_score_tooltip(self, score_v3, intensities: dict) -> str:
+        """
+        Score V3 상세 툴팁 생성 (신호 강도 시각화)
+        
+        Args:
+            score_v3: Score V3 값 (None, -1, 0, 또는 양수)
+            intensities: 4가지 신호 강도 dict
+            
+        Returns:
+            str: 포맷팅된 툴팁 문자열
+        """
+        LABELS = {
+            "tight_range": "Tight Range",
+            "obv_divergence": "Absorption",  # V3.2: OBV Divergence → Absorption
+            "accumulation_bar": "Accum Bar",
+            "volume_dryout": "Volume Dryout",
+        }
+        MAX_LABEL_LEN = 14  # 가장 긴 라벨 기준
+        
+        if score_v3 == -1:
+            return "🆕 신규/IPO 종목 - 일봉 데이터 부족 (5일 미만)"
+        elif score_v3 is None:
+            return "⚠️ score_v3 계산 실패"
+        elif score_v3 == 0 or not intensities:
+            return "➖ 매집 신호 없음"
+        else:
+            lines = [f"📊 Score V3: {score_v3:.1f}\n"]
+            for key in ["tight_range", "obv_divergence", "accumulation_bar", "volume_dryout"]:
+                val = intensities.get(key, 0)
+                label = LABELS[key].ljust(MAX_LABEL_LEN)  # 고정폭 정렬
+                bar = "█" * int(val * 5) + "░" * (5 - int(val * 5))
+                marker = " ⬅" if val >= 0.8 else ""
+                lines.append(f"• {label} {bar} {val:.2f}{marker}")
+            return "\n".join(lines)
+
