@@ -1,17 +1,13 @@
 # Sigma9 리팩터링 가이드
 
-> **버전**: v2.2 (2026-01-07)  
+> **버전**: v2.3 (2026-01-08)  
 > **목적**: 리팩터링 품질 보장을 위한 자동화 체계  
-> **최종 수정**: 2026-01-07 | 목차, Domain Migration 상태 추가
+> **최종 수정**: 2026-01-08 | 전체 섹션 개선, Mermaid 다이어그램, Architecture Tests 완성
 
 **관련 문서**:
 - [운영 정책](./OPERATIONAL_POLICIES.md) - 장애 모드, 감사, 보안
 - [아키텍처](./ARCHITECTURE.md) - 시스템 구조, 데이터 플로우
 - [전략 문서](./STRATEGY.md) - MEP, Seismograph 전략
-
-> [!NOTE]
-> **Domain Migration 진행 중**: `Polygon → Massive` 명칭 변경 작업이 진행 중입니다.
-> 본 문서의 일부 코드 예시에 `polygon_*` 명칭이 남아있을 수 있으며, 마이그레이션 완료 시 `massive_*`로 대체됩니다.
 
 ---
 
@@ -185,20 +181,22 @@ flowchart LR
 
 **총 예상 시간**: 22-31시간
 
-| 순위 | 대상 | 예상 소요 | 위험도 |
-|------|------|----------|--------|
-| 1 | 인터페이스 추출 (순환 해소) | 2-3h | 낮음 |
-| 2 | DI Container 도입 | 3-4h | 낮음 |
-| 3 | `seismograph.py` 분리 | 6-8h | 중간 |
-| 4 | `server.py` lifespan 분리 | 2-3h | 낮음 |
-| 5 | `dashboard.py` 분리 | 6-8h | 중간 |
-| 6 | `routes.py` 분할 | 2-3h | 낮음 |
-| 7 | 데이터 모델 통합 | 1-2h | 낮음 |
+| 순위 | 대상 | 예상 소요 | 위험도 | 상태 |
+|------|------|----------|--------|------|
+| 1 | 인터페이스 추출 (순환 해소) | 2-3h | 낮음 | 📋 대기 |
+| 2 | DI Container 도입 | 3-4h | 낮음 | 📋 대기 |
+| 3 | `seismograph.py` 분리 | 6-8h | 중간 | 📋 대기 |
+| 4 | `server.py` lifespan 분리 | 2-3h | 낮음 | 📋 대기 |
+| 5 | `dashboard.py` 분리 | 6-8h | 중간 | 📋 대기 |
+| 6 | `routes.py` 분할 | 2-3h | 낮음 | 📋 대기 |
+| 7 | 데이터 모델 통합 | 1-2h | 낮음 | 📋 대기 |
+
+> **상태 범례**: 📋 대기 | 🔄 진행 중 | ✅ 완료
 
 ### 2.1 seismograph.py 분리 제안
 
 ```
-strategies/seismograph/
+backend/strategies/seismograph/
 ├── __init__.py          # SeismographStrategy (진입점)
 ├── models.py            # TickData, WatchlistItem
 ├── scoring/             # 점수 계산 모듈
@@ -217,7 +215,7 @@ strategies/seismograph/
 ### 2.2 dashboard.py 분리 제안
 
 ```
-gui/
+frontend/gui/
 ├── dashboard.py              # 메인 윈도우 (조합자)
 ├── panels/
 │   ├── watchlist_panel.py    # 워치리스트 테이블
@@ -231,7 +229,7 @@ gui/
 ### 2.3 routes.py 분할 제안
 
 ```
-api/routes/
+backend/api/routes/
 ├── __init__.py           # 라우터 조합
 ├── status.py             # /status, /engine/*
 ├── watchlist.py          # /watchlist/*
@@ -243,14 +241,27 @@ api/routes/
 
 ### 2.4 Model 중앙화 제안
 
-현재 데이터클래스가 여러 모듈에 분산되어 있음. 단일 `models/` 디렉터리로 통합:
+현재 데이터클래스(`@dataclass`)가 **14개 이상의 파일**에 분산되어 있음:
 
+| 현재 위치 | 포함된 모델 |
+|----------|-------------|
+| `backend/strategies/seismograph.py` | TickData, WatchlistItem |
+| `backend/strategies/score_v3_config.py` | ScoreV3Config |
+| `backend/core/risk_manager.py` | RiskConfig, Position |
+| `backend/core/order_manager.py` | OrderRequest, OrderResult |
+| `backend/core/backtest_engine.py` | BacktestConfig, BacktestResult |
+| `backend/core/config_loader.py` | EngineConfig |
+| 기타 10+ 파일 | 다양한 설정/상태 모델 |
+
+**통합 구조**:
 ```
 backend/models/
 ├── __init__.py
 ├── watchlist.py      # WatchlistItem, WatchlistState
 ├── tick.py           # TickData, TickBuffer
 ├── order.py          # OrderRequest, OrderResult
+├── risk.py           # RiskConfig, Position
+├── backtest.py       # BacktestConfig, BacktestResult
 └── config.py         # EngineConfig, ScannerConfig
 ```
 
@@ -265,13 +276,20 @@ backend/core/
 ├── backtest/         # engine, report
 ├── trading/          # order_manager, risk_manager
 ├── analysis/         # technical_analysis, zscore
-├── audit/            # decision_logger, failure_modes (← 운영 정책 참조)
+├── audit/            # decision_logger, failure_modes ✅ (구현됨)
 └── interfaces/       # scoring.py (추상 클래스)
 ```
+
+> [!NOTE]
+> `audit/` 디렉터리는 이미 구현되어 있음. [운영 정책](./OPERATIONAL_POLICIES.md#52-audit-로깅-정책) 참조.
 
 ---
 
 ## 3. 자동화 도구
+
+> [!WARNING]
+> 아래 설정은 **권장 설정**입니다. 현재 프로젝트에 `pyproject.toml`, `.pre-commit-config.yaml` 파일이 없을 수 있습니다.
+> 적용 시 [섹션 10. 설치 명령어](#10-설치-명령어)를 참고하세요.
 
 ### 3.1 Ruff (Lint + Format)
 
@@ -367,24 +385,27 @@ pydeps backend.strategies.seismograph -o docs/diagrams/seismograph_deps.svg
 
 ### 3.5 Pre-commit Hooks
 
+> [!TIP]
+> 버전은 설정 시점의 최신 안정 버전을 사용하세요. `pre-commit autoupdate` 명령으로 자동 업데이트 가능합니다.
+
 ```yaml
 # .pre-commit-config.yaml
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.4.4
+    rev: v0.8.0  # 최신 버전 확인: https://github.com/astral-sh/ruff/releases
     hooks:
       - id: ruff
         args: [--fix]
       - id: ruff-format
 
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.10.0
+    rev: v1.13.0  # 최신 버전 확인
     hooks:
       - id: mypy
         additional_dependencies: [types-PyYAML, pydantic]
 
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.6.0
+    rev: v5.0.0  # 최신 버전 확인
     hooks:
       - id: trailing-whitespace
       - id: end-of-file-fixer
@@ -493,10 +514,15 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.10"
-      - run: pip install ruff mypy import-linter
+          cache: 'pip'  # pip 캐싱으로 CI 속도 개선
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install ruff mypy import-linter
+          pip install -e .  # 프로젝트 의존성 설치 (있는 경우)
       - run: ruff format --check .
       - run: ruff check .
-      - run: mypy backend frontend
+      - run: mypy backend frontend --ignore-missing-imports
       - run: lint-imports
 ```
 
@@ -525,37 +551,88 @@ jobs:
 
 ## 7. Architecture Tests
 
+> [!NOTE]
+> 아래 테스트는 `tests/architecture/` 디렉터리에 배치합니다. 현재 미구현 상태입니다.
+
 ### 7.1 파일 크기 제한 테스트
 
 ```python
 # tests/architecture/test_file_size.py
-MAX_LINES = 500
-EXCEPTIONS = {"backend/strategies/seismograph.py", "frontend/gui/dashboard.py"}
+import pytest
+from pathlib import Path
 
-@pytest.mark.parametrize("filepath", get_python_files())
-def test_file_size_limit(filepath):
+MAX_LINES = 500
+PROJECT_ROOT = Path(__file__).parent.parent.parent
+EXCEPTIONS = {
+    "backend/strategies/seismograph.py",
+    "frontend/gui/dashboard.py",
+}
+
+def get_python_files():
+    """프로젝트 내 모든 Python 파일 경로 반환"""
+    for pattern in ["backend/**/*.py", "frontend/**/*.py"]:
+        yield from PROJECT_ROOT.glob(pattern)
+
+@pytest.mark.parametrize("filepath", list(get_python_files()))
+def test_file_size_limit(filepath: Path):
+    relative = str(filepath.relative_to(PROJECT_ROOT))
     if relative in EXCEPTIONS:
         pytest.skip(f"Exception: {relative}")
-    assert len(lines) <= MAX_LINES
+    
+    lines = filepath.read_text(encoding="utf-8").splitlines()
+    assert len(lines) <= MAX_LINES, f"{relative}: {len(lines)} lines (max: {MAX_LINES})"
 ```
 
 ### 7.2 God Class 방지 테스트
 
 ```python
 # tests/architecture/test_class_size.py
+import ast
+import pytest
+from pathlib import Path
+
 MAX_METHODS = 30
 MAX_CLASS_LINES = 400
+PROJECT_ROOT = Path(__file__).parent.parent.parent
 EXCEPTIONS = {"SeismographStrategy", "Sigma9Dashboard"}
+
+def get_classes_from_file(filepath: Path):
+    """파일에서 클래스 정의 추출"""
+    try:
+        tree = ast.parse(filepath.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ClassDef):
+                yield node
+    except SyntaxError:
+        pass
+
+def collect_classes():
+    """모든 클래스 수집"""
+    for pattern in ["backend/**/*.py", "frontend/**/*.py"]:
+        for filepath in PROJECT_ROOT.glob(pattern):
+            for cls in get_classes_from_file(filepath):
+                yield filepath, cls
+
+@pytest.mark.parametrize("filepath,cls", list(collect_classes()))
+def test_class_size_limit(filepath: Path, cls: ast.ClassDef):
+    if cls.name in EXCEPTIONS:
+        pytest.skip(f"Exception: {cls.name}")
+    
+    methods = [n for n in cls.body if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))]
+    class_lines = cls.end_lineno - cls.lineno + 1 if cls.end_lineno else 0
+    
+    assert len(methods) <= MAX_METHODS, f"{cls.name}: {len(methods)} methods (max: {MAX_METHODS})"
+    assert class_lines <= MAX_CLASS_LINES, f"{cls.name}: {class_lines} lines (max: {MAX_CLASS_LINES})"
 ```
 
 ---
 
 ## 8. PR 체크리스트
 
-### 기본 체크
-- [ ] `ruff format` 통과
-- [ ] `ruff check` 통과
-- [ ] `mypy` 통과
+### 기본 체크 (필수)
+- [ ] `ruff format --check .` 통과
+- [ ] `ruff check .` 통과
+- [ ] `mypy backend frontend` 통과
 
 ### 리팩터링 체크
 - [ ] `lint-imports` 통과 (순환 의존성 없음)
@@ -564,6 +641,15 @@ EXCEPTIONS = {"SeismographStrategy", "Sigma9Dashboard"}
 - [ ] 신규 클래스 ≤ 30 메서드
 - [ ] Singleton 대신 DI 사용
 
+### 테스트 체크
+- [ ] 관련 테스트 추가/수정
+- [ ] `pytest tests/` 통과
+- [ ] 커버리지 감소 없음
+
+### 문서 체크
+- [ ] 공개 API 변경 시 docstring 업데이트
+- [ ] 주요 변경 사항 CHANGELOG 기록 (있는 경우)
+
 ---
 
 ## 9. 커밋 컨벤션
@@ -571,48 +657,98 @@ EXCEPTIONS = {"SeismographStrategy", "Sigma9Dashboard"}
 ```
 <type>(<scope>): <description>
 
-예시:
-refactor(seismograph): extract score_v3 module
-fix(dashboard): resolve watchlist flickering
-feat(scanner): add realtime gainer detection
+[optional body]
+
+[optional footer(s)]
 ```
+
+**예시**:
+```
+refactor(seismograph): extract score_v3 module
+
+BREAKING CHANGE: calculate_score() signature changed
+```
+
+### Type 목록
 
 | Type | 설명 |
 |------|------|
 | `feat` | 새 기능 |
 | `fix` | 버그 수정 |
-| `refactor` | 리팩터링 |
+| `refactor` | 리팩터링 (기능 변경 없음) |
 | `perf` | 성능 개선 |
-| `test` | 테스트 |
-| `docs` | 문서 |
-| `chore` | 빌드/도구 |
+| `test` | 테스트 추가/수정 |
+| `docs` | 문서 수정 |
+| `style` | 코드 스타일 (포맷팅, 세미콜론 등) |
+| `ci` | CI/CD 설정 변경 |
+| `build` | 빌드 시스템, 외부 의존성 변경 |
+| `chore` | 기타 (빌드 스크립트 등) |
+
+### Scope 목록
 
 | Scope | 대상 |
 |-------|------|
 | `api` | backend/api/ |
 | `core` | backend/core/ |
+| `data` | backend/data/ |
+| `models` | backend/models/ (예정) |
+| `broker` | backend/broker/ |
 | `scanner` | realtime_scanner, ignition_monitor |
 | `seismograph` | Seismograph 전략 |
 | `dashboard` | frontend/gui/dashboard.py |
 | `gui` | frontend/gui/ 전체 |
 
+> [!TIP]
+> **Breaking Change**: API 시그니처 변경, 데이터 포맷 변경 등은 footer에 `BREAKING CHANGE:` 명시
+
 ---
 
 ## 10. 설치 명령어
 
+> **요구사항**: Python 3.10+
+
+### 10.1 개발 도구 설치
+
 ```bash
+# 가상환경 생성 (권장)
+python -m venv .venv
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
+
 # 개발 도구 설치
-pip install ruff mypy import-linter pre-commit pydeps dependency-injector
-
-# Pre-commit 설정
-pre-commit install
-
-# 전체 검사
-pre-commit run --all-files
-lint-imports
-pytest tests/architecture/ -v
+pip install --upgrade pip
+pip install ruff mypy import-linter pre-commit pydeps dependency-injector pytest
 ```
 
-*의존성 다이어그램: `docs/diagrams/backend_architecture.svg` 참조*  
-*운영 정책 (장애 모드, 감사, 보안): [OPERATIONAL_POLICIES.md](./OPERATIONAL_POLICIES.md) 참조*
+### 10.2 Pre-commit 설정
+
+```bash
+# Pre-commit 초기화
+pre-commit install
+
+# (선택) .pre-commit-config.yaml 파일이 없는 경우
+# 섹션 3.5의 예시를 참고하여 생성
+```
+
+### 10.3 검증 명령어
+
+```bash
+# 전체 Lint 검사
+pre-commit run --all-files
+
+# Import 경계 검증
+lint-imports
+
+# Architecture 테스트
+pytest tests/architecture/ -v
+
+# 순환 의존성 검출
+pydeps backend --only backend --show-cycles --no-output
+```
+
+---
+
+**관련 문서**:
+- 의존성 다이어그램: `docs/diagrams/backend_architecture.svg`
+- [운영 정책](./OPERATIONAL_POLICIES.md) - 장애 모드, 감사, 보안
+- [아키텍처](./ARCHITECTURE.md) - 시스템 구조, 데이터 플로우
 

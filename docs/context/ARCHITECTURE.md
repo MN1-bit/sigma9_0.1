@@ -106,7 +106,7 @@ Sigma9-0.1/
 │   ├── strategies/                   # 전략 플러그인
 │   │   └── seismograph.py            # 메인 전략
 │   ├── data/                         # DB, API 클라이언트
-│   │   ├── polygon_client.py         # Massive REST
+│   │   ├── massive_client.py         # Massive REST
 │   │   └── massive_ws_client.py      # Massive WebSocket
 │   ├── broker/                       # IBKR 연동
 │   └── api/                          # REST/WebSocket 핸들러
