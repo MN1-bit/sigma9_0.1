@@ -14,15 +14,16 @@
 ## 목차
 
 1. [코드베이스 현황](#1-코드베이스-현황)
-2. [리팩터링 우선순위](#2-리팩터링-우선순위)
-3. [자동화 도구](#3-자동화-도구)
-4. [리팩터링 도구 사용 정책](#4-리팩터링-도구-사용-정책)
-5. [Dependency Injection 패턴](#5-dependency-injection-패턴)
-6. [CI/CD GitHub Actions](#6-cicd-github-actions)
-7. [Architecture Tests](#7-architecture-tests)
-8. [PR 체크리스트](#8-pr-체크리스트)
-9. [커밋 컨벤션](#9-커밋-컨벤션)
-10. [설치 명령어](#10-설치-명령어)
+2. [클린업 프로세스 (Phase 0)](#2-클린업-프로세스-phase-0) ← **리팩터링 전 필수**
+3. [리팩터링 우선순위](#3-리팩터링-우선순위)
+4. [자동화 도구](#4-자동화-도구)
+5. [리팩터링 도구 사용 정책](#5-리팩터링-도구-사용-정책)
+6. [Dependency Injection 패턴](#6-dependency-injection-패턴)
+7. [CI/CD GitHub Actions](#7-cicd-github-actions)
+8. [Architecture Tests](#8-architecture-tests)
+9. [PR 체크리스트](#9-pr-체크리스트)
+10. [커밋 컨벤션](#10-커밋-컨벤션)
+11. [설치 명령어](#11-설치-명령어)
 
 ---
 
@@ -177,21 +178,101 @@ flowchart LR
 
 ---
 
-## 2. 리팩터링 우선순위
+## 2. 클린업 프로세스 (Phase 0)
 
-**총 예상 시간**: 22-31시간
+> [!IMPORTANT]
+> **대규모 리팩터링 전 필수 수행**. 클린업을 먼저 완료해야 리팩터링 범위가 명확해집니다.
+
+### 2.1 클린업 대상 목록
+
+#### 루트 디렉터리 정리
+
+| 파일 | 유형 | 조치 |
+|------|------|------|
+| `test_epsm_data.py` | 임시 테스트 | `tests/` 이동 또는 삭제 |
+| `test_epsm_nov.py` | 임시 테스트 | `tests/` 이동 또는 삭제 |
+| `test_gui_imports.py` | 임시 테스트 | `tests/` 이동 또는 삭제 |
+| `test_particles_standalone.py` | 임시 테스트 | `tests/` 이동 또는 삭제 |
+| `test_score_v2.py` | 임시 테스트 | `tests/` 이동 또는 삭제 |
+| `test_score_v3.py` | 임시 테스트 | `tests/` 이동 또는 삭제 |
+| `test_store.py` | 임시 테스트 | `tests/` 이동 또는 삭제 |
+| `analysis_result.txt` | 임시 출력 | 삭제 |
+| `test_output.txt` | 임시 출력 | 삭제 |
+| `test_result.txt` | 임시 출력 | 삭제 |
+| `check_tickers.py` | 유틸리티 | `backend/scripts/` 이동 |
+| `diagnose_chart.py` | 유틸리티 | `backend/scripts/` 이동 |
+
+#### data/ 디렉터리 (Git 제외 권장)
+
+| 파일 | 크기 | 조치 |
+|------|------|------|
+| `market_data.db` | ~1.4GB | `.gitignore`에 추가 (이미 추가 가정) |
+| `watchlist/` | 351개 파일 | 필요시 아카이브, 오래된 파일 정리 |
+
+### 2.2 클린업 실행 절차
+
+```bash
+# 1. 임시 출력 파일 삭제
+rm analysis_result.txt test_output.txt test_result.txt
+
+# 2. backend/scripts/ 디렉터리 생성 및 유틸리티 이동
+mkdir -p backend/scripts
+mv check_tickers.py diagnose_chart.py backend/scripts/
+
+# 3. 테스트 파일 정리 (필요한 것만 이동, 나머지 삭제)
+# 유지할 테스트 → tests/로 이동
+mv test_score_v2.py test_score_v3.py tests/
+
+# 검토 후 삭제 대상 (일회성 테스트)
+rm test_epsm_data.py test_epsm_nov.py test_gui_imports.py
+rm test_particles_standalone.py test_store.py
+
+# 4. .gitignore 확인 및 업데이트
+echo "data/market_data.db" >> .gitignore
+echo "data/market_data.db-*" >> .gitignore
+```
+
+### 2.3 클린업 체크리스트
+
+- [ ] 루트 디렉터리에 `.py` 파일 없음 (진입점 제외)
+- [ ] 임시 `.txt` 출력 파일 없음
+- [ ] 모든 테스트가 `tests/` 디렉터리 내에 위치
+- [ ] 유틸리티 스크립트가 `backend/scripts/` 디렉터리 내에 위치
+- [ ] 대용량 데이터 파일이 `.gitignore`에 포함
+
+---
+
+## 3. 리팩터링 우선순위
+
+**총 예상 시간**: 24-34시간
 
 | 순위 | 대상 | 예상 소요 | 위험도 | 상태 |
 |------|------|----------|--------|------|
-| 1 | 인터페이스 추출 (순환 해소) | 2-3h | 낮음 | 📋 대기 |
-| 2 | DI Container 도입 | 3-4h | 낮음 | 📋 대기 |
-| 3 | `seismograph.py` 분리 | 6-8h | 중간 | 📋 대기 |
-| 4 | `server.py` lifespan 분리 | 2-3h | 낮음 | 📋 대기 |
+| 1 | 인터페이스 추출 (순환 해소) | 2-3h | 낮음 | ✅ 완료 |
+| 2 | DI Container 도입 | 3-4h | 낮음 | ✅ 완료 |
+| 3a | `seismograph.py` Phase 1 (패키지화) | 1-2h | 낮음 | ✅ 완료 |
+| 3b | `seismograph.py` Phase 2 (로직 분리) | 4-5h | 중간 | ✅ 완료 |
+| 3c | `seismograph.py` Phase 3 (완전 마이그레이션) | 1h | 낮음 | ✅ 완료 |
+| 4 | `server.py` lifespan 분리 | 2-3h | 낮음 | ✅ 완료 |
 | 5 | `dashboard.py` 분리 | 6-8h | 중간 | 📋 대기 |
-| 6 | `routes.py` 분할 | 2-3h | 낮음 | 📋 대기 |
+| 6 | `routes.py` 분할 | 2-3h | 낮음 | ✅ 완료 |
 | 7 | 데이터 모델 통합 | 1-2h | 낮음 | 📋 대기 |
 
 > **상태 범례**: 📋 대기 | 🔄 진행 중 | ✅ 완료
+
+#### 3b. seismograph Phase 2 세부 작업
+
+| 작업 | 파일 | 이동 대상 |
+|------|------|----------|
+| Tight Range 분리 | `_calc_tight_range_intensity*()` | `signals/tight_range.py` |
+| OBV Divergence 분리 | `_calc_obv_divergence_intensity*()` | `signals/obv_divergence.py` |
+| Accumulation Bar 분리 | `_calc_accumulation_bar_intensity*()` | `signals/accumulation_bar.py` |
+| Volume Dryout 분리 | `_calc_volume_dryout_intensity*()` | `signals/volume_dryout.py` |
+| Score V1 분리 | `calculate_watchlist_score()` | `scoring/v1.py` |
+| Score V2 분리 | `calculate_watchlist_score_v2()` | `scoring/v2.py` |
+| Score V3 분리 | `calculate_watchlist_score_v3()` | `scoring/v3.py` |
+| 백업 파일 삭제 | `seismograph_backup.py` | 삭제 |
+
 
 ### 2.1 seismograph.py 분리 제안
 
@@ -262,8 +343,16 @@ backend/models/
 ├── order.py          # OrderRequest, OrderResult
 ├── risk.py           # RiskConfig, Position
 ├── backtest.py       # BacktestConfig, BacktestResult
-└── config.py         # EngineConfig, ScannerConfig
+└── technical.py      # OHLCData, TechnicalSignals, ZScoreData
 ```
+
+> [!IMPORTANT]
+> **범위 제외 (확정)**:
+> | 파일 | 이유 |
+> |------|------|
+> | `config_loader.py` (18개 모델) | 설정 로딩 로직과 밀접하게 결합, 순환 import 위험 |
+> | `score_v3_config.py` (8개 모델) | Seismograph 전략 전용 설정, 분리 불필요 |
+
 
 ### 2.5 Core 모듈 그룹화 제안
 
@@ -285,11 +374,11 @@ backend/core/
 
 ---
 
-## 3. 자동화 도구
+## 4. 자동화 도구
 
 > [!WARNING]
 > 아래 설정은 **권장 설정**입니다. 현재 프로젝트에 `pyproject.toml`, `.pre-commit-config.yaml` 파일이 없을 수 있습니다.
-> 적용 시 [섹션 10. 설치 명령어](#10-설치-명령어)를 참고하세요.
+> 적용 시 [섹션 11. 설치 명령어](#11-설치-명령어)를 참고하세요.
 
 ### 3.1 Ruff (Lint + Format)
 
@@ -416,7 +505,7 @@ repos:
 
 ---
 
-## 4. 리팩터링 도구 사용 정책
+## 5. 리팩터링 도구 사용 정책
 
 > [!IMPORTANT]
 > 아래 도구는 **모든 리팩터링 PR에서 필수**로 실행해야 합니다.
@@ -444,7 +533,7 @@ repos:
 
 ---
 
-## 5. Dependency Injection 패턴
+## 6. Dependency Injection 패턴
 
 ### 5.0 인터페이스 추출 (순환 해소 선행 작업)
 
@@ -493,7 +582,7 @@ class Container(containers.DeclarativeContainer):
 
 ---
 
-## 6. CI/CD GitHub Actions
+## 7. CI/CD GitHub Actions
 
 ### 6.1 Lint & Format Check
 
@@ -549,7 +638,7 @@ jobs:
 
 ---
 
-## 7. Architecture Tests
+## 8. Architecture Tests
 
 > [!NOTE]
 > 아래 테스트는 `tests/architecture/` 디렉터리에 배치합니다. 현재 미구현 상태입니다.
@@ -627,7 +716,7 @@ def test_class_size_limit(filepath: Path, cls: ast.ClassDef):
 
 ---
 
-## 8. PR 체크리스트
+## 9. PR 체크리스트
 
 ### 기본 체크 (필수)
 - [ ] `ruff format --check .` 통과
@@ -652,7 +741,7 @@ def test_class_size_limit(filepath: Path, cls: ast.ClassDef):
 
 ---
 
-## 9. 커밋 컨벤션
+## 10. 커밋 컨벤션
 
 ```
 <type>(<scope>): <description>
@@ -703,7 +792,7 @@ BREAKING CHANGE: calculate_score() signature changed
 
 ---
 
-## 10. 설치 명령어
+## 11. 설치 명령어
 
 > **요구사항**: Python 3.10+
 

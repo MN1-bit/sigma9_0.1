@@ -1,7 +1,7 @@
 # 📘 Σ-IX (Sigma-Nine) Master Plan v2.0
 
 > **Official Name**: Sigma9 
-> **Version**: v2.0 (Two-Phase Detection)  
+> **Version**: v2.1 (Post-Refactoring)  
 > **Philosophy**: "Detect the Accumulation, Strike the Ignition, Harvest the Surge."  
 > **Core Edge**: Volume-Price Divergence + Information Asymmetry
 
@@ -28,9 +28,9 @@
 |-----------|---------|---------|
 | **API Server** | `FastAPI` + `uvicorn` | REST API + WebSocket 서버 |
 | **Broker API** | `ib_insync` | IBKR 연동, 서버사이드 OCA 주문 |
-| **Market Data** | `polygon-api-client` | **Universe Data Source (Grouped Daily)** |
 | **Database** | `SQLAlchemy` (SQLite) | Historical Data Persistence |
 | **Data Analysis** | `pandas` + `pandas_ta` | OBV, ATR, VWAP 계산 |
+| **Market Data** | Massive.com REST + WebSocket | Universe + 실시간 데이터 |
 | **LLM** | `openai(chatGPT)` / `anthropic(claude)` / `google(Gemini)` | 해설 및 분석 리포트 (Multi-Model Support) |
 | **Logging** | `loguru` | 컬러 로깅 |
 | **Task Queue** | `asyncio` | 비동기 작업 처리 |
@@ -690,13 +690,17 @@ Half Kelly (권장):
 ```
 Sigma9-0.1/
 ├── backend/                          # ← AWS로 배포
-│   ├── server.py                     # FastAPI 메인 서버 + WebSocket
+│   ├── server.py                     # FastAPI 메인 서버 (~200줄)
+│   ├── container.py                  # DI Container (dependency-injector)
 │   ├── __main__.py                   # 엔트리포인트 (uvicorn 실행)
 │   ├── core/
+│   │   ├── interfaces/               # 추상 인터페이스
+│   │   │   └── scoring.py            # ScoringStrategy 인터페이스
 │   │   ├── strategy_base.py          # 전략 추상 인터페이스 (Scanning + Trading)
 │   │   ├── strategy_loader.py        # 플러그인 로더 (동적 로딩 + Hot Reload)
 │   │   ├── scanner.py                # Scanner Orchestrator (Phase 1)
 │   │   ├── ignition_monitor.py       # Ignition Score 실시간 모니터링 (Phase 2)
+│   │   ├── realtime_scanner.py       # 실시간 스캐너 (Gainers → Tier2)
 │   │   ├── risk_manager.py           # 리스크 관리 (Kelly, Loss Limits)
 │   │   ├── order_manager.py          # 주문 상태 관리 (OCA Groups)
 │   │   ├── double_tap.py             # 재진입 로직
@@ -705,28 +709,56 @@ Sigma9-0.1/
 │   │   ├── config_loader.py          # Pydantic 중앙 설정 로더
 │   │   ├── tick_broadcaster.py       # Massive WS → GUI WebSocket 브릿지
 │   │   ├── subscription_manager.py   # Massive 구독 동기화
-│   │   ├── tick_dispatcher.py        # 📶 틱 중앙 배포자 (Strategy, TrailingStop 등)
+│   │   ├── tick_dispatcher.py        # 📶 틱 중앙 배포자
 │   │   ├── technical_analysis.py     # 기술적 지표 (VWAP, ATR, SMA, EMA, RSI)
 │   │   ├── backtest_engine.py        # 백테스팅 엔진
 │   │   └── backtest_report.py        # 백테스트 리포트 생성
+│   ├── startup/                      # 서버 시작 로직 모듈화
+│   │   ├── __init__.py               # 패키지 exports
+│   │   ├── config.py                 # Config + Logging 초기화
+│   │   ├── database.py               # DB 초기화
+│   │   ├── realtime.py               # Massive WS, Scanner, IgnitionMonitor 초기화
+│   │   └── shutdown.py               # Graceful Shutdown 로직
+│   ├── models/                       # 중앙 모델 저장소 (dataclasses)
+│   │   ├── __init__.py               # 모든 모델 re-export
+│   │   ├── tick.py                   # TickData
+│   │   ├── watchlist.py              # WatchlistItem
+│   │   ├── order.py                  # OrderStatus, OrderRecord, Position
+│   │   ├── risk.py                   # RiskConfig
+│   │   ├── backtest.py               # BacktestConfig, Trade, BacktestReport
+│   │   └── technical.py              # IndicatorResult, ZScoreResult, DailyStats
 │   ├── broker/
 │   │   └── ibkr_connector.py         # IBKR 주문 실행 전용 (place_order, get_positions)
 │   ├── data/
 │   │   ├── database.py               # SQLAlchemy + SQLite (WAL Mode)
 │   │   ├── massive_ws_client.py      # 📶 Massive WebSocket 실시간 클라이언트
-│   │   ├── polygon_client.py         # Massive.com REST API 클라이언트
-│   │   ├── polygon_loader.py         # 히스토리 데이터 Incremental Sync
-│   │   ├── symbol_mapper.py          # Polygon ↔ IBKR 심볼 매핑
+│   │   ├── massive_client.py         # Massive.com REST API 클라이언트
+│   │   ├── massive_loader.py         # 히스토리 데이터 Incremental Sync
+│   │   ├── symbol_mapper.py          # Massive ↔ IBKR 심볼 매핑
 │   │   └── watchlist_store.py        # Watchlist 영속화 (JSON/DB)
 │   ├── llm/
 │   │   └── oracle.py                 # LLM Intelligence Layer
 │   ├── api/
-│   │   ├── routes.py                 # REST API 엔드포인트
+│   │   ├── routes/                   # REST API 라우터 패키지 (12개 도메인)
+│   │   │   ├── __init__.py           # 라우터 조합 + 모델 re-export
+│   │   │   ├── models.py             # 공유 Pydantic 모델
+│   │   │   ├── common.py             # 공용 유틸리티
+│   │   │   ├── status.py, control.py, watchlist.py, position.py
+│   │   │   ├── strategy.py, scanner.py, ignition.py, chart.py
+│   │   │   ├── llm.py, tier2.py, zscore.py, sync.py
 │   │   └── websocket.py              # WebSocket 핸들러 (ConnectionManager)
 │   ├── strategies/                   # ← 전략 플러그인 폴더
 │   │   ├── __init__.py
 │   │   ├── _template.py              # 새 전략 개발 템플릿
-│   │   └── seismograph.py            # Sigma9 메인 전략
+│   │   └── seismograph/              # Sigma9 메인 전략 (패키지)
+│   │       ├── __init__.py           # 진입점 (re-export)
+│   │       ├── strategy.py           # SeismographStrategy 클래스
+│   │       ├── models.py             # 전략 전용 모델
+│   │       ├── signals/              # 시그널 강도 계산
+│   │       │   ├── base.py, tight_range.py, obv_divergence.py
+│   │       │   ├── accumulation_bar.py, volume_dryout.py
+│   │       └── scoring/              # 점수 계산
+│   │           ├── v1.py, v2.py, v3.py
 │   ├── config/
 │   │   └── settings.yaml
 │   ├── requirements.txt
@@ -736,19 +768,21 @@ Sigma9-0.1/
 │   ├── main.py                       # PyQt6 진입점 (qasync 이벤트루프)
 │   ├── gui/
 │   │   ├── dashboard.py              # 메인 대시보드 (Tiered Watchlist)
+│   │   ├── panels/                   # 분리된 UI 패널
+│   │   │   ├── watchlist_panel.py, tier2_panel.py, log_panel.py
+│   │   ├── state/                    # 상태 관리
+│   │   │   └── dashboard_state.py
 │   │   ├── chart/                    # 📊 차트 서브패키지
 │   │   │   ├── pyqtgraph_chart.py    # 고성능 pyqtgraph 차트 위젯
 │   │   │   ├── candlestick_item.py   # 캔들스틱 렌더링 아이템
 │   │   │   └── chart_data_manager.py # 차트 데이터 캐싱/로딩
-│   │   ├── chart_widget.py           # (Legacy) TradingView 차트
 │   │   ├── control_panel.py          # 🎛️ Control Panel (Connect, Kill Switch)
-│   │   ├── settings_dialog.py        # 설정 다이얼로그 (탭: Connection, Backend, Theme)
+│   │   ├── settings_dialog.py        # 설정 다이얼로그
 │   │   ├── custom_window.py          # Acrylic 프레임리스 윈도우
 │   │   ├── window_effects.py         # Windows DWM API 래퍼
 │   │   ├── particle_effects.py       # 트레이딩 파티클 이펙트
 │   │   ├── theme.py                  # 중앙화된 테마 매니저
-│   │   └── assets/                   # GUI 리소스 (이미지, 아이콘 등)
-│   │       └── gold_coin.png         # 익절 이펙트 이미지
+│   │   └── assets/                   # GUI 리소스
 │   ├── services/                     # 📡 Backend 통신 레이어
 │   │   ├── backend_client.py         # 어댑터 관리 + 상태 동기화
 │   │   ├── rest_adapter.py           # REST API 클라이언트
@@ -758,12 +792,16 @@ Sigma9-0.1/
 │       └── settings.yaml             # 서버 주소 설정
 │
 ├── docs/
-│   └── Plan/
-│       ├── masterplan.md             # 이 문서
-│       ├── steps/                    # 단계별 상세 계획
-│       │   ├── development_steps.md  # 개발 로드맵
-│       │   └── step_*.md             # 각 스텝별 계획
-│       └── migration_guide.md        # 마이그레이션 상세 가이드
+│   ├── Plan/
+│   │   ├── MASTERPLAN.md             # 이 문서
+│   │   ├── steps/                    # 단계별 상세 계획
+│   │   ├── refactor/                 # 리팩터링 계획서
+│   │   └── migration_guide.md        # 마이그레이션 상세 가이드
+│   ├── devlog/                       # 개발 로그
+│   │   └── refactor/                 # 리팩터링 devlog
+│   └── context/                      # 핵심 정책 문서
+│       ├── ARCHITECTURE.md, REFACTORING.md
+│       └── strategy/
 │
 ├── data/
 │   └── market_data.db                # SQLite 시장 데이터 (WAL Mode)
@@ -802,9 +840,10 @@ backend/
 └── strategies/               # ← 전략 플러그인 폴더
     ├── __init__.py
     ├── _template.py          # 새 전략 개발 템플릿
-    ├── seismograph.py        # Sigma9 메인 전략
-    ├── momentum.py           # 모멘텀 전략 (예시)
-    └── mean_reversion.py     # 평균회귀 전략 (예시)
+    └── seismograph/          # Sigma9 메인 전략 (패키지)
+        ├── strategy.py       # SeismographStrategy 클래스
+        ├── signals/          # 시그널 강도 계산
+        └── scoring/          # 점수 계산 (v1, v2, v3)
 ```
 
 ### 13.3 Strategy Base (추상 인터페이스)

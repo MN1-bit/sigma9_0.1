@@ -10,7 +10,11 @@
 #
 # 📦 포함 전략:
 #   - _template.py: 새 전략 개발 템플릿 (복사용)
-#   - seismograph.py: 메인 전략 (Step 2.x에서 구현)
+#   - seismograph/: 메인 전략 패키지 (Step 2.x에서 구현)
+#
+# 📖 [03-001] 순환 import 방지:
+#   - 직접 export 대신 서브모듈에서 명시적으로 import
+#   - from backend.strategies.seismograph import SeismographStrategy
 # ============================================================================
 
 """
@@ -18,12 +22,17 @@ Sigma9 Strategies Package
 
 트레이딩 전략 플러그인 폴더입니다.
 StrategyBase를 상속받은 전략 클래스들이 이 폴더에 위치합니다.
+
+사용법::
+
+    from backend.strategies.seismograph import SeismographStrategy
 """
 
-# 전략은 StrategyLoader에 의해 동적으로 로드되지만,
-# 편의를 위해 주요 전략은 직접 import 가능하게 함
-from .seismograph import SeismographStrategy
+# [03-001] 순환 import 방지: 직접 import 제거
+# 전략은 필요한 곳에서 명시적으로 import하세요:
+#   from backend.strategies.seismograph import SeismographStrategy
 
 __all__ = [
-    "SeismographStrategy",
+    "seismograph",  # 서브패키지
 ]
+

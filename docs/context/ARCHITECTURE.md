@@ -1,6 +1,6 @@
 # Sigma9 시스템 아키텍처
 
-> **버전**: v3.0 (2026-01-07)  
+> **버전**: v3.1 (2026-01-08)  
 > **철학**: "Detect the Accumulation, Strike the Ignition, Harvest the Surge."
 
 ---
@@ -97,22 +97,46 @@ flowchart TB
 ```
 Sigma9-0.1/
 ├── backend/                          # ← AWS 배포
-│   ├── server.py                     # FastAPI 메인 서버
+│   ├── server.py                     # FastAPI 메인 서버 (~200줄)
+│   ├── container.py                  # DI Container (dependency-injector)
 │   ├── core/                         # 전략 엔진, 리스크 관리
+│   │   ├── interfaces/               # 추상 인터페이스
+│   │   │   └── scoring.py            # ScoringStrategy 인터페이스
 │   │   ├── strategy_base.py          # 전략 추상 인터페이스
 │   │   ├── realtime_scanner.py       # 실시간 스캐너
 │   │   ├── tick_broadcaster.py       # Massive WS → GUI 브릿지
 │   │   └── trailing_stop.py          # 트레일링 스탑
+│   ├── startup/                      # 서버 시작 로직 모듈화
+│   │   ├── config.py                 # Config + Logging 초기화
+│   │   ├── database.py               # DB 초기화
+│   │   ├── realtime.py               # Massive WS, Scanner 초기화
+│   │   └── shutdown.py               # Graceful Shutdown
+│   ├── models/                       # 중앙 모델 저장소
+│   │   ├── tick.py                   # TickData
+│   │   ├── watchlist.py              # WatchlistItem
+│   │   ├── order.py                  # OrderStatus, OrderRecord
+│   │   ├── risk.py                   # RiskConfig
+│   │   ├── backtest.py               # BacktestConfig, Trade
+│   │   └── technical.py              # IndicatorResult, ZScoreResult
 │   ├── strategies/                   # 전략 플러그인
-│   │   └── seismograph.py            # 메인 전략
+│   │   └── seismograph/              # 메인 전략 (패키지)
+│   │       ├── strategy.py           # SeismographStrategy 클래스
+│   │       ├── models.py             # 전략 전용 모델
+│   │       ├── signals/              # 시그널 모듈
+│   │       └── scoring/              # 점수 계산 (v1, v2, v3)
 │   ├── data/                         # DB, API 클라이언트
 │   │   ├── massive_client.py         # Massive REST
 │   │   └── massive_ws_client.py      # Massive WebSocket
 │   ├── broker/                       # IBKR 연동
 │   └── api/                          # REST/WebSocket 핸들러
+│       └── routes/                   # 라우터 패키지 (12개 도메인)
+│           ├── status.py, control.py, watchlist.py ...
+│           └── __init__.py           # 라우터 조합
 │
 ├── frontend/                         # ← 로컬 Windows
 │   ├── gui/                          # 대시보드, 차트
+│   │   ├── panels/                   # 분리된 UI 패널
+│   │   └── state/                    # 상태 관리
 │   └── services/                     # Backend 통신
 │
 └── docs/

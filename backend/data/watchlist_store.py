@@ -25,10 +25,114 @@ Watchlist 데이터의 JSON 저장/로드 기능을 제공합니다.
 """
 
 import json
+import os
+import threading
+import queue
+import atexit
 from pathlib import Path
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 from loguru import logger
+import numpy as np
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# [FIX] Queue 기반 전담 Writer 스레드
+# ═══════════════════════════════════════════════════════════════════════════
+
+class NumpyEncoder(json.JSONEncoder):
+    """numpy 타입을 Python 기본 타입으로 변환"""
+    def default(self, obj):
+        if isinstance(obj, np.bool_):
+            return bool(obj)
+        if isinstance(obj, np.integer):
+            return int(obj)
+        if isinstance(obj, np.floating):
+            return float(obj)
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        return super().default(obj)
+
+
+class WatchlistWriter:
+    """
+    전담 Watchlist 쓰기 스레드
+    
+    모든 쓰기 요청이 Queue를 통해 순차적으로 처리됩니다.
+    Race Condition이 완전히 제거됩니다.
+    """
+    _instance = None
+    _lock = threading.Lock()
+    
+    def __new__(cls):
+        with cls._lock:
+            if cls._instance is None:
+                cls._instance = super().__new__(cls)
+                cls._instance._initialized = False
+            return cls._instance
+    
+    def __init__(self):
+        if self._initialized:
+            return
+        
+        self._queue: queue.Queue = queue.Queue()
+        self._running = True
+        self._thread = threading.Thread(target=self._writer_loop, daemon=True)
+        self._thread.start()
+        self._initialized = True
+        
+        # 프로세스 종료 시 정리
+        atexit.register(self.shutdown)
+        logger.debug("📝 WatchlistWriter 스레드 시작")
+    
+    def enqueue(self, data: dict, path: Path, temp_path: Path):
+        """쓰기 작업을 큐에 추가"""
+        self._queue.put((data, path, temp_path))
+    
+    def _writer_loop(self):
+        """전담 쓰기 루프"""
+        while self._running:
+            try:
+                # 0.1초 타임아웃으로 폴링 (shutdown 감지용)
+                try:
+                    data, path, temp_path = self._queue.get(timeout=0.1)
+                except queue.Empty:
+                    continue
+                
+                # Atomic Write 수행
+                try:
+                    with open(temp_path, "w", encoding="utf-8") as f:
+                        json.dump(data, f, ensure_ascii=False, indent=2, cls=NumpyEncoder)
+                        f.flush()
+                        os.fsync(f.fileno())
+                    
+                    # Windows: 기존 파일 삭제 후 rename
+                    if path.exists():
+                        path.unlink()
+                    temp_path.rename(path)
+                    
+                except Exception as e:
+                    logger.error(f"❌ WatchlistWriter 쓰기 실패: {e}")
+                finally:
+                    self._queue.task_done()
+                    
+            except Exception as e:
+                logger.error(f"❌ WatchlistWriter 루프 오류: {e}")
+    
+    def shutdown(self):
+        """Writer 스레드 종료"""
+        self._running = False
+        if self._thread.is_alive():
+            self._thread.join(timeout=2.0)
+        logger.debug("📝 WatchlistWriter 스레드 종료")
+    
+    def wait_for_completion(self):
+        """큐의 모든 작업이 완료될 때까지 대기"""
+        self._queue.join()
+
+
+# 전역 Writer 인스턴스
+_writer = WatchlistWriter()
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -110,20 +214,24 @@ class WatchlistStore:
             "watchlist": watchlist,
         }
         
-        # 현재 Watchlist 저장
+        # 현재 Watchlist 저장 (Queue 기반 비동기 쓰기)
         current_path = self.data_dir / CURRENT_WATCHLIST_FILE
-        with open(current_path, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
+        temp_path = self.data_dir / ".watchlist_current.tmp"
         
-        logger.info(f"💾 Watchlist 저장: {len(watchlist)}개 항목 → {current_path}")
+        # Queue에 쓰기 작업 추가 (전담 스레드가 순차 처리)
+        _writer.enqueue(data, current_path, temp_path)
         
-        # 히스토리 저장
+        logger.debug(f"� Watchlist 저장 큐 추가: {len(watchlist)}개 항목")
+        
+        # 히스토리 저장 (별도 파일이므로 직접 저장 가능)
         if save_history:
             history_filename = f"watchlist_{timestamp.strftime('%Y%m%d_%H%M%S')}.json"
             history_path = self.history_dir / history_filename
-            with open(history_path, "w", encoding="utf-8") as f:
-                json.dump(data, f, ensure_ascii=False, indent=2)
-            logger.debug(f"📜 히스토리 저장: {history_path}")
+            try:
+                with open(history_path, "w", encoding="utf-8") as f:
+                    json.dump(data, f, ensure_ascii=False, indent=2, cls=NumpyEncoder)
+            except Exception as e:
+                logger.warning(f"⚠️ 히스토리 저장 실패: {e}")
         
         return current_path
     

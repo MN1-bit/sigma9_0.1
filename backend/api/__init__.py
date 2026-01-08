@@ -3,21 +3,31 @@
 # ============================================================================
 # 이 패키지는 REST API 및 WebSocket 엔드포인트를 담당합니다.
 #
-# 📦 포함 모듈:
-#   - routes.py: REST API 라우터
-#   - websocket.py: WebSocket 핸들러
+# 📦 구조:
+#   - routes/           : REST API 라우터 (도메인별 분리)
+#     ├── __init__.py   : 라우터 조합
+#     ├── models.py     : 공유 Pydantic 모델
+#     ├── common.py     : 공용 유틸리티
+#     ├── status.py     : /status, /engine/status
+#     ├── control.py    : /control, /kill-switch, /engine/*
+#     ├── watchlist.py  : /watchlist/*
+#     ├── position.py   : /positions
+#     ├── strategy.py   : /strategies/*
+#     ├── scanner.py    : /scanner/*, /gainers/*
+#     ├── ignition.py   : /ignition/*
+#     ├── chart.py      : /chart/*
+#     ├── llm.py        : /oracle/*
+#     ├── tier2.py      : /tier2/*
+#     ├── zscore.py     : /zscore/*
+#     └── sync.py       : /sync/*
+#   - websocket.py      : WebSocket 핸들러
 #
-# 📌 REST API 엔드포인트:
-#   GET  /api/watchlist          - Watchlist 조회
-#   GET  /api/positions          - 현재 포지션
-#   POST /api/kill-switch        - 긴급 정지
-#   POST /api/order              - 수동 주문
-#   GET  /api/strategies         - 전략 목록
-#   POST /api/strategies/{name}  - 전략 로드/리로드
+# 📌 사용법:
+#     from backend.api.routes import router
+#     app.include_router(router, prefix="/api")
 #
-# 📌 WebSocket 엔드포인트:
-#   WS /ws/market                - 실시간 시장 데이터
-#   WS /ws/trade                 - 거래 이벤트 스트림
+# 📌 [06-001] Refactored:
+#     routes.py (1,194줄) → routes/ 디렉터리 (15개 파일)
 # ============================================================================
 
 """
@@ -32,3 +42,4 @@ __all__ = [
     # "api_router",
     # "ws_router",
 ]
+

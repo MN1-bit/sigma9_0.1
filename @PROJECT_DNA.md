@@ -8,7 +8,7 @@
 # 🧬 PROJECT_DNA.md — Σ-IX (Sigma-Nine)
 
 > **For AI Agent (Google Antigravity)**  
-> **Version**: 3.0 | **Last Updated**: 2026-01-07  
+> **Version**: 3.1 | **Last Updated**: 2026-01-08  
 > **Philosophy**: "Detect the Accumulation, Strike the Ignition, Harvest the Surge."
 
 ---
@@ -42,7 +42,7 @@
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                        🇰🇷 Local Client (Windows)                       │
 │  ┌───────────────────────────────────────────────────────────────────┐  │
-│  │  PyQt6 GUI Dashboard + TradingView Lightweight Charts             │  │
+│  │  PyQt6 GUI Dashboard + pyqtgraph Charts                           │  │
 │  └───────────────────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
@@ -54,42 +54,53 @@
 ```
 Sigma9-0.1/
 ├── backend/                          # ← AWS 배포 대상
-│   ├── server.py                     # FastAPI 메인 서버
+│   ├── server.py                     # FastAPI 메인 서버 (~200줄)
+│   ├── container.py                  # DI Container (dependency-injector)
 │   ├── core/
-│   │   ├── strategy_base.py          # 전략 추상 인터페이스 (Scanning + Trading)
+│   │   ├── interfaces/               # 추상 인터페이스
+│   │   │   └── scoring.py            # ScoringStrategy 인터페이스
+│   │   ├── strategy_base.py          # 전략 추상 인터페이스
 │   │   ├── strategy_loader.py        # 플러그인 동적 로더
-│   │   ├── engine.py                 # 전략 실행 엔진
 │   │   ├── risk_manager.py           # 리스크 관리
 │   │   └── double_tap.py             # 재진입 로직
+│   ├── startup/                      # 서버 시작 로직 모듈화
+│   │   ├── config.py, database.py, realtime.py, shutdown.py
+│   ├── models/                       # 중앙 모델 저장소
+│   │   ├── tick.py, watchlist.py, order.py, risk.py, backtest.py
 │   ├── strategies/                   # 전략 플러그인 폴더
-│   │   ├── seismograph.py            # 메인 전략
+│   │   ├── seismograph/              # 메인 전략 (패키지)
+│   │   │   ├── strategy.py           # SeismographStrategy
+│   │   │   ├── signals/              # 시그널 계산 모듈
+│   │   │   └── scoring/              # 점수 계산 (v1, v2, v3)
 │   │   └── _template.py              # 신규 전략 템플릿
 │   ├── broker/
 │   │   └── ibkr_connector.py         # IBKR 연동 (ib_insync)
 │   ├── llm/
 │   │   └── oracle.py                 # LLM Intelligence Layer
 │   └── api/
-│       ├── routes.py                 # REST API
+│       ├── routes/                   # REST API (12개 도메인 분할)
+│       │   ├── status.py, control.py, watchlist.py ...
 │       └── websocket.py              # WebSocket 핸들러
 │
 ├── frontend/                         # ← Windows 로컬 유지
 │   ├── main.py                       # PyQt6 진입점
 │   ├── gui/
 │   │   ├── dashboard.py              # 메인 대시보드
-│   │   ├── chart_widget.py           # TradingView 차트
-│   │   └── watchlist_widget.py       # Watchlist 패널
-│   └── client/
-│       ├── api_client.py             # REST 클라이언트 (httpx)
-│       └── ws_client.py              # WebSocket 클라이언트
+│   │   ├── panels/                   # 분리된 UI 패널
+│   │   │   ├── watchlist_panel.py, tier2_panel.py, log_panel.py
+│   │   ├── state/                    # 상태 관리
+│   │   │   └── dashboard_state.py
+│   │   └── chart/                    # pyqtgraph 차트
+│   └── services/
+│       ├── backend_client.py         # 어댑터 관리
+│       ├── rest_adapter.py           # REST 클라이언트
+│       └── ws_adapter.py             # WebSocket 클라이언트
 │
 ├── docs/
 │   └── context/                      # 📘 핵심 정책 문서
 │       ├── ARCHITECTURE.md           # 시스템 아키텍처
 │       ├── REFACTORING.md            # 리팩터링 가이드
 │       └── strategy/                 # 전략별 문서
-│           ├── seismograph.md        # Seismograph 전략
-│           ├── mep.md                # MEP 프로토콜
-│           └── ignition.md           # Ignition Score
 │
 └── tests/
     ├── test_strategies.py
@@ -116,7 +127,7 @@ Sigma9-0.1/
 | Component | Library | Purpose |
 |-----------|---------|---------|
 | GUI | `PyQt6` + `qfluentwidgets` | 데스크탑 대시보드 (Glassmorphism) |
-| Charts | `TradingView Lightweight Charts` | 시각화 |
+| Charts | `pyqtgraph` | 고성능 네이티브 차트 |
 | HTTP | `httpx` | REST 클라이언트 |
 | WebSocket | `websockets` | 실시간 데이터 수신 |
 | Async | `qasync` | PyQt + asyncio 통합 |

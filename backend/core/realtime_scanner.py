@@ -32,8 +32,11 @@ masterplan.md Section 7.3 "Source B (Real-Time Gainers)" 구현입니다.
 import asyncio
 import os
 from datetime import datetime
-from typing import Set, List, Dict, Any, Optional
+from typing import Set, List, Dict, Any, Optional, TYPE_CHECKING
 from loguru import logger
+
+if TYPE_CHECKING:
+    from backend.core.interfaces.scoring import ScoringStrategy
 
 
 class RealtimeScanner:
@@ -69,7 +72,8 @@ class RealtimeScanner:
         ws_manager: Any,
         db: Optional[Any] = None,  # [02-001b] MarketDB 인스턴스
         ignition_monitor: Optional[Any] = None,
-        poll_interval: float = 1.0
+        poll_interval: float = 1.0,
+        scoring_strategy: Optional["ScoringStrategy"] = None  # [01-001] DI로 전략 주입
     ):
         """
         RealtimeScanner 초기화
@@ -87,15 +91,10 @@ class RealtimeScanner:
         self.ignition_monitor = ignition_monitor
         self.poll_interval = poll_interval
         
-        # [02-001b] SeismographStrategy 초기화 (DB가 있을 때만)
-        self.strategy = None
-        if db:
-            try:
-                from backend.strategies.seismograph import SeismographStrategy
-                self.strategy = SeismographStrategy()
-                logger.info("📊 SeismographStrategy 초기화 완료 (score_v3 계산 활성화)")
-            except Exception as e:
-                logger.warning(f"⚠️ SeismographStrategy 초기화 실패: {e}")
+        # [01-001] ScoringStrategy DI 주입 (순환 의존성 해소)
+        self.strategy = scoring_strategy
+        if scoring_strategy:
+            logger.info("📊 ScoringStrategy 주입 완료 (score_v3 계산 활성화)")
         
         # 내부 상태
         self._running = False
@@ -660,8 +659,23 @@ class RealtimeScanner:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# 싱글톤 인스턴스
+# 레거시 싱글톤 인스턴스 (Deprecated - Container 사용 권장)
 # ═══════════════════════════════════════════════════════════════════════════
+# 
+# 📌 [02-001] DI Container 도입으로 권장 사용법이 변경되었습니다.
+# 
+# Before (Deprecated):
+#   scanner = get_realtime_scanner()
+# 
+# After (Recommended):
+#   from backend.container import container
+#   scanner = container.realtime_scanner()
+#
+# ⚠️ 하위 호환성을 위해 이 방식도 계속 동작합니다.
+#
+# ═══════════════════════════════════════════════════════════════════════════
+
+import warnings
 
 _scanner_instance: Optional[RealtimeScanner] = None
 
@@ -670,9 +684,19 @@ def get_realtime_scanner() -> Optional[RealtimeScanner]:
     """
     전역 RealtimeScanner 인스턴스 반환
     
+    ⚠️ Deprecated: Container 사용 권장
+    >>> from backend.container import container
+    >>> scanner = container.realtime_scanner()
+    
     Returns:
         RealtimeScanner 또는 None (초기화 전)
     """
+    warnings.warn(
+        "get_realtime_scanner()는 deprecated입니다. "
+        "container.realtime_scanner() 사용을 권장합니다.",
+        DeprecationWarning,
+        stacklevel=2
+    )
     return _scanner_instance
 
 
@@ -681,7 +705,8 @@ def initialize_realtime_scanner(
     ws_manager: Any,
     db: Optional[Any] = None,  # [02-001b] MarketDB 인스턴스
     ignition_monitor: Optional[Any] = None,
-    poll_interval: float = 1.0
+    poll_interval: float = 1.0,
+    scoring_strategy: Optional["ScoringStrategy"] = None  # [01-001] DI 주입
 ) -> RealtimeScanner:
     """
     RealtimeScanner 초기화 (서버 시작 시 호출)
@@ -692,6 +717,7 @@ def initialize_realtime_scanner(
         db: MarketDB 인스턴스 (Optional, score_v3 계산용)
         ignition_monitor: IgnitionMonitor 인스턴스 (Optional)
         poll_interval: 폴링 간격 (초, 기본값: 1.0)
+        scoring_strategy: ScoringStrategy 인스턴스 (Optional, DI용)
     
     Returns:
         RealtimeScanner 인스턴스
@@ -702,7 +728,8 @@ def initialize_realtime_scanner(
         ws_manager=ws_manager,
         db=db,  # [02-001b]
         ignition_monitor=ignition_monitor,
-        poll_interval=poll_interval
+        poll_interval=poll_interval,
+        scoring_strategy=scoring_strategy  # [01-001] DI 주입
     )
     return _scanner_instance
 

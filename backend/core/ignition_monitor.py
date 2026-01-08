@@ -427,8 +427,23 @@ class IgnitionMonitor:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# 싱글톤 인스턴스 (서버에서 초기화)
+# 레거시 싱글톤 인스턴스 (Deprecated - Container 사용 권장)
 # ═══════════════════════════════════════════════════════════════════════════
+# 
+# 📌 [02-001] DI Container 도입으로 권장 사용법이 변경되었습니다.
+# 
+# Before (Deprecated):
+#   monitor = get_ignition_monitor()
+# 
+# After (Recommended):
+#   from backend.container import container
+#   monitor = container.ignition_monitor()
+#
+# ⚠️ 하위 호환성을 위해 이 방식도 계속 동작합니다.
+#
+# ═══════════════════════════════════════════════════════════════════════════
+
+import warnings
 
 _monitor_instance: Optional[IgnitionMonitor] = None
 
@@ -437,9 +452,19 @@ def get_ignition_monitor() -> Optional[IgnitionMonitor]:
     """
     전역 IgnitionMonitor 인스턴스 반환
     
+    ⚠️ Deprecated: Container 사용 권장
+    >>> from backend.container import container
+    >>> monitor = container.ignition_monitor()
+    
     Returns:
         IgnitionMonitor 또는 None (초기화 전)
     """
+    warnings.warn(
+        "get_ignition_monitor()는 deprecated입니다. "
+        "container.ignition_monitor() 사용을 권장합니다.",
+        DeprecationWarning,
+        stacklevel=2
+    )
     return _monitor_instance
 
 

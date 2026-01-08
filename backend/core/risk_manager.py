@@ -32,7 +32,7 @@ import asyncio
 
 from loguru import logger
 
-from core.risk_config import RiskConfig
+from backend.models import RiskConfig
 
 
 # ═══════════════════════════════════════════════════════════════════════════

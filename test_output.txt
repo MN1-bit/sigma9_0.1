@@ -1,5 +1,0 @@
-V1_SCORE=100.0
-V2_SCORE=65.1
-KEYS=['score', 'score_v2', 'stage', 'stage_number', 'signals', 'intensities', 'can_trade']
-INTENSITIES={'tight_range': np.float64(0.7), 'obv_divergence': 1.0, 'accumulation_bar': 0.0, 'volume_dryout': np.float64(0.91)}
-TEST COMPLETED

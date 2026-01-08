@@ -139,10 +139,17 @@ class StrategyLoader:
         
         found = []
         
+        # 제외할 파일 패턴
+        excluded_suffixes = ("_config.py",)  # 설정 파일 제외
+        
         # strategies/ 폴더의 모든 .py 파일 탐색
         for file in self.strategy_dir.glob("*.py"):
             # '_'로 시작하는 파일 제외 (_template.py, __init__.py 등)
             if file.name.startswith("_"):
+                continue
+            
+            # 설정 파일 제외 (*_config.py)
+            if file.name.endswith(excluded_suffixes):
                 continue
             
             # 파일명에서 확장자 제거

@@ -150,7 +150,7 @@ class ServerConfig:
     ibkr: IBKRConfig = field(default_factory=IBKRConfig)
     database: DatabaseConfig = field(default_factory=DatabaseConfig)
     market_data: MarketDataConfig = field(default_factory=MarketDataConfig)
-    polygon: MassiveConfig = field(default_factory=MassiveConfig)
+    massive: MassiveConfig = field(default_factory=MassiveConfig)
     strategy: StrategyConfig = field(default_factory=StrategyConfig)
     risk: RiskConfig = field(default_factory=RiskConfig)
     scheduler: SchedulerConfig = field(default_factory=SchedulerConfig)

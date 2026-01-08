@@ -1,4 +1,9 @@
 # Auto Claude data directory
 .auto-claude/
 
+# Agent rules/workflows (keep in git)
+!.agent/
+
 data/market_data.db
+
+data/market_data.db-*

@@ -155,3 +155,34 @@ Message:
 | Python 파일 수정 | 15개 |
 | YAML 파일 수정 | 2개 |
 | 총 소요 시간 | ~20분 |
+
+---
+
+## 🔧 추가 수정 (2026-01-08)
+
+> **시간**: 00:26 KST
+
+### 발견된 문제
+백엔드 실행 시 다음 오류 발생:
+```
+AttributeError: 'ServerConfig' object has no attribute 'massive'
+```
+
+### 원인
+`config_loader.py`에서 `ServerConfig` 클래스의 속성명이 아직 `polygon`으로 남아있었음:
+- **YAML 키**: `massive` (이미 변경됨)
+- **Python 속성**: `polygon` (미변경)
+- **로더**: `massive` 키로 접근 시도 → 속성 불일치 에러
+
+### 수정 내역
+```diff
+# backend/core/config_loader.py (Line 153)
+-    polygon: MassiveConfig = field(default_factory=MassiveConfig)
++    massive: MassiveConfig = field(default_factory=MassiveConfig)
+```
+
+### 검증
+```bash
+python -m backend  # ✅ 정상 시작
+```
+

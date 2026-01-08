@@ -143,20 +143,22 @@ class Scanner:
                     last_close = data[-1]["close"] if data else 0
                     prev_close = data[-2]["close"] if len(data) >= 2 else last_close
                     change_pct = ((last_close - prev_close) / prev_close * 100) if prev_close > 0 else 0.0
+                    avg_vol = sum(d["volume"] for d in data) / len(data) if data else 0
                     
                     results.append({
                         "ticker": ticker,
                         "score": result["score"],
-                        "score_v2": result.get("score_v2", result["score"]),  # [02-001] v2 연속 점수
-                        "score_v3": result.get("score_v3"),  # [03-003] V3 Pinpoint Algorithm
-                        "intensities": result.get("intensities_v3", {}),  # [03-003 FIX] V3 intensities 사용
+                        "score_v2": result.get("score_v2", result["score"]),
+                        "score_v3": result.get("score_v3"),
+                        "intensities": result.get("intensities_v3", {}),
                         "stage": result["stage"],
-                        "stage_number": result["stage_number"],
-                        "signals": result["signals"],
-                        "can_trade": result["can_trade"],
+                        "stage_number": result.get("stage_number", 0),
+                        "signals": result.get("signals", {}),
+                        "can_trade": result.get("can_trade", True),
                         "last_close": last_close,
-                        "change_pct": round(change_pct, 2),  # 소수점 2자리
-                        "avg_volume": sum(d["volume"] for d in data) / len(data) if data else 0,
+                        "change_pct": round(change_pct, 2),
+                        "avg_volume": avg_vol,
+                        "dollar_volume": last_close * avg_vol,
                     })
 
                 

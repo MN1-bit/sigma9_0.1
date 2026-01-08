@@ -5,92 +5,72 @@ FastAPI 기반 백엔드 서버.
 
 📌 실행 방법:
     python -m backend
-    
+
 📌 API 문서:
     http://localhost:8000/docs (Swagger UI)
     http://localhost:8000/redoc (ReDoc)
+
+📌 [04-001] Refactored:
+    lifespan 로직을 backend/startup/ 모듈로 분리.
+    - config.py: Config + Logging 초기화
+    - database.py: DB + StrategyLoader 초기화
+    - realtime.py: Massive WS, Scanner, IgnitionMonitor
+    - shutdown.py: 종료 로직
 """
 
-import asyncio
-import sys
-from pathlib import Path
-from dotenv import load_dotenv  # 환경변수 로드
+from dotenv import load_dotenv
 
 # .env 파일 로드 (최상위 레벨에서 실행)
 load_dotenv()
 
 from contextlib import asynccontextmanager
-from typing import Optional
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
+import json  # [08-001] heartbeat JSON serialization
 from loguru import logger
 
-# ═══════════════════════════════════════════════════════════════════════════
-# Logging Setup (로깅 설정)
-# ═══════════════════════════════════════════════════════════════════════════
+# [02-001] DI Container import
+from backend.container import container, Container
 
-def setup_logging(config):
-    """
-    Loguru 로깅 설정
-    
-    📌 설정 기반으로 콘솔/파일 로깅 구성
-    """
-    logger.remove()  # 기본 핸들러 제거
-    
-    # 콘솔 로깅
-    if config.logging.console.enabled:
-        logger.add(
-            sys.stderr,
-            level=config.logging.level,
-            colorize=config.logging.console.colorize,
-            format="<green>{time:HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan> - <level>{message}</level>"
-        )
-    
-    # 파일 로깅
-    if config.logging.file.enabled:
-        # logs 디렉토리 생성
-        log_path = Path(config.logging.file.path)
-        log_path.parent.mkdir(parents=True, exist_ok=True)
-        
-        logger.add(
-            config.logging.file.path,
-            level=config.logging.level,
-            rotation=config.logging.file.rotation,
-            retention=config.logging.file.retention,
-            compression=config.logging.file.compression,
-            format="{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {name}:{function}:{line} - {message}"
-        )
+# [04-001] Startup module imports
+from backend.startup.config import initialize_config
+from backend.startup.database import initialize_database, sync_daily_data
+from backend.startup.realtime import initialize_realtime_services
+from backend.startup.shutdown import shutdown_all
 
 
 # ═══════════════════════════════════════════════════════════════════════════
 # Application State (애플리케이션 상태)
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 class AppState:
     """
     FastAPI app.state 대신 사용하는 명시적 상태 컨테이너
-    
+
     📌 타입 힌팅과 IDE 지원을 위해 별도 클래스로 관리
     """
+
     def __init__(self):
-        self.config = None           # ServerConfig
-        self.ibkr = None             # IBKRConnector (Optional)
-        self.engine = None           # TradingEngine (Optional)
-        self.scheduler = None        # APScheduler (Optional)
-        self.db = None               # Database connection
+        self.config = None  # ServerConfig
+        self.ibkr = None  # IBKRConnector (Optional)
+        self.engine = None  # TradingEngine (Optional)
+        self.scheduler = None  # APScheduler (Optional)
+        self.db = None  # Database connection
         self.strategy_loader = None  # StrategyLoader
-        
+
         # Phase 4.A.0: Real-time Data Pipeline
-        self.massive_ws = None       # MassiveWebSocketClient
-        self.tick_broadcaster = None # TickBroadcaster
+        self.massive_ws = None  # MassiveWebSocketClient
+        self.tick_broadcaster = None  # TickBroadcaster
         self.tick_dispatcher = None  # TickDispatcher (Step 4.A.0.b)
-        self.sub_manager = None      # SubscriptionManager
-        self.trailing_stop = None    # TrailingStopManager (Step 4.A.0.b)
-        self.ignition_monitor = None # IgnitionMonitor [Step 4.A.4]
-        self.realtime_scanner = None # RealtimeScanner [Step 4.A.5]
-        
+        self.sub_manager = None  # SubscriptionManager
+        self.trailing_stop = None  # TrailingStopManager (Step 4.A.0.b)
+        self.ignition_monitor = None  # IgnitionMonitor [Step 4.A.4]
+        self.realtime_scanner = None  # RealtimeScanner [Step 4.A.5]
+
+
 # 전역 상태 (의존성 주입용)
 app_state = AppState()
 
@@ -104,304 +84,68 @@ def get_app_state() -> AppState:
 # Lifespan (서버 라이프사이클)
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """
     서버 시작/종료 시 리소스 관리
-    
+
+    📌 [04-001] Refactored from ~320 lines to ~50 lines
+        로직을 backend/startup/ 모듈로 분리
+
     📌 Startup:
-        1. Config 로드
-        2. Database 초기화
-        3. IBKR 연결 (Optional)
-        4. Scheduler 시작 (Optional)
-    
+        1. Config 로드 (startup.config)
+        2. Database 초기화 (startup.database)
+        3. 실시간 서비스 초기화 (startup.realtime)
+
     📌 Shutdown:
-        1. Scheduler 종료
-        2. IBKR 연결 해제
-        3. Database 연결 종료
+        1. 모든 서비스 종료 (startup.shutdown)
     """
     global app_state
-    
+
     # ─────────────────────────────────────────────────────────────
     # STARTUP
     # ─────────────────────────────────────────────────────────────
     logger.info("🚀 Sigma9 Trading Engine Server Starting...")
-    
-    # 1. Config 로드
-    from backend.core.config_loader import load_server_config
-    app_state.config = load_server_config()
-    setup_logging(app_state.config)
-    logger.info(f"✅ Config loaded (debug={app_state.config.server.debug})")
-    
-    # 2. Database 초기화 (경량 - 에러 무시)
-    try:
-        from backend.data.database import MarketDB
-        app_state.db = MarketDB(app_state.config.market_data.db_path)
-        logger.info(f"✅ Database connected: {app_state.config.market_data.db_path}")
-    except Exception as e:
-        logger.warning(f"⚠️ Database init skipped: {e}")
-    
-    # 3. Strategy Loader 초기화
-    try:
-        from backend.core.strategy_loader import StrategyLoader
-        app_state.strategy_loader = StrategyLoader()
-        strategies = app_state.strategy_loader.discover_strategies()
-        logger.info(f"✅ Strategy Loader initialized. Found {len(strategies)} strategies")
-    except Exception as e:
-        logger.warning(f"⚠️ Strategy Loader init skipped: {e}")
-    
-    # 4. IgnitionMonitor 초기화 [Step 4.A.4]
-    try:
-        from backend.core.ignition_monitor import initialize_ignition_monitor
-        from backend.api.websocket import manager as ws_manager
-        from backend.strategies.seismograph import SeismographStrategy
-        strategy = SeismographStrategy()
-        app_state.ignition_monitor = initialize_ignition_monitor(strategy, ws_manager)
-        logger.info("✅ IgnitionMonitor initialized")
-    except Exception as e:
-        logger.warning(f"⚠️ IgnitionMonitor init skipped: {e}")
-    
-    # 4.5. Daily Data Sync [Bugfix: Issue 1 - 일봉 차트 날짜 제한 해결]
-    import os
-    api_key = os.getenv("MASSIVE_API_KEY", "")
-    if api_key and app_state.db:
-        try:
-            logger.info("🔄 Checking daily data sync status...")
-            from backend.data.massive_client import MassiveClient
-            from backend.data.massive_loader import MassiveLoader
-            
-            async with MassiveClient(api_key) as client:
-                loader = MassiveLoader(app_state.db, client)
-                sync_status = await loader.get_sync_status()
-                
-                if not sync_status.get("is_up_to_date"):
-                    missing_days = sync_status.get("missing_days", 0)
-                    logger.info(f"📊 {missing_days} days of daily data missing, starting sync...")
-                    records = await loader.update_market_data()
-                    logger.info(f"✅ Daily data synced: {records} records added")
-                else:
-                    logger.info("✅ Daily data already up-to-date")
-        except Exception as e:
-            logger.warning(f"⚠️ Daily data sync skipped: {e}")
-    
-    # 4. IBKR 연결 (auto_connect가 true일 때만)
-    if app_state.config.ibkr.auto_connect:
-        try:
-            # IBKR 연결은 비동기로 시작만 하고 넘어감
-            # 실제 연결은 백그라운드에서 시도
-            logger.info("📡 IBKR connection will be attempted in background...")
-            # from backend.broker.ibkr_connector import IBKRConnector
-            # app_state.ibkr = IBKRConnector()
-            # NOTE: IBKR 연결은 Step 4.1.3에서 API로 제어
-        except Exception as e:
-            logger.warning(f"⚠️ IBKR init skipped: {e}")
-    
-    # 5. Scheduler 초기화 (enabled일 때만)
-    if app_state.config.scheduler.enabled:
-        try:
-            from backend.core.scheduler import TradingScheduler
-            app_state.scheduler = TradingScheduler(app_state.config.scheduler, app_state.db)
-            app_state.scheduler.start()
-            logger.info("✅ Scheduler started")
-        except ImportError:
-            logger.info("ℹ️ Scheduler module not found - will be created in Step 4.1.4")
-        except Exception as e:
-            logger.warning(f"⚠️ Scheduler init skipped: {e}")
-    
-    # 6. Massive WebSocket 초기화 (Phase 4.A.0)
-    import os
-    if os.getenv("MASSIVE_WS_ENABLED", "false").lower() == "true":
-        try:
-            from backend.data.massive_ws_client import MassiveWebSocketClient
-            from backend.core.tick_broadcaster import TickBroadcaster
-            from backend.core.tick_dispatcher import TickDispatcher
-            from backend.core.subscription_manager import SubscriptionManager
-            from backend.api.websocket import manager as ws_manager
-            
-            # TickDispatcher 생성 (중앙 틱 배포자)
-            app_state.tick_dispatcher = TickDispatcher()
-            
-            # 활성 전략이 있으면 TickDispatcher에 등록
-            if app_state.strategy_loader:
-                active_strategy = app_state.strategy_loader.get_active_strategy()
-                if active_strategy and hasattr(active_strategy, 'on_tick'):
-                    def strategy_tick_handler(tick: dict):
-                        active_strategy.on_tick(
-                            ticker=tick.get("ticker", ""),
-                            price=tick.get("price", 0),
-                            volume=tick.get("size", 0),
-                            timestamp=tick.get("time", 0)
-                        )
-                    app_state.tick_dispatcher.register("strategy", strategy_tick_handler)
-                    logger.info("✅ Strategy connected to TickDispatcher")
-            
-            # [Step 4.A.0.b.4] TrailingStopManager 연결
-            try:
-                from backend.core.trailing_stop import TrailingStopManager
-                app_state.trailing_stop = TrailingStopManager(connector=app_state.ibkr)
-                
-                def trailing_tick_handler(tick: dict):
-                    result = app_state.trailing_stop.on_price_update(
-                        symbol=tick.get("ticker", ""),
-                        current_price=tick.get("price", 0)
-                    )
-                    if result == "TRIGGERED":
-                        logger.info(f"🛑 Trailing Stop TRIGGERED: {tick.get('ticker')}")
-                
-                app_state.tick_dispatcher.register("trailing_stop", trailing_tick_handler)
-                logger.info("✅ TrailingStop connected to TickDispatcher")
-            except Exception as e:
-                logger.warning(f"⚠️ TrailingStop init skipped: {e}")
-            
-            app_state.massive_ws = MassiveWebSocketClient()
-            app_state.tick_broadcaster = TickBroadcaster(
-                app_state.massive_ws, 
-                ws_manager,
-                asyncio.get_event_loop(),
-                tick_dispatcher=app_state.tick_dispatcher
-            )
-            app_state.sub_manager = SubscriptionManager(app_state.massive_ws)
-            
-            # 백그라운드에서 Massive 연결 시작
-            async def start_massive_streaming():
-                if await app_state.massive_ws.connect():
-                    logger.info("✅ Massive WebSocket connected")
-                    
-                    # [Step 4.A.0.c P1] 초기 구독 트리거
-                    # Watchlist 티커 로드 후 AM/T 채널 자동 구독
-                    try:
-                        if app_state.db:
-                            # DB에서 현재 Watchlist 로드
-                            from backend.data.database import MarketDB
-                            watchlist = app_state.db.get_watchlist_tickers() if hasattr(app_state.db, 'get_watchlist_tickers') else []
-                            if watchlist and app_state.sub_manager:
-                                app_state.sub_manager.sync_watchlist(watchlist)
-                                logger.info(f"✅ Auto-subscribed to {len(watchlist)} tickers")
-                    except Exception as e:
-                        logger.warning(f"⚠️ Auto-subscribe skipped: {e}")
-                    
-                    # [Step 4.A.0.c P0] listen() 루프 시작 (콜백이 데이터 처리)
-                    async for _ in app_state.massive_ws.listen():
-                        pass
-                else:
-                    logger.warning("⚠️ Massive WebSocket connection failed")
-            
-            asyncio.create_task(start_massive_streaming())
-            logger.info("📡 Massive WebSocket initializing...")
-            
-        except Exception as e:
-            logger.warning(f"⚠️ Massive WebSocket init skipped: {e}")
-    
-    logger.info("=" * 50)
-    logger.info(f"🎯 Server running at http://{app_state.config.server.host}:{app_state.config.server.port}")
-    logger.info("=" * 50)
-    
-    # 7. IgnitionMonitor 자동 시작 [Bugfix: Ignition Score 자동 계산]
-    if app_state.ignition_monitor:
-        try:
-            from backend.data.watchlist_store import load_watchlist, merge_watchlist
-            watchlist = load_watchlist()
-            
-            # Watchlist가 없으면 Scanner 자동 실행
-            if not watchlist:
-                logger.info("📡 No watchlist found, running auto-scanner...")
-                try:
-                    from backend.core.scanner import Scanner
-                    from backend.strategies.seismograph import SeismographStrategy
-                    
-                    scanner = Scanner(app_state.db)
-                    strategy = SeismographStrategy()
-                    
-                    # 간단한 스캔 실행 (Day Gainers 기반)
-                    results = await scanner.scan_with_strategy(strategy, limit=30)
-                    
-                    if results:
-                        # [Issue 6.2 Fix] 덮어쓰기 대신 병합
-                        watchlist = merge_watchlist(results, update_existing=True)
-                        logger.info(f"✅ Auto-scanner completed: {len(results)} stocks found")
-                    else:
-                        logger.warning("⚠️ Auto-scanner returned no results")
-                except Exception as scan_error:
-                    logger.warning(f"⚠️ Auto-scanner failed: {scan_error}")
-            
-            if watchlist:
-                await app_state.ignition_monitor.start(watchlist)
-                logger.info(f"✅ IgnitionMonitor started with {len(watchlist)} tickers")
-            else:
-                logger.info("ℹ️ IgnitionMonitor: No watchlist, will start when scanner runs")
-        except Exception as e:
-            logger.warning(f"⚠️ IgnitionMonitor auto-start skipped: {e}")
-    
-    # 8. RealtimeScanner 초기화 [Step 4.A.5]
-    if os.getenv("REALTIME_SCANNER_ENABLED", "true").lower() == "true":
-        try:
-            from backend.core.realtime_scanner import initialize_realtime_scanner
-            from backend.data.massive_client import MassiveClient
-            from backend.data.watchlist_store import load_watchlist
-            
-            # MassiveClient 인스턴스 생성 (API Key 필요)
-            api_key = os.getenv("MASSIVE_API_KEY", "")
-            if api_key:
-                massive_client = MassiveClient(api_key)
-                await massive_client.__aenter__()  # HTTP Client 초기화
-                
-                app_state.realtime_scanner = initialize_realtime_scanner(
-                    massive_client=massive_client,
-                    ws_manager=ws_manager,
-                    db=app_state.db,  # [02-001b] DB 주입 (score_v2 계산용)
-                    ignition_monitor=app_state.ignition_monitor,
-                    poll_interval=1.0  # 1초 폴링
-                )
-                
-                # 기존 Watchlist 로드 후 시작
-                existing_watchlist = load_watchlist()
-                await app_state.realtime_scanner.start(initial_watchlist=existing_watchlist)
-                logger.info("🔥 RealtimeScanner started (1s polling for gainers)")
-            else:
-                logger.warning("⚠️ RealtimeScanner skipped: MASSIVE_API_KEY not set")
-        except Exception as e:
-            logger.warning(f"⚠️ RealtimeScanner init skipped: {e}")
-    
+
+    # 1. Config 로드 + DI Container wiring
+    app_state.config = initialize_config()
+
+    # 2. Database + StrategyLoader 초기화
+    app_state.db, app_state.strategy_loader = initialize_database(app_state.config)
+
+    # 3. Daily Data Sync
+    await sync_daily_data(app_state.config, app_state.db)
+
+    # 4. 실시간 서비스 초기화 (IgnitionMonitor, Massive WS, Scanner, Scheduler)
+    realtime_result = await initialize_realtime_services(
+        config=app_state.config,
+        db=app_state.db,
+        strategy_loader=app_state.strategy_loader,
+    )
+
+    # 결과를 app_state에 할당
+    app_state.ignition_monitor = realtime_result.ignition_monitor
+    app_state.massive_ws = realtime_result.massive_ws
+    app_state.tick_broadcaster = realtime_result.tick_broadcaster
+    app_state.tick_dispatcher = realtime_result.tick_dispatcher
+    app_state.sub_manager = realtime_result.sub_manager
+    app_state.trailing_stop = realtime_result.trailing_stop
+    app_state.realtime_scanner = realtime_result.realtime_scanner
+    app_state.scheduler = realtime_result.scheduler
+    app_state.ibkr = realtime_result.ibkr
+
     yield  # 서버 실행 중
-    
+
     # ─────────────────────────────────────────────────────────────
     # SHUTDOWN
     # ─────────────────────────────────────────────────────────────
-    logger.info("🛑 Server Shutting Down...")
-    
-    # RealtimeScanner 종료 [Step 4.A.5]
-    if app_state.realtime_scanner:
-        try:
-            await app_state.realtime_scanner.stop()
-            logger.info("✅ RealtimeScanner stopped")
-        except Exception as e:
-            logger.error(f"❌ RealtimeScanner shutdown error: {e}")
-    
-    # IgnitionMonitor 종료 [Bugfix: Ignition Score 자동 종료]
-    if app_state.ignition_monitor:
-        try:
-            await app_state.ignition_monitor.stop()
-            logger.info("✅ IgnitionMonitor stopped")
-        except Exception as e:
-            logger.error(f"❌ IgnitionMonitor shutdown error: {e}")
-    
-    # Scheduler 종료
-    if app_state.scheduler:
-        try:
-            app_state.scheduler.shutdown()
-            logger.info("✅ Scheduler stopped")
-        except Exception as e:
-            logger.error(f"❌ Scheduler shutdown error: {e}")
-    
-    # IBKR 연결 해제
-    if app_state.ibkr:
-        try:
-            app_state.ibkr.disconnect()
-            logger.info("✅ IBKR disconnected")
-        except Exception as e:
-            logger.error(f"❌ IBKR disconnect error: {e}")
-    
-    logger.info("👋 Goodbye!")
+    await shutdown_all(
+        realtime_scanner=app_state.realtime_scanner,
+        ignition_monitor=app_state.ignition_monitor,
+        scheduler=app_state.scheduler,
+        ibkr=app_state.ibkr,
+    )
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -441,11 +185,12 @@ app.include_router(api_router, prefix="/api", tags=["API"])
 # WebSocket Endpoint
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 @app.websocket("/ws/feed")
 async def websocket_endpoint(websocket: WebSocket):
     """
     실시간 데이터 피드 WebSocket
-    
+
     📌 메시지 타입:
         - LOG:xxx - 서버 로그
         - TICK:xxx - 틱 데이터
@@ -457,14 +202,21 @@ async def websocket_endpoint(websocket: WebSocket):
         while True:
             # 클라이언트 메시지 수신 (하트비트 등)
             data = await websocket.receive_text()
-            
-            # PING/PONG 처리
+
+            # PING/PONG 처리 [08-001: heartbeat에 시간 정보 추가]
             if data == "PING":
-                await websocket.send_text("PONG")
+                import time
+                from datetime import datetime, timezone
+
+                heartbeat = {
+                    "server_time_utc": datetime.now(timezone.utc).isoformat(),
+                    "sent_at": int(time.time() * 1000),  # Unix ms
+                }
+                await websocket.send_text(f"PONG:{json.dumps(heartbeat)}")
             else:
                 # 다른 메시지는 현재 무시
                 pass
-                
+
     except WebSocketDisconnect:
         ws_manager.disconnect(websocket)
         logger.info("WebSocket client disconnected")
@@ -476,6 +228,7 @@ async def websocket_endpoint(websocket: WebSocket):
 # ═══════════════════════════════════════════════════════════════════════════
 # Health Check Endpoint
 # ═══════════════════════════════════════════════════════════════════════════
+
 
 @app.get("/health", tags=["Health"])
 async def health_check():
@@ -489,9 +242,4 @@ async def health_check():
 
 if __name__ == "__main__":
     # 직접 실행 시 기본 설정으로 시작
-    uvicorn.run(
-        "backend.server:app",
-        host="0.0.0.0",
-        port=8000,
-        reload=True
-    )
+    uvicorn.run("backend.server:app", host="0.0.0.0", port=8000, reload=True)
