@@ -1,7 +1,6 @@
 # ============================================================================
 # Sigma9 Configuration Loader
 # ============================================================================
-import os
 import yaml
 from functools import lru_cache
 from pathlib import Path
@@ -9,6 +8,7 @@ from pathlib import Path
 # 설정 파일 경로 상수
 CONFIG_DIR = Path(__file__).parent
 SETTINGS_PATH = CONFIG_DIR / "settings.yaml"
+
 
 @lru_cache()
 def load_settings() -> dict:
@@ -27,6 +27,7 @@ def load_settings() -> dict:
         print(f"[ERROR] Failed to load settings.yaml: {e}")
         return {}
 
+
 def get_setting(key_path: str, default=None):
     """
     점(.)으로 구분된 키 경로를 사용하여 설정값을 가져옵니다.
@@ -34,14 +35,15 @@ def get_setting(key_path: str, default=None):
     """
     data = load_settings()
     keys = key_path.split(".")
-    
+
     for key in keys:
         if isinstance(data, dict) and key in data:
             data = data[key]
         else:
             return default
-            
+
     return data
+
 
 def save_settings(new_config: dict) -> bool:
     """
@@ -50,12 +52,19 @@ def save_settings(new_config: dict) -> bool:
     """
     try:
         with open(SETTINGS_PATH, "w", encoding="utf-8") as f:
-            yaml.dump(new_config, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
-        load_settings.cache_clear() # 캐시 초기화
+            yaml.dump(
+                new_config,
+                f,
+                default_flow_style=False,
+                allow_unicode=True,
+                sort_keys=False,
+            )
+        load_settings.cache_clear()  # 캐시 초기화
         return True
     except Exception as e:
         print(f"[ERROR] Failed to save settings.yaml: {e}")
         return False
+
 
 def save_setting(key_path: str, value):
     """
@@ -67,14 +76,13 @@ def save_setting(key_path: str, value):
         # Deep copy needed if we want to be safe, but simple dict is fine here
         current = data
         keys = key_path.split(".")
-        
+
         # Nested dict navigation/creation
         for i, key in enumerate(keys[:-1]):
             if key not in current or not isinstance(current[key], dict):
                 current[key] = {}
             current = current[key]
-        
+
         current[keys[-1]] = value
         return save_settings(data)
     return False
-

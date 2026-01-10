@@ -1,0 +1,65 @@
+// Sigma9 Watchlist Lifecycle Flow
+// Domain 2: Scan → Score → Persist → Broadcast
+// Convert: dot -Tsvg 02_watchlist.dot -o 02_watchlist.svg
+
+digraph WatchlistLifecycle {
+    rankdir=TB;
+    node [fontname="Arial", fontsize=11];
+    edge [fontname="Arial", fontsize=9];
+    
+    // Cluster: Polling
+    subgraph cluster_polling {
+        label="🔄 1-Second Polling";
+        style=filled;
+        fillcolor="#eff6ff";
+        
+        poll_gainers [label="_poll_gainers()", shape=box, style=filled, fillcolor="#60a5fa"];
+        known_tickers [label="known_tickers\n(Set)", shape=ellipse, style=filled, fillcolor="#93c5fd"];
+    }
+    
+    // Cluster: New Gainer Handler
+    subgraph cluster_handler {
+        label="📈 New Gainer Handler";
+        style=filled;
+        fillcolor="#f0fdf4";
+        
+        fetch_bars [label="_fetch_and_store\n_daily_bars()", shape=box, style=filled, fillcolor="#4ade80"];
+        calc_score [label="strategy.\ncalculate_score_v3()", shape=box, style=filled, fillcolor="#a78bfa"];
+        merge [label="Watchlist 병합", shape=box, style=filled, fillcolor="#4ade80"];
+    }
+    
+    // Cluster: Persistence
+    subgraph cluster_persist {
+        label="💾 Persistence";
+        style=filled;
+        fillcolor="#fef3c7";
+        
+        watchlist_store [label="WatchlistStore", shape=component, style=filled, fillcolor="#fb923c"];
+        json_file [label="watchlist_current.json", shape=note, style=filled, fillcolor="#fcd34d"];
+    }
+    
+    // Cluster: Broadcast
+    subgraph cluster_broadcast {
+        label="📡 Broadcast";
+        style=filled;
+        fillcolor="#fff7ed";
+        
+        connection_manager [label="ConnectionManager", shape=component, style=filled, fillcolor="#fb923c"];
+        gui [label="Frontend Dashboard", shape=box, style=filled, fillcolor="#a78bfa"];
+    }
+    
+    // External
+    massive_api [label="Massive\nGainers API", shape=box, style=filled, fillcolor="#4ade80"];
+    
+    // Edges
+    poll_gainers -> massive_api [label="1초 폴링"];
+    massive_api -> poll_gainers [label="결과"];
+    poll_gainers -> known_tickers [label="신규 탐지?"];
+    known_tickers -> fetch_bars [label="신규 종목"];
+    fetch_bars -> calc_score [label="일봉 데이터"];
+    calc_score -> merge [label="V3 점수"];
+    merge -> watchlist_store [label="persist"];
+    watchlist_store -> json_file [label="atomic write"];
+    merge -> connection_manager [label="broadcast"];
+    connection_manager -> gui [label="WATCHLIST 메시지"];
+}

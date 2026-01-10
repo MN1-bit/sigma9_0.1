@@ -19,7 +19,7 @@ zenV = (today_volume - avg_20d_volume) / std_20d_volume
 zenP = (today_change - avg_20d_change) / std_20d_change
 ```
 
-### 전략 특성 (masterplan.md)
+### 전략 특성 (MPlan.md)
 | Phase | Timeframe | 용도 |
 |-------|-----------|------|
 | Phase 1: Setup | **20일 일봉** | Accumulation Stage Detection |
@@ -38,7 +38,7 @@ zenP = (today_change - avg_20d_change) / std_20d_change
 
 #### 주장 1: 전략 설계와 일치
 
-masterplan.md의 핵심 컨셉은 **"장기적 매집(Accumulation) → 단기적 폭발(Ignition)"** 이다.
+MPlan.md의 핵심 컨셉은 **"장기적 매집(Accumulation) → 단기적 폭발(Ignition)"** 이다.
 
 ```
 Phase 1 (Setup): 20일 기준 매집 탐지 → Daily
@@ -69,7 +69,7 @@ Polygon.io Free Tier는 API 호출 제한이 있으므로, 일봉이 현실적�
 
 #### 주장 4: masterplan 명시적 정의
 
-masterplan.md Line 446-447:
+MPlan.md Line 446-447:
 ```markdown
 **Z-Score 지표**:
 - **zenV** (Normalized Volume): `(current_volume - avg_20d) / std_20d`
@@ -89,7 +89,7 @@ masterplan.md Line 446-447:
 Sigma9는 **장중 단타 머신**이다. 진입 결정은 **10초~5분** 창에서 이루어진다.
 
 ```
-Ignition 조건 (masterplan.md 4.1):
+Ignition 조건 (MPlan.md 4.1):
 - Tick Velocity: 10초 체결 > 1분 평균의 8×
 - Volume Burst: 1분 거래량 > 5분 평균의 6×
 ```
@@ -109,7 +109,7 @@ Z-Score (zenV/zenP)가 **Tier 2 Hot Zone**에서 사용된다면, 이는 **"오�
 
 #### 반론 3: 실시간 반응성
 
-masterplan.md Line 130:
+MPlan.md Line 130:
 ```markdown
 | **Z-Score (zenV/zenP)** | 20일 통계 기반 | Tick 마다 재계산 |
 ```
@@ -217,9 +217,9 @@ Ticker | Price | Chg% | zenV(D) | zenP(D) | zenV(M) | zenP(M) | Ign | Acc
 
 ## 📚 참고문헌
 
-- masterplan.md §3.3 (Accumulation Stage Detection)
-- masterplan.md §4.1 (Ignition Conditions)
-- masterplan.md §7.4 (Tiered Watchlist System)
+- MPlan.md §3.3 (Accumulation Stage Detection)
+- MPlan.md §4.1 (Ignition Conditions)
+- MPlan.md §7.4 (Tiered Watchlist System)
 - Technical Analysis: Z-Score in Volume Analysis (Investopedia)
 
 ---
@@ -254,7 +254,7 @@ Ticker | Price | Chg% | zenV(D) | zenP(D) | zenV(M) | zenP(M) | Ign | Acc
 
 ### 🎯 결론: ~~Intraday Z-Score 불필요~~ → **재검토 필요**
 
-> ⚠️ **중요 발견**: masterplan.md Line 457-458에 다음 명시:
+> ⚠️ **중요 발견**: MPlan.md Line 457-458에 다음 명시:
 > ```
 > zenV-zenP Divergence 전략:
 > "거래량 폭발(zenV > 2.0) + 가격 미반영(zenP < 0.5)" → 진입 시그널

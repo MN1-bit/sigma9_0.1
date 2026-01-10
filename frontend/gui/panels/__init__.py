@@ -8,17 +8,27 @@
 #    panels/
 #    ├── __init__.py         # 이 파일 - 패널 모듈 내보내기
 #    ├── watchlist_panel.py  # Tier 1 Watchlist + Tier 2 Hot Zone
-#    ├── chart_panel.py      # 차트 컨테이너 (TODO)
+#    ├── tier2_panel.py      # Tier 2 데이터 모델 및 테이블
+#    ├── chart_panel.py      # 차트 영역 패널
+#    ├── position_panel.py   # Positions & P&L 패널
+#    ├── oracle_panel.py     # Oracle (LLM 분석) 패널
 #    └── log_panel.py        # 로그 콘솔
 # =============================================================================
 
 from .watchlist_panel import WatchlistPanel
-from .tier2_panel import Tier2Panel, NumericTableWidgetItem
+from .tier2_panel import Tier2Panel, Tier2Item, NumericTableWidgetItem
 from .log_panel import LogPanel
+from .chart_panel import ChartPanel
+from .position_panel import PositionPanel
+from .oracle_panel import OraclePanel
 
 __all__ = [
     "WatchlistPanel",
     "Tier2Panel",
+    "Tier2Item",
     "NumericTableWidgetItem",
     "LogPanel",
+    "ChartPanel",
+    "PositionPanel",
+    "OraclePanel",
 ]

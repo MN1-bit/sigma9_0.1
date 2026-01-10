@@ -36,13 +36,15 @@ from loguru import logger
 # ORM Base 클래스
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 class Base(DeclarativeBase):
     """
     SQLAlchemy ORM의 기본 클래스
-    
+
     모든 ORM 모델은 이 클래스를 상속받습니다.
     SQLAlchemy 2.0 스타일의 DeclarativeBase를 사용합니다.
     """
+
     pass
 
 
@@ -50,13 +52,14 @@ class Base(DeclarativeBase):
 # DailyBar 모델 - 일봉 시계열 데이터
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 class DailyBar(Base):
     """
     일별 OHLCV 데이터 모델
-    
+
     Massive.com의 Grouped Daily API에서 받아온 데이터를 저장합니다.
     각 종목(ticker)과 날짜(date)의 조합이 Primary Key입니다.
-    
+
     Attributes:
         ticker: 종목 심볼 (예: "AAPL", "MSFT")
         date: 거래일 (YYYY-MM-DD 형식)
@@ -67,7 +70,7 @@ class DailyBar(Base):
         volume: 거래량 (체결 수량)
         vwap: 거래량 가중 평균가 (Volume Weighted Average Price)
         transactions: 체결 건수 (거래 횟수)
-    
+
     Example:
         >>> bar = DailyBar(
         ...     ticker="AAPL",
@@ -81,14 +84,15 @@ class DailyBar(Base):
         ...     transactions=100000
         ... )
     """
+
     __tablename__ = "daily_bars"
-    
+
     # ─────────────────────────────────────────────────────────────────────
     # Primary Key (Composite: ticker + date)
     # ─────────────────────────────────────────────────────────────────────
     ticker: Mapped[str] = mapped_column(String(20), primary_key=True)
     date: Mapped[str] = mapped_column(String(10), primary_key=True)  # YYYY-MM-DD
-    
+
     # ─────────────────────────────────────────────────────────────────────
     # OHLCV 데이터
     # ─────────────────────────────────────────────────────────────────────
@@ -97,16 +101,16 @@ class DailyBar(Base):
     low: Mapped[float] = mapped_column(Float, nullable=False)
     close: Mapped[float] = mapped_column(Float, nullable=False)
     volume: Mapped[int] = mapped_column(Integer, nullable=False)
-    
+
     # ─────────────────────────────────────────────────────────────────────
     # 추가 메타데이터
     # ─────────────────────────────────────────────────────────────────────
     vwap: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     transactions: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    
+
     def __repr__(self) -> str:
         return f"<DailyBar({self.ticker} @ {self.date}: O={self.open} H={self.high} L={self.low} C={self.close} V={self.volume})>"
-    
+
     def to_dict(self) -> dict:
         """딕셔너리로 변환 (API 응답용)"""
         return {
@@ -121,17 +125,19 @@ class DailyBar(Base):
             "transactions": self.transactions,
         }
 
+
 # ═══════════════════════════════════════════════════════════════════════════
 # IntradayBar 모델 - 분봉/시봉 시계열 데이터 (Step 2.7.4)
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 class IntradayBar(Base):
     """
     Intraday OHLCV 데이터 모델 (1m, 5m, 15m, 1h)
-    
+
     Massive.com의 Aggregates API에서 받아온 분봉/시봉 데이터를 저장합니다.
     각 종목(ticker), 타임프레임(timeframe), 타임스탬프(timestamp)의 조합이 Primary Key입니다.
-    
+
     Attributes:
         ticker: 종목 심볼 (예: "AAPL", "MSFT")
         timeframe: 타임프레임 (예: "1m", "5m", "15m", "1h")
@@ -142,12 +148,12 @@ class IntradayBar(Base):
         close: 종가
         volume: 거래량
         vwap: 거래량 가중 평균가 (optional)
-    
+
     Note:
         - 완성된 Bar만 저장 (현재 형성 중인 Bar는 제외)
         - Bar 완성 기준: current_time > bar_timestamp + bar_duration
         - 인덱스: (ticker, timeframe, timestamp) 복합 인덱스로 빠른 범위 조회
-    
+
     Example:
         >>> bar = IntradayBar(
         ...     ticker="AAPL",
@@ -158,15 +164,20 @@ class IntradayBar(Base):
         ...     volume=50000
         ... )
     """
+
     __tablename__ = "intraday_bars"
-    
+
     # ─────────────────────────────────────────────────────────────────────
     # Primary Key (Composite: ticker + timeframe + timestamp)
     # ─────────────────────────────────────────────────────────────────────
     ticker: Mapped[str] = mapped_column(String(20), primary_key=True)
-    timeframe: Mapped[str] = mapped_column(String(5), primary_key=True)  # 1m, 5m, 15m, 1h
-    timestamp: Mapped[int] = mapped_column(Integer, primary_key=True)  # Unix milliseconds
-    
+    timeframe: Mapped[str] = mapped_column(
+        String(5), primary_key=True
+    )  # 1m, 5m, 15m, 1h
+    timestamp: Mapped[int] = mapped_column(
+        Integer, primary_key=True
+    )  # Unix milliseconds
+
     # ─────────────────────────────────────────────────────────────────────
     # OHLCV 데이터
     # ─────────────────────────────────────────────────────────────────────
@@ -175,17 +186,16 @@ class IntradayBar(Base):
     low: Mapped[float] = mapped_column(Float, nullable=False)
     close: Mapped[float] = mapped_column(Float, nullable=False)
     volume: Mapped[int] = mapped_column(Integer, nullable=False)
-    
+
     # ─────────────────────────────────────────────────────────────────────
     # 추가 메타데이터
     # ─────────────────────────────────────────────────────────────────────
     vwap: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    
+
     def __repr__(self) -> str:
-        from datetime import datetime
         dt = datetime.fromtimestamp(self.timestamp / 1000)
         return f"<IntradayBar({self.ticker} {self.timeframe} @ {dt}: C={self.close} V={self.volume})>"
-    
+
     def to_dict(self) -> dict:
         """딕셔너리로 변환 (API 응답용)"""
         return {
@@ -210,10 +220,10 @@ class IntradayBar(Base):
 class Ticker(Base):
     """
     종목 메타정보 및 펀더멘털 데이터 모델
-    
+
     Universe Filter에 사용되는 시가총액, Float 등의 정보를 저장합니다.
     Massive.com의 Ticker Details API에서 가져옵니다.
-    
+
     Attributes:
         ticker: 종목 심볼 (Primary Key)
         name: 종목명 (회사명)
@@ -222,41 +232,46 @@ class Ticker(Base):
         float_shares: 유통 주식 수 (거래 가능한 주식)
         primary_exchange: 주 거래소 (NYSE, NASDAQ 등)
         last_updated: 마지막 업데이트 날짜
-    
+
     Note:
         - market_cap과 float_shares는 Universe Filter에서 중요하게 사용됩니다.
         - masterplan.md 3.1절의 필터 조건 참고:
           * Market Cap: $50M ~ $300M (마이크로캡)
           * Float: < 15M shares (Low Float)
     """
+
     __tablename__ = "tickers"
-    
+
     # ─────────────────────────────────────────────────────────────────────
     # Primary Key
     # ─────────────────────────────────────────────────────────────────────
     ticker: Mapped[str] = mapped_column(String(20), primary_key=True)
-    
+
     # ─────────────────────────────────────────────────────────────────────
     # 기본 정보
     # ─────────────────────────────────────────────────────────────────────
     name: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     primary_exchange: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
-    
+
     # ─────────────────────────────────────────────────────────────────────
     # 펀더멘털 (Universe Filter용)
     # ─────────────────────────────────────────────────────────────────────
     market_cap: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     outstanding_shares: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     float_shares: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    
+
     # ─────────────────────────────────────────────────────────────────────
     # 메타데이터
     # ─────────────────────────────────────────────────────────────────────
     last_updated: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
-    
+
     def __repr__(self) -> str:
-        return f"<Ticker({self.ticker}: {self.name}, MCap=${self.market_cap:,.0f})>" if self.market_cap else f"<Ticker({self.ticker})>"
-    
+        return (
+            f"<Ticker({self.ticker}: {self.name}, MCap=${self.market_cap:,.0f})>"
+            if self.market_cap
+            else f"<Ticker({self.ticker})>"
+        )
+
     def to_dict(self) -> dict:
         """딕셔너리로 변환 (API 응답용)"""
         return {
@@ -274,42 +289,43 @@ class Ticker(Base):
 # MarketDB 클래스 - 데이터베이스 매니저
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 class MarketDB:
     """
     시장 데이터 데이터베이스 매니저
-    
+
     SQLite 데이터베이스에 대한 CRUD 작업을 담당합니다.
     WAL 모드로 동시성을 최적화하고, Bulk Upsert로 대량 데이터를 빠르게 처리합니다.
-    
+
     Attributes:
         db_path: SQLite 파일 경로
         engine: SQLAlchemy Async Engine
         session_factory: Async Session 팩토리
-    
+
     Example:
         >>> db = MarketDB("data/market_data.db")
         >>> await db.initialize()  # 테이블 생성 + WAL 모드
-        >>> 
+        >>>
         >>> # 데이터 조회
         >>> bars = await db.get_daily_bars("AAPL", days=20)
-        >>> 
+        >>>
         >>> # 데이터 삽입/업데이트
         >>> await db.upsert_bulk([bar1, bar2, bar3])
     """
-    
+
     def __init__(self, db_path: str = "data/market_data.db"):
         """
         MarketDB 초기화
-        
+
         Args:
             db_path: SQLite 파일 경로 (기본값: "data/market_data.db")
-        
+
         Note:
             - 파일이 없으면 자동 생성됩니다.
             - 경로의 상위 디렉토리가 없으면 생성합니다.
         """
         self.db_path = db_path
-        
+
         # ─────────────────────────────────────────────────────────────────
         # 디렉토리 생성 (없으면)
         # ─────────────────────────────────────────────────────────────────
@@ -317,7 +333,7 @@ class MarketDB:
         if db_dir and not os.path.exists(db_dir):
             os.makedirs(db_dir, exist_ok=True)
             logger.info(f"📁 데이터베이스 디렉토리 생성: {db_dir}")
-        
+
         # ─────────────────────────────────────────────────────────────────
         # SQLAlchemy Async Engine 생성
         # - aiosqlite 드라이버 사용 (비동기 SQLite)
@@ -327,7 +343,7 @@ class MarketDB:
             f"sqlite+aiosqlite:///{db_path}",
             echo=False,  # SQL 쿼리 로깅 (디버그 시 True)
         )
-        
+
         # ─────────────────────────────────────────────────────────────────
         # Session Factory 생성
         # - expire_on_commit=False: 커밋 후에도 객체 접근 가능
@@ -337,19 +353,19 @@ class MarketDB:
             class_=AsyncSession,
             expire_on_commit=False,
         )
-        
+
         logger.debug(f"🗄️ MarketDB 초기화: {db_path}")
-    
+
     # ═══════════════════════════════════════════════════════════════════════
     # 초기화 메서드
     # ═══════════════════════════════════════════════════════════════════════
-    
+
     async def initialize(self) -> None:
         """
         데이터베이스 초기화
-        
+
         테이블이 없으면 생성하고, WAL 모드를 활성화합니다.
-        
+
         WAL (Write-Ahead Logging) 모드:
             - 읽기와 쓰기를 동시에 할 수 있어서 동시성이 향상됩니다.
             - 쓰기 작업이 더 빨라집니다 (특히 Bulk Insert).
@@ -360,7 +376,7 @@ class MarketDB:
         # ─────────────────────────────────────────────────────────────────
         async with self.engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
-        
+
         # ─────────────────────────────────────────────────────────────────
         # WAL 모드 활성화
         # ─────────────────────────────────────────────────────────────────
@@ -368,30 +384,30 @@ class MarketDB:
             await session.execute(text("PRAGMA journal_mode=WAL"))
             await session.execute(text("PRAGMA synchronous=NORMAL"))  # 성능 향상
             await session.commit()
-        
+
         logger.info("✅ 데이터베이스 초기화 완료 (WAL Mode 활성화)")
-    
+
     # ═══════════════════════════════════════════════════════════════════════
     # DailyBar CRUD
     # ═══════════════════════════════════════════════════════════════════════
-    
+
     async def upsert_bulk(self, bars: Sequence[dict], chunk_size: int = 500) -> int:
         """
         일봉 데이터 Bulk Upsert (INSERT OR REPLACE)
-        
+
         같은 (ticker, date) 조합이 있으면 업데이트하고,
         없으면 새로 삽입합니다.
-        
+
         SQLite의 파라미터 제한을 피하기 위해 청크 단위로 처리합니다.
-        
+
         Args:
             bars: 딕셔너리 리스트. 각 딕셔너리는 다음 키를 가집니다:
                   ticker, date, open, high, low, close, volume, vwap, transactions
             chunk_size: 한 번에 처리할 레코드 수 (기본값: 500)
-        
+
         Returns:
             int: 처리된 레코드 수
-        
+
         Example:
             >>> bars = [
             ...     {"ticker": "AAPL", "date": "2024-12-17", "open": 150.0, ...},
@@ -402,9 +418,9 @@ class MarketDB:
         """
         if not bars:
             return 0
-        
+
         total_count = 0
-        
+
         # ─────────────────────────────────────────────────────────────────
         # 청크 단위로 분할 처리
         # SQLite는 한 쿼리에 999개 파라미터 제한이 있음
@@ -412,8 +428,8 @@ class MarketDB:
         # 안전하게 500개씩 처리 (9*500=4500 < SQLITE_MAX_VARIABLE_NUMBER)
         # ─────────────────────────────────────────────────────────────────
         for i in range(0, len(bars), chunk_size):
-            chunk = bars[i:i + chunk_size]
-            
+            chunk = bars[i : i + chunk_size]
+
             async with self.session_factory() as session:
                 # ─────────────────────────────────────────────────────────
                 # SQLite INSERT OR REPLACE 사용
@@ -430,116 +446,104 @@ class MarketDB:
                         "volume": stmt.excluded.volume,
                         "vwap": stmt.excluded.vwap,
                         "transactions": stmt.excluded.transactions,
-                    }
+                    },
                 )
-                
+
                 await session.execute(stmt)
                 await session.commit()
-            
+
             total_count += len(chunk)
-        
+
         logger.debug(f"📊 {total_count}개 일봉 데이터 Upsert 완료")
         return total_count
-    
+
     async def get_daily_bars(
-        self, 
-        ticker: str, 
-        days: int = 20,
-        end_date: Optional[str] = None
+        self, ticker: str, days: int = 20, end_date: Optional[str] = None
     ) -> list[DailyBar]:
         """
         특정 종목의 최근 N일 일봉 데이터 조회
-        
+
         Seismograph 전략의 매집 탐지에 사용됩니다.
         날짜 내림차순으로 정렬하여 최신 데이터부터 반환합니다.
-        
+
         Args:
             ticker: 종목 심볼 (예: "AAPL")
             days: 가져올 일수 (기본값: 20)
             end_date: 조회 종료일 (기본값: None = 오늘)
-        
+
         Returns:
             list[DailyBar]: 일봉 데이터 리스트 (최신순)
-        
+
         Example:
             >>> bars = await db.get_daily_bars("AAPL", days=20)
             >>> for bar in bars:
             ...     print(f"{bar.date}: Close={bar.close}")
         """
         async with self.session_factory() as session:
-            query = (
-                select(DailyBar)
-                .where(DailyBar.ticker == ticker)
-            )
-            
+            query = select(DailyBar).where(DailyBar.ticker == ticker)
+
             if end_date:
                 query = query.where(DailyBar.date <= end_date)
-            
+
             query = query.order_by(DailyBar.date.desc()).limit(days)
-            
+
             result = await session.execute(query)
             return list(result.scalars().all())
-    
+
     async def get_latest_date(self) -> Optional[str]:
         """
         DB에 저장된 가장 최근 날짜 조회
-        
+
         증분 업데이트 시 이 날짜 이후의 데이터만 가져옵니다.
-        
+
         Returns:
             str | None: 가장 최근 날짜 (YYYY-MM-DD) 또는 데이터가 없으면 None
-        
+
         Example:
             >>> latest = await db.get_latest_date()
             >>> print(f"마지막 업데이트: {latest}")  # "2024-12-16"
         """
         async with self.session_factory() as session:
             result = await session.execute(
-                select(DailyBar.date)
-                .order_by(DailyBar.date.desc())
-                .limit(1)
+                select(DailyBar.date).order_by(DailyBar.date.desc()).limit(1)
             )
             row = result.scalar_one_or_none()
             return row
-    
+
     async def get_all_tickers_with_data(self) -> list[str]:
         """
         데이터가 있는 모든 종목 심볼 조회
-        
+
         Universe Filter 적용 전 전체 종목 리스트를 가져올 때 사용합니다.
-        
+
         Returns:
             list[str]: 종목 심볼 리스트
         """
         async with self.session_factory() as session:
-            result = await session.execute(
-                select(DailyBar.ticker).distinct()
-            )
+            result = await session.execute(select(DailyBar.ticker).distinct())
             return [row[0] for row in result.all()]
-    
+
     # ═══════════════════════════════════════════════════════════════════════
     # IntradayBar CRUD (Step 2.7.4)
     # ═══════════════════════════════════════════════════════════════════════
-    
+
     async def upsert_intraday_bulk(
-        self, 
-        bars: Sequence[dict], 
-        chunk_size: int = 500
+        self, bars: Sequence[dict], chunk_size: int = 500
     ) -> int:
         """
         Intraday 데이터 Bulk Upsert (INSERT OR REPLACE)
-        
+
         같은 (ticker, timeframe, timestamp) 조합이 있으면 업데이트하고,
         없으면 새로 삽입합니다.
-        
+
         Args:
             bars: 딕셔너리 리스트. 각 딕셔너리는 다음 키를 가집니다:
                   ticker, timeframe, timestamp, open, high, low, close, volume, vwap
             chunk_size: 한 번에 처리할 레코드 수 (기본값: 500)
-        
+
         Returns:
             int: 처리된 레코드 수
-        
+
         Example:
             >>> bars = [
             ...     {"ticker": "AAPL", "timeframe": "5m", "timestamp": 1702905600000, ...},
@@ -548,12 +552,12 @@ class MarketDB:
         """
         if not bars:
             return 0
-        
+
         total_count = 0
-        
+
         for i in range(0, len(bars), chunk_size):
-            chunk = bars[i:i + chunk_size]
-            
+            chunk = bars[i : i + chunk_size]
+
             async with self.session_factory() as session:
                 stmt = sqlite_insert(IntradayBar).values(list(chunk))
                 stmt = stmt.on_conflict_do_update(
@@ -565,36 +569,32 @@ class MarketDB:
                         "close": stmt.excluded.close,
                         "volume": stmt.excluded.volume,
                         "vwap": stmt.excluded.vwap,
-                    }
+                    },
                 )
-                
+
                 await session.execute(stmt)
                 await session.commit()
-            
+
             total_count += len(chunk)
-        
+
         logger.debug(f"📊 {total_count}개 Intraday 데이터 Upsert 완료")
         return total_count
-    
+
     async def get_intraday_bars(
-        self,
-        ticker: str,
-        timeframe: str,
-        start_timestamp: int,
-        end_timestamp: int
+        self, ticker: str, timeframe: str, start_timestamp: int, end_timestamp: int
     ) -> list[IntradayBar]:
         """
         특정 종목의 Intraday 데이터 범위 조회
-        
+
         Args:
             ticker: 종목 심볼 (예: "AAPL")
             timeframe: 타임프레임 (예: "5m")
             start_timestamp: 시작 Unix timestamp (밀리초)
             end_timestamp: 종료 Unix timestamp (밀리초)
-        
+
         Returns:
             list[IntradayBar]: Intraday 데이터 리스트 (시간순)
-        
+
         Example:
             >>> bars = await db.get_intraday_bars(
             ...     "AAPL", "5m",
@@ -612,21 +612,19 @@ class MarketDB:
                 .order_by(IntradayBar.timestamp.asc())
             )
             return list(result.scalars().all())
-    
+
     async def get_intraday_latest_timestamp(
-        self,
-        ticker: str,
-        timeframe: str
+        self, ticker: str, timeframe: str
     ) -> Optional[int]:
         """
         특정 종목의 가장 최근 Intraday 타임스탬프 조회
-        
+
         증분 업데이트 시 이 시점 이후의 데이터만 가져오기 위해 사용합니다.
-        
+
         Args:
             ticker: 종목 심볼
             timeframe: 타임프레임
-        
+
         Returns:
             int | None: 가장 최근 타임스탬프 (밀리초) 또는 None
         """
@@ -639,26 +637,26 @@ class MarketDB:
                 .limit(1)
             )
             return result.scalar_one_or_none()
-    
+
     # ═══════════════════════════════════════════════════════════════════════
     # Ticker CRUD
     # ═══════════════════════════════════════════════════════════════════════
-    
+
     async def update_fundamentals(self, tickers: Sequence[dict]) -> int:
         """
         종목 펀더멘털 정보 Bulk Upsert
-        
+
         Args:
             tickers: 딕셔너리 리스트. 각 딕셔너리는 다음 키를 가집니다:
-                     ticker, name, market_cap, outstanding_shares, 
+                     ticker, name, market_cap, outstanding_shares,
                      float_shares, primary_exchange, last_updated
-        
+
         Returns:
             int: 처리된 레코드 수
         """
         if not tickers:
             return 0
-        
+
         async with self.session_factory() as session:
             stmt = sqlite_insert(Ticker).values(tickers)
             stmt = stmt.on_conflict_do_update(
@@ -670,22 +668,22 @@ class MarketDB:
                     "float_shares": stmt.excluded.float_shares,
                     "primary_exchange": stmt.excluded.primary_exchange,
                     "last_updated": stmt.excluded.last_updated,
-                }
+                },
             )
-            
+
             await session.execute(stmt)
             await session.commit()
-        
+
         logger.debug(f"📋 {len(tickers)}개 종목 펀더멘털 Upsert 완료")
         return len(tickers)
-    
+
     async def get_ticker_info(self, ticker: str) -> Optional[Ticker]:
         """
         특정 종목의 메타정보 조회
-        
+
         Args:
             ticker: 종목 심볼
-        
+
         Returns:
             Ticker | None: 종목 정보 또는 없으면 None
         """
@@ -694,7 +692,7 @@ class MarketDB:
                 select(Ticker).where(Ticker.ticker == ticker)
             )
             return result.scalar_one_or_none()
-    
+
     async def get_universe_candidates(
         self,
         min_price: float = 2.0,
@@ -706,19 +704,19 @@ class MarketDB:
     ) -> list[str]:
         """
         Universe Filter 조건에 맞는 종목 조회
-        
+
         masterplan.md 3.1절 기준으로 필터링합니다:
         - Price: $2.00 ~ $10.00
         - Market Cap: $50M ~ $300M
         - Float: < 15M shares
         - Avg Volume: > 100K/day
-        
+
         Args:
             min_price, max_price: 가격 범위
             min_market_cap, max_market_cap: 시가총액 범위
             max_float: 최대 Float
             min_volume: 최소 평균 거래량
-        
+
         Returns:
             list[str]: 조건에 맞는 종목 심볼 리스트
         """
@@ -731,18 +729,18 @@ class MarketDB:
                 .where(Ticker.market_cap <= max_market_cap)
                 .where(Ticker.float_shares <= max_float)
             )
-            
+
             result = await session.execute(query)
             return [row[0] for row in result.all()]
-    
+
     # ═══════════════════════════════════════════════════════════════════════
     # 유틸리티
     # ═══════════════════════════════════════════════════════════════════════
-    
+
     async def get_stats(self) -> dict:
         """
         데이터베이스 통계 조회
-        
+
         Returns:
             dict: 통계 정보
                   - total_bars: 총 일봉 레코드 수
@@ -752,16 +750,12 @@ class MarketDB:
         """
         async with self.session_factory() as session:
             # 총 레코드 수
-            bar_count = await session.execute(
-                text("SELECT COUNT(*) FROM daily_bars")
-            )
+            bar_count = await session.execute(text("SELECT COUNT(*) FROM daily_bars"))
             total_bars = bar_count.scalar() or 0
-            
-            ticker_count = await session.execute(
-                text("SELECT COUNT(*) FROM tickers")
-            )
+
+            ticker_count = await session.execute(text("SELECT COUNT(*) FROM tickers"))
             total_tickers = ticker_count.scalar() or 0
-            
+
             # 날짜 범위
             dates = await session.execute(
                 text("SELECT MIN(date), MAX(date) FROM daily_bars")
@@ -769,18 +763,18 @@ class MarketDB:
             date_row = dates.one_or_none()
             oldest_date = date_row[0] if date_row else None
             latest_date = date_row[1] if date_row else None
-        
+
         return {
             "total_bars": total_bars,
             "total_tickers": total_tickers,
             "oldest_date": oldest_date,
             "latest_date": latest_date,
         }
-    
+
     async def close(self) -> None:
         """
         데이터베이스 연결 종료
-        
+
         애플리케이션 종료 시 호출하여 리소스를 정리합니다.
         """
         await self.engine.dispose()

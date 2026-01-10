@@ -35,29 +35,29 @@ from datetime import datetime
 class TickData:
     """
     실시간 틱 데이터 구조체
-    
+
     틱 버퍼에 저장되어 Ignition Score 계산에 사용됩니다.
-    
+
     ═══════════════════════════════════════════════════════════════════════
     쉬운 설명 (ELI5):
     ═══════════════════════════════════════════════════════════════════════
     주식이 거래될 때마다 하나의 틱이 발생합니다.
     이 구조체는 "언제, 얼마에, 몇 주, 매수/매도" 정보를 담습니다.
-    
+
     [08-001] 시간 분리:
       - event_time: 거래소에서 체결된 실제 시간 (이벤트 시간)
       - receive_time: 우리 서버가 데이터를 받은 시간 (수신 시간)
-      
+
     이 두 시간의 차이가 곧 "데이터 지연 시간"입니다.
     전략 계산에는 event_time을 사용해야 정확합니다!
-    
+
     Attributes:
         price: 체결 가격 (예: 10.50)
         volume: 체결 수량 (예: 1000주)
         event_time: 거래소 체결 시간 (소스 타임스탬프)
         receive_time: 서버 수신 시간 (로컬 타임스탬프)
         side: 체결 방향 ("B" = 매수, "S" = 매도)
-    
+
     Example:
         >>> from datetime import datetime
         >>> tick = TickData(
@@ -83,10 +83,10 @@ class TickData:
     def timestamp(self) -> datetime:
         """
         [08-001] 하위 호환성 프로퍼티
-        
+
         기존 코드가 tick.timestamp로 접근하는 경우를 위해 유지.
         event_time을 반환합니다 (전략 계산 기준).
-        
+
         Returns:
             datetime: event_time (거래소 체결 시간)
         """
@@ -96,9 +96,9 @@ class TickData:
     def latency_ms(self) -> int:
         """
         [08-001] 데이터 지연 시간 (밀리초)
-        
+
         거래소 체결 시간과 서버 수신 시간의 차이입니다.
-        
+
         Returns:
             int: 지연 시간 (밀리초). 음수면 시간 동기화 문제.
         """
@@ -107,4 +107,3 @@ class TickData:
 
 
 __all__ = ["TickData"]
-

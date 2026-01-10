@@ -26,12 +26,13 @@ from dataclasses import dataclass
 class IndicatorResult:
     """
     지표 계산 결과 구조체
-    
+
     Attributes:
         value: 지표 값
         is_valid: 유효성 여부
         message: 부가 메시지 (에러 등)
     """
+
     value: float
     is_valid: bool = True
     message: str = ""
@@ -41,7 +42,7 @@ class IndicatorResult:
 class StopLossLevels:
     """
     Stop-Loss / Take-Profit 레벨 구조체
-    
+
     Attributes:
         entry_price: 진입 가격
         stop_loss: 스탑로스 가격
@@ -50,6 +51,7 @@ class StopLossLevels:
         take_profit_3: 3차 목표가
         risk_amount: 리스크 금액
     """
+
     entry_price: float
     stop_loss: float
     take_profit_1: float
@@ -62,17 +64,18 @@ class StopLossLevels:
 class ZScoreResult:
     """
     Z-Score 계산 결과
-    
+
     ═══════════════════════════════════════════════════════════════════════
     쉬운 설명 (ELI5):
     ═══════════════════════════════════════════════════════════════════════
     Z-Score는 "평균에서 얼마나 떨어져 있나"를 표준편차 단위로 측정합니다.
     zenV = 거래량 Z-Score, zenP = 가격변동 Z-Score
-    
+
     Attributes:
         zenV: 거래량 Z-Score
         zenP: 가격변동 Z-Score
     """
+
     zenV: float
     zenP: float
 
@@ -81,13 +84,14 @@ class ZScoreResult:
 class DailyStats:
     """
     장중 Time-Projection 계산용 일별 통계 캐시
-    
+
     Attributes:
         avg_volume: 평균 거래량
         std_volume: 거래량 표준편차
         avg_change: 평균 변동률
         std_change: 변동률 표준편차
     """
+
     avg_volume: float
     std_volume: float
     avg_change: float

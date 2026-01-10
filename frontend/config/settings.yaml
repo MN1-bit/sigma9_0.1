@@ -14,7 +14,7 @@ gui:
   acrylic_map_alpha: 145
   particle_alpha: 0.5
   tint_color: '#151520'
-  background_effect: none
+  background_effect: constellation
 chart:
   default_timeframe: 5m
   show_vwap: true

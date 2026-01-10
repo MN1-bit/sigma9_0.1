@@ -29,6 +29,6 @@ async def get_positions():
     # from backend.server import app_state
     # if app_state.ibkr:
     #     return app_state.ibkr.get_positions()
-    
+
     # 임시 빈 리스트 반환
     return []

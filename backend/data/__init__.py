@@ -18,7 +18,7 @@ from .massive_loader import MassiveLoader
 
 __all__ = [
     "MarketDB",
-    "DailyBar", 
+    "DailyBar",
     "Ticker",
     "MassiveClient",
     "MassiveLoader",

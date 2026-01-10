@@ -1,8 +1,8 @@
 # ============================================================================
-# Scanner Orchestrator - DB 기반 Watchlist 생성
+# Scanner Orchestrator - DataRepository 기반 Watchlist 생성
 # ============================================================================
 # 📌 이 파일의 역할:
-#   - Massive DB 데이터를 기반으로 Watchlist 생성
+#   - DataRepository 데이터를 기반으로 Watchlist 생성
 #   - SeismographStrategy의 calculate_watchlist_score() 실행
 #   - 상위 N개 종목을 Watchlist로 반환
 #
@@ -13,16 +13,71 @@
 #   4. 점수 순 정렬 → 상위 50개 반환
 #
 # 📖 사용 예시:
-#   >>> scanner = Scanner(db)
+#   >>> scanner = Scanner(data_repository)
 #   >>> watchlist = await scanner.run_daily_scan()
 #   >>> print(f"Watchlist: {len(watchlist)}개 종목")
+#
+# 📌 [11-002] DataRepository 마이그레이션 완료
 # ============================================================================
 
-from typing import Optional
+from typing import TYPE_CHECKING
 from loguru import logger
 
-from backend.data.database import MarketDB
 from backend.strategies.seismograph import SeismographStrategy
+from backend.core.ticker_filter import TickerFilter, get_ticker_filter
+
+if TYPE_CHECKING:
+    from backend.data.data_repository import DataRepository
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# [12-002] 모듈 레벨 스코어 계산 함수 (ProcessPoolExecutor pickle 호환성)
+# ═══════════════════════════════════════════════════════════════════════════
+
+def _calculate_score(item: tuple) -> dict | None:
+    """
+    개별 티커 스코어 계산 (병렬 처리용)
+    
+    ProcessPoolExecutor에서 사용하기 위해 모듈 레벨에 정의
+    (내부 함수는 pickle 불가)
+    
+    Args:
+        item: (ticker, data) 튜플
+        
+    Returns:
+        dict: 스코어 결과 (score > 50일 때만)
+        None: 스코어 미달 또는 오류
+    """
+    ticker, data = item
+    try:
+        # SeismographStrategy 인스턴스 생성 (각 워커에서)
+        strategy = SeismographStrategy()
+        result = strategy.calculate_watchlist_score_detailed(ticker, data)
+        
+        if result["score"] > 50:
+            last_close = data[-1]["close"] if data else 0
+            prev_close = data[-2]["close"] if len(data) >= 2 else last_close
+            change_pct = ((last_close - prev_close) / prev_close * 100) if prev_close > 0 else 0.0
+            avg_vol = sum(d["volume"] for d in data) / len(data) if data else 0
+            
+            return {
+                "ticker": ticker,
+                "score": result["score"],
+                "score_v2": result.get("score_v2", result["score"]),
+                "score_v3": result.get("score_v3"),
+                "intensities": result.get("intensities_v3", {}),
+                "stage": result["stage"],
+                "stage_number": result.get("stage_number", 0),
+                "signals": result.get("signals", {}),
+                "can_trade": result.get("can_trade", True),
+                "last_close": last_close,
+                "change_pct": round(change_pct, 2),
+                "avg_volume": avg_vol,
+                "dollar_volume": last_close * avg_vol,
+            }
+        return None
+    except Exception:
+        return None
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -31,45 +86,49 @@ from backend.strategies.seismograph import SeismographStrategy
 
 class Scanner:
     """
-    DB 기반 Watchlist 생성 오케스트레이터
-    
-    Massive DB에 저장된 히스토리 데이터를 기반으로
+    DataRepository 기반 Watchlist 생성 오케스트레이터
+
+    [11-002] DataRepository를 사용하여 Parquet 데이터를 기반으로
     SeismographStrategy의 Accumulation Score를 계산하고
     상위 N개 종목을 Watchlist로 반환합니다.
-    
+
     Attributes:
-        db: MarketDB 인스턴스
+        data_repository: DataRepository 인스턴스
         strategy: SeismographStrategy 인스턴스
         watchlist_size: Watchlist 크기 (기본값: 50)
-    
+        ticker_filter: TickerFilter 인스턴스
+
     Example:
-        >>> db = MarketDB("data/market_data.db")
-        >>> await db.initialize()
-        >>> 
-        >>> scanner = Scanner(db)
+        >>> from backend.container import container
+        >>> repo = container.data_repository()
+        >>> scanner = Scanner(repo)
         >>> watchlist = await scanner.run_daily_scan()
         >>> for item in watchlist[:10]:
         ...     print(f"{item['ticker']}: {item['score']:.1f}점")
     """
-    
+
     def __init__(
         self,
-        db: MarketDB,
+        data_repository: "DataRepository",
         watchlist_size: int = 50,
+        ticker_filter: TickerFilter | None = None,
     ):
         """
         Scanner 초기화
-        
+
         Args:
-            db: MarketDB 인스턴스 (initialize() 호출 완료 상태)
+            data_repository: DataRepository 인스턴스
             watchlist_size: Watchlist에 포함할 종목 수
+            ticker_filter: TickerFilter 인스턴스 (None이면 기본값)
         """
-        self.db = db
+        # [11-002] DataRepository 사용
+        self.repo = data_repository
         self.watchlist_size = watchlist_size
-        
+        self.ticker_filter = ticker_filter or get_ticker_filter()
+
         # SeismographStrategy 인스턴스 생성
         self.strategy = SeismographStrategy()
-        
+
         logger.debug(f"🔍 Scanner 초기화 (Watchlist Size: {watchlist_size})")
     
     # ═══════════════════════════════════════════════════════════════════════
@@ -86,6 +145,15 @@ class Scanner:
         """
         일일 스캔 실행 - Watchlist 생성
         
+        [12-001] 전체 유니버스 스캔 전략
+        [12-002] 벌크 로드 최적화 적용
+        
+        1. 전체 티커 조회 → TickerFilter로 제외
+        2. 벌크 로드 (파일 1회 읽기)
+        3. 스코어 계산 (50점 초과만)
+        4. 가격/거래량 Post-Filter (옵션)
+        5. 상위 N개 반환
+        
         Args:
             min_price: 최소 종가 (기본값: $2.00)
             max_price: 최대 종가 (기본값: $20.00)
@@ -94,15 +162,14 @@ class Scanner:
         
         Returns:
             list[dict]: Watchlist (점수 내림차순 정렬)
-                [
-                    {"ticker": "AAPL", "score": 100.0, "stage": "Stage 4", ...},
-                    ...
-                ]
         """
-        logger.info("🔍 Daily Scan 시작...")
+        import time
+        start_time = time.time()
+        
+        logger.info("🔍 Daily Scan 시작 [12-002 벌크 로드 최적화]...")
         
         # ─────────────────────────────────────────────────────────────────
-        # 1. Universe 후보 추출
+        # 1. Universe 후보 추출 (TickerFilter 적용)
         # ─────────────────────────────────────────────────────────────────
         candidates = await self._get_universe_candidates(
             min_price=min_price,
@@ -114,71 +181,73 @@ class Scanner:
             logger.warning("⚠️ Universe 후보가 없습니다. 데이터를 확인하세요.")
             return []
         
-        logger.info(f"📊 Universe 후보: {len(candidates)}개 종목")
+        logger.info(f"📊 스캔 대상: {len(candidates):,}개 종목")
         
         # ─────────────────────────────────────────────────────────────────
-        # 2. 각 종목 스코어링
+        # 2. [12-002] 벌크 로드 (파일 1회 읽기)
+        # ELI5: 10,000개 티커를 조회해도 파일 읽기는 1번만 수행
         # ─────────────────────────────────────────────────────────────────
-        results = []
-        processed = 0
-        
-        for ticker in candidates:
-            try:
-                # DB에서 최근 N일 데이터 조회
-                bars = await self.db.get_daily_bars(ticker, days=lookback_days)
-                
-                # 최소 5일 데이터 필요 (lookback_days보다 적어도 진행)
-                if not bars or len(bars) < 5:
-                    continue
-                
-                # DailyBar ORM 객체를 dict 리스트로 변환
-                data = [bar.to_dict() for bar in reversed(bars)]  # 오래된 순으로 정렬
-                
-                # Accumulation Score 상세 계산 (Step 2.2.5 메타데이터 포함)
-                result = self.strategy.calculate_watchlist_score_detailed(ticker, data)
-                
-                # 50점 초과만 Watchlist에 추가 (50점 이하는 관찰 가치 낮음)
-                if result["score"] > 50:
-                    # 변동률 계산: (최근 종가 - 전일 종가) / 전일 종가 * 100
-                    last_close = data[-1]["close"] if data else 0
-                    prev_close = data[-2]["close"] if len(data) >= 2 else last_close
-                    change_pct = ((last_close - prev_close) / prev_close * 100) if prev_close > 0 else 0.0
-                    avg_vol = sum(d["volume"] for d in data) / len(data) if data else 0
-                    
-                    results.append({
-                        "ticker": ticker,
-                        "score": result["score"],
-                        "score_v2": result.get("score_v2", result["score"]),
-                        "score_v3": result.get("score_v3"),
-                        "intensities": result.get("intensities_v3", {}),
-                        "stage": result["stage"],
-                        "stage_number": result.get("stage_number", 0),
-                        "signals": result.get("signals", {}),
-                        "can_trade": result.get("can_trade", True),
-                        "last_close": last_close,
-                        "change_pct": round(change_pct, 2),
-                        "avg_volume": avg_vol,
-                        "dollar_volume": last_close * avg_vol,
-                    })
-
-                
-                processed += 1
-                
-                # 진행 상황 로그 (100개마다)
-                if processed % 100 == 0:
-                    logger.debug(f"📊 진행: {processed}/{len(candidates)}")
-                    
-            except Exception as e:
-                logger.debug(f"⚠️ {ticker} 스캔 실패: {e}")
-                continue
+        bulk_start = time.time()
+        all_data = self.repo.get_daily_bars_bulk(tickers=candidates, days=lookback_days)
+        bulk_elapsed = time.time() - bulk_start
+        logger.info(f"📦 벌크 로드 완료: {len(all_data):,}개 티커 ({bulk_elapsed:.2f}초)")
         
         # ─────────────────────────────────────────────────────────────────
-        # 3. 점수 순 정렬 → 상위 N개 선택
+        # 3. [12-002] 병렬 스코어링
+        # ELI5: CPU 여러 개를 동시에 사용해서 계산 속도를 높입니다
+        # ─────────────────────────────────────────────────────────────────
+        import os
+        from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
+        
+        # AWS Lambda 환경 감지 (Lambda는 ProcessPool 사용 불가)
+        # ELI5: 어떤 서버에서 돌아가는지 보고, 적절한 병렬 처리 방식 선택
+        IS_LAMBDA = "AWS_LAMBDA_FUNCTION_NAME" in os.environ
+        
+        # Executor 선택 (Lambda: ThreadPool, 그 외: ProcessPool)
+        Executor = ThreadPoolExecutor if IS_LAMBDA else ProcessPoolExecutor
+        max_workers = 2 if IS_LAMBDA else min(4, os.cpu_count() or 4)
+        
+        logger.info(f"⚡ 병렬 처리 시작 ({Executor.__name__}, workers={max_workers})")
+        
+        # 스코어 계산 대상 필터링 (최소 5일 데이터)
+        score_items = [(ticker, data) for ticker, data in all_data.items() if len(data) >= 5]
+        skipped = len(all_data) - len(score_items)
+        
+        # 병렬 스코어 계산 실행
+        score_start = time.time()
+        raw_results = []
+        
+        with Executor(max_workers=max_workers) as executor:
+            # map()으로 병렬 실행 (모듈 레벨 함수 사용)
+            raw_results = list(executor.map(_calculate_score, score_items))
+        
+        # None 제거 (score <= 50 또는 에러)
+        results = [r for r in raw_results if r is not None]
+        
+        score_elapsed = time.time() - score_start
+        logger.info(f"⚡ 병렬 스코어링 완료: {len(results):,}개 (50점+ 통과) / {len(score_items):,}개 ({score_elapsed:.2f}초)")
+        
+        # ─────────────────────────────────────────────────────────────────
+        # 4. Post-Score 가격/거래량 필터링 (Hybrid 옵션)
+        # ─────────────────────────────────────────────────────────────────
+        before_filter = len(results)
+        results = [
+            r for r in results
+            if min_price <= r["last_close"] <= max_price and r["avg_volume"] >= min_volume
+        ]
+        filtered_out = before_filter - len(results)
+        
+        if filtered_out > 0:
+            logger.info(f"📊 가격/거래량 필터: {filtered_out:,}개 제외 (${min_price}~${max_price}, Vol≥{min_volume:,})")
+        
+        # ─────────────────────────────────────────────────────────────────
+        # 5. 점수 순 정렬 → 상위 N개 선택
         # ─────────────────────────────────────────────────────────────────
         results.sort(key=lambda x: x["score"], reverse=True)
         watchlist = results[:self.watchlist_size]
         
-        logger.info(f"✅ Daily Scan 완료: {len(watchlist)}개 Watchlist 생성 (총 {len(results)}개 탐지)")
+        elapsed = time.time() - start_time
+        logger.info(f"✅ Daily Scan 완료: {len(watchlist)}개 Watchlist ({elapsed:.1f}초, 스킵: {skipped:,})")
         
         # 상위 5개 로그
         for i, item in enumerate(watchlist[:5]):
@@ -198,47 +267,34 @@ class Scanner:
     ) -> list[str]:
         """
         Universe 후보 종목 추출
-        
-        가격, 거래량 조건으로 필터링합니다.
-        
+
+        [12-001] 전체 유니버스 스캔 전략으로 변경
+        - 기존: 티커별 DB 조회 후 가격/거래량 사전 필터링 (느림)
+        - 변경: 전체 티커 → TickerFilter만 적용 (빠름)
+        - 가격/거래량 필터링은 스코어 계산 후 적용 (run_daily_scan에서)
+
         Args:
-            min_price: 최소 종가
-            max_price: 최대 종가
-            min_volume: 최소 평균 거래량
-        
+            min_price: 최소 종가 (현재 미사용, 하위호환용)
+            max_price: 최대 종가 (현재 미사용, 하위호환용)
+            min_volume: 최소 평균 거래량 (현재 미사용, 하위호환용)
+
         Returns:
             list[str]: 종목 심볼 리스트
         """
-        # 현재 DB에 있는 모든 종목 조회
-        all_tickers = await self.db.get_all_tickers_with_data()
-        
+        # [12-001] 전체 티커 조회
+        all_tickers = self.repo.get_all_tickers()
+
         if not all_tickers:
+            logger.warning("⚠️ 저장된 티커가 없습니다.")
             return []
-        
-        # 간단 필터: 최근 종가와 거래량으로 필터링
-        # TODO: 더 효율적인 쿼리 기반 필터링 구현
-        candidates = []
-        
-        for ticker in all_tickers:
-            try:
-                bars = await self.db.get_daily_bars(ticker, days=5)
-                
-                if not bars:
-                    continue
-                
-                # 최근 종가
-                last_close = bars[0].close
-                
-                # 최근 5일 평균 거래량
-                avg_volume = sum(b.volume for b in bars) / len(bars)
-                
-                # 필터 조건 체크
-                if min_price <= last_close <= max_price and avg_volume >= min_volume:
-                    candidates.append(ticker)
-                    
-            except Exception:
-                continue
-        
+
+        logger.info(f"📊 전체 티커: {len(all_tickers):,}개")
+
+        # TickerFilter로 Warrant/Preferred/Rights/Units 제외
+        candidates = self.ticker_filter.filter(all_tickers)
+
+        logger.info(f"📊 TickerFilter 후: {len(candidates):,}개 (제외: {len(all_tickers) - len(candidates):,}개)")
+
         return candidates
     
     # ═══════════════════════════════════════════════════════════════════════
@@ -276,23 +332,21 @@ class Scanner:
 # 편의 함수
 # ═══════════════════════════════════════════════════════════════════════════
 
-async def run_scan(db_path: str = "data/market_data.db") -> list[dict]:
+async def run_scan() -> list[dict]:
     """
     스캔 실행 편의 함수
-    
-    Args:
-        db_path: MarketDB 경로
-    
+
+    [11-002] DI Container에서 DataRepository 가져와서 스캔 실행
+
     Returns:
         list[dict]: Watchlist
     """
-    db = MarketDB(db_path)
-    await db.initialize()
-    
-    scanner = Scanner(db)
+    from backend.container import container
+
+    repo = container.data_repository()
+    scanner = Scanner(repo)
     watchlist = await scanner.run_daily_scan()
-    
-    await db.close()
+
     return watchlist
 
 

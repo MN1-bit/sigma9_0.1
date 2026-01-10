@@ -40,8 +40,10 @@ import numpy as np
 # [FIX] Queue 기반 전담 Writer 스레드
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 class NumpyEncoder(json.JSONEncoder):
     """numpy 타입을 Python 기본 타입으로 변환"""
+
     def default(self, obj):
         if isinstance(obj, np.bool_):
             return bool(obj)
@@ -57,38 +59,39 @@ class NumpyEncoder(json.JSONEncoder):
 class WatchlistWriter:
     """
     전담 Watchlist 쓰기 스레드
-    
+
     모든 쓰기 요청이 Queue를 통해 순차적으로 처리됩니다.
     Race Condition이 완전히 제거됩니다.
     """
+
     _instance = None
     _lock = threading.Lock()
-    
+
     def __new__(cls):
         with cls._lock:
             if cls._instance is None:
                 cls._instance = super().__new__(cls)
                 cls._instance._initialized = False
             return cls._instance
-    
+
     def __init__(self):
         if self._initialized:
             return
-        
+
         self._queue: queue.Queue = queue.Queue()
         self._running = True
         self._thread = threading.Thread(target=self._writer_loop, daemon=True)
         self._thread.start()
         self._initialized = True
-        
+
         # 프로세스 종료 시 정리
         atexit.register(self.shutdown)
         logger.debug("📝 WatchlistWriter 스레드 시작")
-    
+
     def enqueue(self, data: dict, path: Path, temp_path: Path):
         """쓰기 작업을 큐에 추가"""
         self._queue.put((data, path, temp_path))
-    
+
     def _writer_loop(self):
         """전담 쓰기 루프"""
         while self._running:
@@ -98,34 +101,36 @@ class WatchlistWriter:
                     data, path, temp_path = self._queue.get(timeout=0.1)
                 except queue.Empty:
                     continue
-                
+
                 # Atomic Write 수행
                 try:
                     with open(temp_path, "w", encoding="utf-8") as f:
-                        json.dump(data, f, ensure_ascii=False, indent=2, cls=NumpyEncoder)
+                        json.dump(
+                            data, f, ensure_ascii=False, indent=2, cls=NumpyEncoder
+                        )
                         f.flush()
                         os.fsync(f.fileno())
-                    
+
                     # Windows: 기존 파일 삭제 후 rename
                     if path.exists():
                         path.unlink()
                     temp_path.rename(path)
-                    
+
                 except Exception as e:
                     logger.error(f"❌ WatchlistWriter 쓰기 실패: {e}")
                 finally:
                     self._queue.task_done()
-                    
+
             except Exception as e:
                 logger.error(f"❌ WatchlistWriter 루프 오류: {e}")
-    
+
     def shutdown(self):
         """Writer 스레드 종료"""
         self._running = False
         if self._thread.is_alive():
             self._thread.join(timeout=2.0)
         logger.debug("📝 WatchlistWriter 스레드 종료")
-    
+
     def wait_for_completion(self):
         """큐의 모든 작업이 완료될 때까지 대기"""
         self._queue.join()
@@ -148,64 +153,61 @@ HISTORY_DIR = "history"
 # WatchlistStore 클래스
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 class WatchlistStore:
     """
     Watchlist 저장소
-    
+
     Watchlist 데이터를 JSON 파일로 저장하고 로드합니다.
     히스토리 기능으로 과거 Watchlist도 조회 가능합니다.
-    
+
     Attributes:
         data_dir: 데이터 저장 디렉토리
-        
+
     Example:
         >>> store = WatchlistStore()
         >>> store.save(watchlist)
         >>> loaded = store.load()
         >>> print(f"Loaded {len(loaded)} items")
     """
-    
+
     def __init__(self, data_dir: Optional[Path] = None):
         """
         저장소 초기화
-        
+
         Args:
             data_dir: 데이터 저장 디렉토리 (기본값: data/watchlist)
         """
         self.data_dir = Path(data_dir) if data_dir else DEFAULT_DATA_DIR
         self.history_dir = self.data_dir / HISTORY_DIR
-        
+
         # 디렉토리 생성
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self.history_dir.mkdir(parents=True, exist_ok=True)
-        
+
         logger.debug(f"📁 WatchlistStore 초기화 (경로: {self.data_dir})")
-    
+
     # ═══════════════════════════════════════════════════════════════════════
     # 저장/로드
     # ═══════════════════════════════════════════════════════════════════════
-    
-    def save(
-        self, 
-        watchlist: List[Dict[str, Any]], 
-        save_history: bool = True
-    ) -> Path:
+
+    def save(self, watchlist: List[Dict[str, Any]], save_history: bool = True) -> Path:
         """
         Watchlist를 JSON 파일로 저장
-        
+
         Args:
             watchlist: Watchlist 데이터 (list of dict)
             save_history: 히스토리에도 저장할지 여부
-        
+
         Returns:
             Path: 저장된 파일 경로
-        
+
         Example:
             >>> store.save(watchlist)
             PosixPath('data/watchlist/watchlist_current.json')
         """
         timestamp = datetime.now()
-        
+
         # 메타데이터 추가
         data = {
             "version": "1.0",
@@ -213,16 +215,16 @@ class WatchlistStore:
             "item_count": len(watchlist),
             "watchlist": watchlist,
         }
-        
+
         # 현재 Watchlist 저장 (Queue 기반 비동기 쓰기)
         current_path = self.data_dir / CURRENT_WATCHLIST_FILE
         temp_path = self.data_dir / ".watchlist_current.tmp"
-        
+
         # Queue에 쓰기 작업 추가 (전담 스레드가 순차 처리)
         _writer.enqueue(data, current_path, temp_path)
-        
+
         logger.debug(f"� Watchlist 저장 큐 추가: {len(watchlist)}개 항목")
-        
+
         # 히스토리 저장 (별도 파일이므로 직접 저장 가능)
         if save_history:
             history_filename = f"watchlist_{timestamp.strftime('%Y%m%d_%H%M%S')}.json"
@@ -232,96 +234,98 @@ class WatchlistStore:
                     json.dump(data, f, ensure_ascii=False, indent=2, cls=NumpyEncoder)
             except Exception as e:
                 logger.warning(f"⚠️ 히스토리 저장 실패: {e}")
-        
+
         return current_path
-    
+
     def load(self) -> List[Dict[str, Any]]:
         """
         저장된 Watchlist 로드
-        
+
         Returns:
             list[dict]: Watchlist 데이터, 파일이 없으면 빈 리스트
-        
+
         Example:
             >>> watchlist = store.load()
             >>> print(f"Loaded {len(watchlist)} items")
         """
         current_path = self.data_dir / CURRENT_WATCHLIST_FILE
-        
+
         if not current_path.exists():
             logger.warning(f"⚠️ Watchlist 파일 없음: {current_path}")
             return []
-        
+
         try:
             with open(current_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
-            
+
             watchlist = data.get("watchlist", [])
             generated_at = data.get("generated_at", "unknown")
-            
-            logger.info(f"📂 Watchlist 로드: {len(watchlist)}개 항목 (생성: {generated_at})")
+
+            logger.info(
+                f"📂 Watchlist 로드: {len(watchlist)}개 항목 (생성: {generated_at})"
+            )
             return watchlist
-            
+
         except Exception as e:
             logger.error(f"❌ Watchlist 로드 실패: {e}")
             return []
-    
+
     def load_with_metadata(self) -> Dict[str, Any]:
         """
         메타데이터 포함 Watchlist 로드
-        
+
         Returns:
             dict: 전체 데이터 (version, generated_at, item_count, watchlist)
         """
         current_path = self.data_dir / CURRENT_WATCHLIST_FILE
-        
+
         if not current_path.exists():
             return {"watchlist": [], "item_count": 0}
-        
+
         try:
             with open(current_path, "r", encoding="utf-8") as f:
                 return json.load(f)
         except Exception as e:
             logger.error(f"❌ Watchlist 로드 실패: {e}")
             return {"watchlist": [], "item_count": 0}
-    
+
     # ═══════════════════════════════════════════════════════════════════════
     # 히스토리
     # ═══════════════════════════════════════════════════════════════════════
-    
+
     def get_history_files(self, limit: int = 10) -> List[Path]:
         """
         히스토리 파일 목록 조회 (최신순)
-        
+
         Args:
             limit: 반환할 최대 개수
-        
+
         Returns:
             list[Path]: 히스토리 파일 경로 리스트
         """
         files = sorted(
             self.history_dir.glob("watchlist_*.json"),
             key=lambda p: p.stat().st_mtime,
-            reverse=True
+            reverse=True,
         )
         return files[:limit]
-    
+
     def load_history(self, filename: str) -> List[Dict[str, Any]]:
         """
         특정 히스토리 파일 로드
-        
+
         Args:
             filename: 히스토리 파일명
-        
+
         Returns:
             list[dict]: Watchlist 데이터
         """
         history_path = self.history_dir / filename
-        
+
         if not history_path.exists():
             logger.warning(f"⚠️ 히스토리 파일 없음: {history_path}")
             return []
-        
+
         try:
             with open(history_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
@@ -329,130 +333,52 @@ class WatchlistStore:
         except Exception as e:
             logger.error(f"❌ 히스토리 로드 실패: {e}")
             return []
-    
+
     def cleanup_history(self, keep_days: int = 7):
         """
         오래된 히스토리 파일 정리
-        
+
         Args:
             keep_days: 보관할 일수
         """
         import time
-        
+
         cutoff = time.time() - (keep_days * 24 * 60 * 60)
         removed = 0
-        
+
         for file_path in self.history_dir.glob("watchlist_*.json"):
             if file_path.stat().st_mtime < cutoff:
                 file_path.unlink()
                 removed += 1
-        
+
         if removed > 0:
             logger.info(f"🗑️ 히스토리 정리: {removed}개 파일 삭제")
-    
+
     # ═══════════════════════════════════════════════════════════════════════
     # 유틸리티
     # ═══════════════════════════════════════════════════════════════════════
-    
+
     def exists(self) -> bool:
         """현재 Watchlist 파일 존재 여부"""
         return (self.data_dir / CURRENT_WATCHLIST_FILE).exists()
-    
+
     def get_stats(self) -> Dict[str, Any]:
         """저장소 통계 조회"""
         current_path = self.data_dir / CURRENT_WATCHLIST_FILE
         history_files = list(self.history_dir.glob("watchlist_*.json"))
-        
+
         stats = {
             "current_exists": current_path.exists(),
             "history_count": len(history_files),
             "data_dir": str(self.data_dir),
         }
-        
+
         if current_path.exists():
             data = self.load_with_metadata()
             stats["current_item_count"] = data.get("item_count", 0)
             stats["current_generated_at"] = data.get("generated_at")
-        
+
         return stats
-
-
-# ═══════════════════════════════════════════════════════════════════════════
-# 싱글톤 인스턴스
-# ═══════════════════════════════════════════════════════════════════════════
-
-_store_instance: Optional[WatchlistStore] = None
-
-
-def get_watchlist_store() -> WatchlistStore:
-    """전역 WatchlistStore 인스턴스 반환"""
-    global _store_instance
-    if _store_instance is None:
-        _store_instance = WatchlistStore()
-    return _store_instance
-
-
-# ═══════════════════════════════════════════════════════════════════════════
-# 편의 함수
-# ═══════════════════════════════════════════════════════════════════════════
-
-def save_watchlist(watchlist: List[Dict[str, Any]]) -> Path:
-    """편의 함수: Watchlist 저장"""
-    return get_watchlist_store().save(watchlist)
-
-
-def load_watchlist() -> List[Dict[str, Any]]:
-    """편의 함수: Watchlist 로드"""
-    return get_watchlist_store().load()
-
-
-def merge_watchlist(new_items: List[Dict[str, Any]], update_existing: bool = True) -> List[Dict[str, Any]]:
-    """
-    [Issue 6.2 Fix] 기존 Watchlist와 새 항목 병합
-    
-    새 항목을 기존 Watchlist에 추가하되, 중복은 건너뛰거나 업데이트합니다.
-    덮어쓰기 대신 병합을 사용하여 깜빡임 문제를 해결합니다.
-    
-    Args:
-        new_items: 추가할 새로운 Watchlist 항목들
-        update_existing: True면 기존 항목을 새 데이터로 업데이트, False면 건너뛰기
-    
-    Returns:
-        병합된 전체 Watchlist
-    """
-    store = get_watchlist_store()
-    current = store.load()
-    
-    # 기존 티커 맵 생성
-    existing_map = {item.get("ticker"): i for i, item in enumerate(current)}
-    
-    added = 0
-    updated = 0
-    
-    for new_item in new_items:
-        ticker = new_item.get("ticker")
-        if not ticker:
-            continue
-        
-        if ticker in existing_map:
-            # 기존 항목 존재 - 업데이트할지 결정
-            if update_existing:
-                idx = existing_map[ticker]
-                # 기존 필드 유지하면서 새 필드로 업데이트
-                current[idx].update(new_item)
-                updated += 1
-        else:
-            # 새 항목 추가
-            current.append(new_item)
-            existing_map[ticker] = len(current) - 1
-            added += 1
-    
-    # 변경이 있으면 저장
-    if added > 0 or updated > 0:
-        store.save(current, save_history=False)  # 히스토리는 저장 안함 (빈번한 병합)
-        logger.info(f"📋 Watchlist 병합 완료: +{added} 추가, ~{updated} 업데이트 (총 {len(current)}개)")
-    
-    return current
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -463,14 +389,14 @@ if __name__ == "__main__":
     """독립 실행 테스트"""
     import sys
     import tempfile
-    
+
     logger.remove()
     logger.add(sys.stderr, level="DEBUG")
-    
+
     # 임시 디렉토리에서 테스트
     with tempfile.TemporaryDirectory() as tmpdir:
         store = WatchlistStore(data_dir=Path(tmpdir))
-        
+
         # 테스트 데이터
         test_watchlist = [
             {
@@ -494,32 +420,114 @@ if __name__ == "__main__":
                 "avg_volume": 200000,
             },
         ]
-        
+
         print("\n" + "=" * 60)
         print("📋 Watchlist Persistence Test")
         print("=" * 60)
-        
+
         # 저장
         saved_path = store.save(test_watchlist)
         print(f"\n✅ 저장 완료: {saved_path}")
-        
+
         # 로드
         loaded = store.load()
         print(f"✅ 로드 완료: {len(loaded)}개 항목")
-        
+
         # 통계
         stats = store.get_stats()
-        print(f"\n📊 통계:")
+        print("\n📊 통계:")
         for key, value in stats.items():
             print(f"   {key}: {value}")
-        
+
         # 히스토리
         history_files = store.get_history_files()
         print(f"\n📜 히스토리 파일: {len(history_files)}개")
-        
+
         # 검증
         assert len(loaded) == 2
         assert loaded[0]["ticker"] == "AAPL"
-        assert loaded[1]["can_trade"] == False
-        
+        assert not loaded[1]["can_trade"]
+
         print("\n✅ 모든 테스트 통과!")
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# [FIX 13-001] 편의 함수 복원 (레거시 호환성)
+# ═══════════════════════════════════════════════════════════════════════════
+# 📌 기존 코드에서 `from backend.data.watchlist_store import load_watchlist` 사용 시
+#    호환성 유지를 위해 모듈 레벨 함수 제공
+# 📌 신규 코드는 WatchlistStore 인스턴스 직접 사용 권장
+
+_default_store: Optional[WatchlistStore] = None
+
+
+def _get_default_store() -> WatchlistStore:
+    """기본 WatchlistStore 인스턴스 반환 (lazy init)"""
+    global _default_store
+    if _default_store is None:
+        _default_store = WatchlistStore()
+    return _default_store
+
+
+def load_watchlist() -> List[Dict[str, Any]]:
+    """
+    저장된 Watchlist 로드 (편의 함수)
+    
+    Returns:
+        list[dict]: Watchlist 데이터, 파일이 없으면 빈 리스트
+    
+    Example:
+        >>> from backend.data.watchlist_store import load_watchlist
+        >>> watchlist = load_watchlist()
+    """
+    return _get_default_store().load()
+
+
+def save_watchlist(watchlist: List[Dict[str, Any]], save_history: bool = True) -> Path:
+    """
+    Watchlist를 JSON 파일로 저장 (편의 함수)
+    
+    Args:
+        watchlist: Watchlist 데이터 (list of dict)
+        save_history: 히스토리에도 저장할지 여부
+        
+    Returns:
+        Path: 저장된 파일 경로
+    """
+    return _get_default_store().save(watchlist, save_history)
+
+
+def merge_watchlist(
+    new_items: List[Dict[str, Any]], 
+    update_existing: bool = True
+) -> List[Dict[str, Any]]:
+    """
+    기존 Watchlist에 새 항목 병합 (편의 함수)
+    
+    Args:
+        new_items: 새로 추가할 항목들
+        update_existing: 기존 항목 업데이트 여부
+        
+    Returns:
+        list[dict]: 병합된 Watchlist
+    """
+    store = _get_default_store()
+    current = store.load()
+    
+    # ticker 기준 병합
+    ticker_map = {item.get("ticker"): item for item in current}
+    
+    for new_item in new_items:
+        ticker = new_item.get("ticker")
+        if ticker:
+            if ticker in ticker_map and update_existing:
+                # 기존 항목 업데이트
+                ticker_map[ticker].update(new_item)
+            elif ticker not in ticker_map:
+                # 새 항목 추가
+                ticker_map[ticker] = new_item
+    
+    merged = list(ticker_map.values())
+    store.save(merged)
+    return merged
+

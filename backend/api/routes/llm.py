@@ -28,6 +28,7 @@ async def get_oracle_models():
     """
     try:
         from backend.llm.oracle import oracle_service
+
         return await oracle_service.get_available_models()
     except Exception as e:
         logger.error(f"Failed to get oracle models: {e}")
@@ -41,16 +42,16 @@ async def analyze_ticker(request: AnalysisRequest):
     """
     try:
         from backend.llm.oracle import oracle_service
-        
+
         prompt = f"Analyze ticker {request.ticker}."
         if request.question:
             prompt += f" Question: {request.question}"
-        
+
         result = await oracle_service.analyze(prompt, request.provider, request.model)
         return {
             "ticker": request.ticker,
             "analysis": result,
-            "timestamp": get_timestamp()
+            "timestamp": get_timestamp(),
         }
     except Exception as e:
         logger.error(f"Oracle analysis failed: {e}")

@@ -1,0 +1,28 @@
+# ============================================================================
+# Ticker Exclusion Configuration
+# ============================================================================
+# 📌 이 파일의 역할:
+#   - 스캔/모니터링에서 제외할 티커 패턴 정의
+#   - TickerFilter 클래스에서 로드하여 사용
+#
+# 📖 필터 적용 순서:
+#   1. whitelist에 있으면 → 제외 안함 (무조건 통과)
+#   2. manual_exclusions에 있으면 → 제외
+#   3. patterns 중 하나라도 매칭되면 → 제외
+# ============================================================================
+
+# 자동 제외 패턴
+# type: suffix, prefix, contains, exact
+patterns:
+  - { type: suffix, value: "W" }      # Warrant
+  - { type: suffix, value: "WS" }     # Warrant Series
+  - { type: suffix, value: "+" }      # Preferred Stock
+  - { type: suffix, value: "R" }      # Rights
+  - { type: suffix, value: "U" }      # Units (SPAC)
+  - { type: contains, value: "UNIT" } # Units 포함
+
+# 수동 제외 (특정 문제 티커)
+manual_exclusions: []
+
+# 화이트리스트 (패턴 예외 - 무조건 통과)
+whitelist: []

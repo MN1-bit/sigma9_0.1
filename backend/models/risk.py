@@ -26,7 +26,7 @@ from dataclasses import dataclass
 class RiskConfig:
     """
     리스크 관리 설정
-    
+
     Attributes:
         max_position_pct: 포지션당 최대 비율 (계좌 대비 %)
         max_positions: 최대 동시 포지션 수
@@ -36,59 +36,59 @@ class RiskConfig:
         per_trade_stop_pct: 거래당 Stop Loss (%)
         use_kelly: Kelly Criterion 사용 여부
         kelly_fraction: Kelly 비율 조정 (0.25 = 1/4 Kelly)
-    
+
     Example:
         >>> config = RiskConfig()
         >>> print(f"일일 손실 한도: {config.daily_loss_limit_pct}%")
         일일 손실 한도: -3.0%
     """
-    
+
     # ─────────────────────────────────────────────────────────────────
     # Position Sizing (masterplan 11.1)
     # ─────────────────────────────────────────────────────────────────
-    
+
     max_position_pct: float = 10.0
     """포지션당 최대 비율 (계좌의 10%)"""
-    
+
     max_positions: int = 3
     """최대 동시 포지션 수"""
-    
+
     max_daily_trades: int = 50
     """일일 최대 거래 횟수"""
-    
+
     # ─────────────────────────────────────────────────────────────────
     # Loss Limits (masterplan 11.2)
     # ─────────────────────────────────────────────────────────────────
-    
+
     per_trade_stop_pct: float = -5.0
     """거래당 Stop Loss (-5%)"""
-    
+
     daily_loss_limit_pct: float = -3.0
     """일일 손실 한도 (-3%) - 도달 시 자동 정지"""
-    
+
     weekly_loss_limit_pct: float = -10.0
     """주간 손실 한도 (-10%) - 도달 시 수동 리뷰"""
-    
+
     # ─────────────────────────────────────────────────────────────────
     # Kelly Criterion
     # ─────────────────────────────────────────────────────────────────
-    
+
     use_kelly: bool = False
     """Kelly Criterion 사용 여부"""
-    
+
     kelly_fraction: float = 0.25
     """Kelly 비율 조정 (1/4 Kelly 권장)"""
-    
+
     kelly_min_trades: int = 20
     """Kelly 계산을 위한 최소 거래 수"""
-    
+
     # ─────────────────────────────────────────────────────────────────
     # Kill Switch
     # ─────────────────────────────────────────────────────────────────
-    
+
     auto_kill_on_daily_limit: bool = True
     """일일 한도 도달 시 자동 Kill Switch 발동"""
-    
+
     def to_dict(self) -> dict:
         """딕셔너리로 변환"""
         return {

@@ -19,11 +19,11 @@ Sigma9 Core Package
 
 Example:
     from backend.core import StrategyBase, Signal, MockPriceFeed
-    
+
     # 전략 정의
     class MyStrategy(StrategyBase):
         ...
-    
+
     # Mock 데이터 생성
     feed = MockPriceFeed(mode="random_walk")
 """
@@ -38,4 +38,3 @@ __all__ = [
     # Mock 데이터
     "MockPriceFeed",
 ]
-

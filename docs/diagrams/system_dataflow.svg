@@ -1,0 +1,161 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Generated via GraphvizOnline - Sigma9 System Dataflow -->
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="602pt" height="550pt" xmlns:ev="http://www.w3.org/2001/xml-events" style="overflow: hidden;">
+<g id="viewport-20260108072431863" class="svg-pan-zoom_viewport" transform="matrix(1.2541528239202657,0,0,1.2541528239202657,0,118.10797342192694)" style="transform: matrix(1.25415, 0, 0, 1.25415, 0, 118.108);">
+<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 546)">
+<title>Sigma9</title>
+<polygon fill="#1a1a2e" stroke="none" points="-4,4 -4,-546 598,-546 598,4 -4,4"></polygon>
+<g id="clust1" class="cluster">
+<title>cluster_external</title>
+<polygon fill="#1a1a2e" stroke="#94a3b8" stroke-dasharray="5,2" points="8,-192.6 8,-269.4 178,-269.4 178,-192.6 8,-192.6"></polygon>
+<text xml:space="preserve" text-anchor="middle" x="93" y="-252.8" font-family="Times,serif" font-size="14.00" fill="#94a3b8">☁️ EXTERNAL</text>
+</g>
+<g id="clust2" class="cluster">
+<title>cluster_frontend</title>
+<polygon fill="#1a1a2e" stroke="#f472b6" stroke-dasharray="5,2" points="468,-361.4 468,-534 586,-534 586,-361.4 468,-361.4"></polygon>
+<text xml:space="preserve" text-anchor="middle" x="527" y="-517.4" font-family="Times,serif" font-size="14.00" fill="#f472b6">🖥️ FRONTEND</text>
+</g>
+<g id="clust3" class="cluster">
+<title>cluster_api</title>
+<polygon fill="#1a1a2e" stroke="#fb923c" stroke-dasharray="5,2" points="308,-192.6 308,-438.2 460,-438.2 460,-192.6 308,-192.6"></polygon>
+<text xml:space="preserve" text-anchor="middle" x="384" y="-421.6" font-family="Times,serif" font-size="14.00" fill="#fb923c">🌐 API</text>
+</g>
+<g id="clust4" class="cluster">
+<title>cluster_core</title>
+<polygon fill="#1a1a2e" stroke="#60a5fa" stroke-dasharray="5,2" points="186,-81 186,-269.4 300,-269.4 300,-81 186,-81"></polygon>
+<text xml:space="preserve" text-anchor="middle" x="243" y="-252.8" font-family="Times,serif" font-size="14.00" fill="#60a5fa">⚙️ CORE</text>
+</g>
+<g id="clust5" class="cluster">
+<title>cluster_data</title>
+<polygon fill="#1a1a2e" stroke="#4ade80" stroke-dasharray="5,2" points="56,-8 56,-157.8 160,-157.8 160,-8 56,-8"></polygon>
+<text xml:space="preserve" text-anchor="middle" x="108" y="-141.2" font-family="Times,serif" font-size="14.00" fill="#4ade80">📦 DATA</text>
+</g>
+<!-- massive_api -->
+<g id="node1" class="node">
+<title>massive_api</title>
+<path fill="#1e3a5f" stroke="black" d="M80.24,-236.6C80.24,-236.6 27.76,-236.6 27.76,-236.6 21.76,-236.6 15.76,-230.6 15.76,-224.6 15.76,-224.6 15.76,-212.6 15.76,-212.6 15.76,-206.6 21.76,-200.6 27.76,-200.6 27.76,-200.6 80.24,-200.6 80.24,-200.6 86.24,-200.6 92.24,-206.6 92.24,-212.6 92.24,-212.6 92.24,-224.6 92.24,-224.6 92.24,-230.6 86.24,-236.6 80.24,-236.6"></path>
+<text xml:space="preserve" text-anchor="middle" x="54" y="-215.6" font-family="Consolas" font-size="10.00" fill="white">Massive API</text>
+</g>
+<!-- massive_client -->
+<g id="node11" class="node">
+<title>massive_client</title>
+<path fill="#166534" stroke="black" d="M139.74,-125C139.74,-125 76.26,-125 76.26,-125 70.26,-125 64.26,-119 64.26,-113 64.26,-113 64.26,-101 64.26,-101 64.26,-95 70.26,-89 76.26,-89 76.26,-89 139.74,-89 139.74,-89 145.74,-89 151.74,-95 151.74,-101 151.74,-101 151.74,-113 151.74,-113 151.74,-119 145.74,-125 139.74,-125"></path>
+<text xml:space="preserve" text-anchor="middle" x="108" y="-104" font-family="Consolas" font-size="10.00" fill="white">MassiveClient</text>
+</g>
+<!-- massive_api&#45;&gt;massive_client -->
+<g id="edge1" class="edge">
+<title>massive_api-&gt;massive_client</title>
+<path fill="none" stroke="#888888" stroke-width="1.2" d="M62.44,-200.47C70.95,-183.2 84.22,-156.26 94.26,-135.9"></path>
+<polygon fill="#888888" stroke="#888888" stroke-width="1.2" points="97.36,-137.51 98.64,-127 91.08,-134.42 97.36,-137.51"></polygon>
+</g>
+<!-- ibkr_tws -->
+<g id="node2" class="node">
+<title>ibkr_tws</title>
+<path fill="#1e3a5f" stroke="black" d="M157.99,-236.6C157.99,-236.6 122.01,-236.6 122.01,-236.6 116.01,-236.6 110.01,-230.6 110.01,-224.6 110.01,-224.6 110.01,-212.6 110.01,-212.6 110.01,-206.6 116.01,-200.6 122.01,-200.6 122.01,-200.6 157.99,-200.6 157.99,-200.6 163.99,-200.6 169.99,-206.6 169.99,-212.6 169.99,-212.6 169.99,-224.6 169.99,-224.6 169.99,-230.6 163.99,-236.6 157.99,-236.6"></path>
+<text xml:space="preserve" text-anchor="middle" x="140" y="-215.6" font-family="Consolas" font-size="10.00" fill="white">IBKR TWS</text>
+</g>
+<!-- scanner -->
+<g id="node8" class="node">
+<title>scanner</title>
+<path fill="#1d4ed8" stroke="black" d="M280.24,-125C280.24,-125 205.76,-125 205.76,-125 199.76,-125 193.76,-119 193.76,-113 193.76,-113 193.76,-101 193.76,-101 193.76,-95 199.76,-89 205.76,-89 205.76,-89 280.24,-89 280.24,-89 286.24,-89 292.24,-95 292.24,-101 292.24,-101 292.24,-113 292.24,-113 292.24,-119 286.24,-125 280.24,-125"></path>
+<text xml:space="preserve" text-anchor="middle" x="243" y="-104" font-family="Consolas" font-size="10.00" fill="white">RealtimeScanner</text>
+</g>
+<!-- ibkr_tws&#45;&gt;scanner -->
+<g id="edge2" class="edge">
+<title>ibkr_tws-&gt;scanner</title>
+<path fill="none" stroke="#888888" stroke-width="1.2" d="M156.09,-200.47C172.85,-182.64 199.3,-154.5 218.62,-133.94"></path>
+<polygon fill="#888888" stroke="#888888" stroke-width="1.2" points="221.14,-136.37 225.44,-126.69 216.04,-131.58 221.14,-136.37"></polygon>
+</g>
+<!-- dashboard -->
+<g id="node3" class="node">
+<title>dashboard</title>
+<path fill="#be185d" stroke="black" d="M540.74,-501.2C540.74,-501.2 499.26,-501.2 499.26,-501.2 493.26,-501.2 487.26,-495.2 487.26,-489.2 487.26,-489.2 487.26,-477.2 487.26,-477.2 487.26,-471.2 493.26,-465.2 499.26,-465.2 499.26,-465.2 540.74,-465.2 540.74,-465.2 546.74,-465.2 552.74,-471.2 552.74,-477.2 552.74,-477.2 552.74,-489.2 552.74,-489.2 552.74,-495.2 546.74,-501.2 540.74,-501.2"></path>
+<text xml:space="preserve" text-anchor="middle" x="520" y="-480.2" font-family="Consolas" font-size="10.00" fill="white">Dashboard</text>
+</g>
+<!-- backend_client -->
+<g id="node4" class="node">
+<title>backend_client</title>
+<path fill="#831843" stroke="black" d="M551.74,-405.4C551.74,-405.4 488.26,-405.4 488.26,-405.4 482.26,-405.4 476.26,-399.4 476.26,-393.4 476.26,-393.4 476.26,-381.4 476.26,-381.4 476.26,-375.4 482.26,-369.4 488.26,-369.4 488.26,-369.4 551.74,-369.4 551.74,-369.4 557.74,-369.4 563.74,-375.4 563.74,-381.4 563.74,-381.4 563.74,-393.4 563.74,-393.4 563.74,-399.4 557.74,-405.4 551.74,-405.4"></path>
+<text xml:space="preserve" text-anchor="middle" x="520" y="-384.4" font-family="Consolas" font-size="10.00" fill="white">BackendClient</text>
+</g>
+<!-- dashboard&#45;&gt;backend_client -->
+<g id="edge3" class="edge">
+<title>dashboard-&gt;backend_client</title>
+<path fill="none" stroke="#888888" stroke-width="1.2" d="M520,-465C520,-451.72 520,-433.06 520,-417.49"></path>
+<polygon fill="#888888" stroke="#888888" stroke-width="1.2" points="523.5,-417.63 520,-407.63 516.5,-417.63 523.5,-417.63"></polygon>
+</g>
+<!-- routes -->
+<g id="node6" class="node">
+<title>routes</title>
+<path fill="#ea580c" stroke="black" d="M425.24,-332.4C425.24,-332.4 394.76,-332.4 394.76,-332.4 388.76,-332.4 382.76,-326.4 382.76,-320.4 382.76,-320.4 382.76,-308.4 382.76,-308.4 382.76,-302.4 388.76,-296.4 394.76,-296.4 394.76,-296.4 425.24,-296.4 425.24,-296.4 431.24,-296.4 437.24,-302.4 437.24,-308.4 437.24,-308.4 437.24,-320.4 437.24,-320.4 437.24,-326.4 431.24,-332.4 425.24,-332.4"></path>
+<text xml:space="preserve" text-anchor="middle" x="410" y="-311.4" font-family="Consolas" font-size="10.00" fill="white">routes/</text>
+</g>
+<!-- backend_client&#45;&gt;routes -->
+<g id="edge4" class="edge">
+<title>backend_client-&gt;routes</title>
+<path fill="none" stroke="#888888" stroke-width="1.2" d="M493.09,-369.03C479.11,-360.01 461.81,-348.84 446.63,-339.04"></path>
+<polygon fill="#888888" stroke="#888888" stroke-width="1.2" points="448.84,-336.3 438.54,-333.82 445.04,-342.18 448.84,-336.3"></polygon>
+</g>
+<!-- server -->
+<g id="node5" class="node">
+<title>server</title>
+<path fill="#c2410c" stroke="black" d="M430.74,-405.4C430.74,-405.4 389.26,-405.4 389.26,-405.4 383.26,-405.4 377.26,-399.4 377.26,-393.4 377.26,-393.4 377.26,-381.4 377.26,-381.4 377.26,-375.4 383.26,-369.4 389.26,-369.4 389.26,-369.4 430.74,-369.4 430.74,-369.4 436.74,-369.4 442.74,-375.4 442.74,-381.4 442.74,-381.4 442.74,-393.4 442.74,-393.4 442.74,-399.4 436.74,-405.4 430.74,-405.4"></path>
+<text xml:space="preserve" text-anchor="middle" x="410" y="-384.4" font-family="Consolas" font-size="10.00" fill="white">server.py</text>
+</g>
+<!-- server&#45;&gt;routes -->
+<g id="edge5" class="edge">
+<title>server-&gt;routes</title>
+<path fill="none" stroke="#888888" stroke-width="1.2" d="M410,-369.21C410,-361.71 410,-352.71 410,-344.23"></path>
+<polygon fill="#888888" stroke="#888888" stroke-width="1.2" points="413.5,-344.25 410,-334.25 406.5,-344.25 413.5,-344.25"></polygon>
+</g>
+<!-- tier2_api -->
+<g id="node7" class="node">
+<title>tier2_api</title>
+<path fill="#ea580c" stroke="#4ade80" stroke-width="2" d="M440.48,-236.6C440.48,-236.6 327.52,-236.6 327.52,-236.6 321.52,-236.6 315.52,-230.6 315.52,-224.6 315.52,-224.6 315.52,-212.6 315.52,-212.6 315.52,-206.6 321.52,-200.6 327.52,-200.6 327.52,-200.6 440.48,-200.6 440.48,-200.6 446.48,-200.6 452.48,-206.6 452.48,-212.6 452.48,-212.6 452.48,-224.6 452.48,-224.6 452.48,-230.6 446.48,-236.6 440.48,-236.6"></path>
+<text xml:space="preserve" text-anchor="middle" x="384" y="-215.6" font-family="Consolas" font-size="10.00" fill="white">/tier2/check-promotion</text>
+</g>
+<!-- routes&#45;&gt;tier2_api -->
+<g id="edge6" class="edge">
+<title>routes-&gt;tier2_api</title>
+<path fill="none" stroke="#888888" stroke-width="1.2" d="M405.23,-296.2C401.54,-282.88 396.34,-264.13 392.02,-248.52"></path>
+<polygon fill="#888888" stroke="#888888" stroke-width="1.2" points="395.44,-247.78 389.4,-239.08 388.7,-249.65 395.44,-247.78"></polygon>
+</g>
+<!-- tier2_api&#45;&gt;scanner -->
+<g id="edge7" class="edge">
+<title>tier2_api-&gt;scanner</title>
+<path fill="none" stroke="#4ade80" stroke-width="1.2" d="M361.03,-199.75C337.54,-181.49 300.87,-152.98 274.64,-132.59"></path>
+<polygon fill="#4ade80" stroke="#4ade80" stroke-width="1.2" points="276.97,-129.97 266.93,-126.6 272.67,-135.5 276.97,-129.97"></polygon>
+<text xml:space="preserve" text-anchor="middle" x="362.89" y="-170" font-family="Times,serif" font-size="14.00">[05-004]</text>
+</g>
+<!-- market_db -->
+<g id="node10" class="node">
+<title>market_db</title>
+<path fill="#166534" stroke="black" d="M132.99,-52C132.99,-52 97.01,-52 97.01,-52 91.01,-52 85.01,-46 85.01,-40 85.01,-40 85.01,-28 85.01,-28 85.01,-22 91.01,-16 97.01,-16 97.01,-16 132.99,-16 132.99,-16 138.99,-16 144.99,-22 144.99,-28 144.99,-28 144.99,-40 144.99,-40 144.99,-46 138.99,-52 132.99,-52"></path>
+<text xml:space="preserve" text-anchor="middle" x="115" y="-31" font-family="Consolas" font-size="10.00" fill="white">MarketDB</text>
+</g>
+<!-- scanner&#45;&gt;market_db -->
+<g id="edge8" class="edge">
+<title>scanner-&gt;market_db</title>
+<path fill="none" stroke="#888888" stroke-width="1.2" d="M211.69,-88.63C194.74,-79.23 173.6,-67.51 155.42,-57.42"></path>
+<polygon fill="#888888" stroke="#888888" stroke-width="1.2" points="157.14,-54.37 146.7,-52.58 153.74,-60.49 157.14,-54.37"></polygon>
+</g>
+<!-- ignition -->
+<g id="node9" class="node">
+<title>ignition</title>
+<path fill="#1d4ed8" stroke="black" d="M280.24,-236.6C280.24,-236.6 205.76,-236.6 205.76,-236.6 199.76,-236.6 193.76,-230.6 193.76,-224.6 193.76,-224.6 193.76,-212.6 193.76,-212.6 193.76,-206.6 199.76,-200.6 205.76,-200.6 205.76,-200.6 280.24,-200.6 280.24,-200.6 286.24,-200.6 292.24,-206.6 292.24,-212.6 292.24,-212.6 292.24,-224.6 292.24,-224.6 292.24,-230.6 286.24,-236.6 280.24,-236.6"></path>
+<text xml:space="preserve" text-anchor="middle" x="243" y="-215.6" font-family="Consolas" font-size="10.00" fill="white">IgnitionMonitor</text>
+</g>
+<!-- ignition&#45;&gt;scanner -->
+<g id="edge10" class="edge">
+<title>ignition-&gt;scanner</title>
+<path fill="none" stroke="#888888" stroke-width="1.2" d="M243,-200.47C243,-183.52 243,-157.25 243,-137.03"></path>
+<polygon fill="#888888" stroke="#888888" stroke-width="1.2" points="246.5,-137.18 243,-127.18 239.5,-137.18 246.5,-137.18"></polygon>
+</g>
+<!-- massive_client&#45;&gt;market_db -->
+<g id="edge9" class="edge">
+<title>massive_client-&gt;market_db</title>
+<path fill="none" stroke="#888888" stroke-width="1.2" d="M109.69,-88.81C110.44,-81.23 111.34,-72.1 112.19,-63.54"></path>
+<polygon fill="#888888" stroke="#888888" stroke-width="1.2" points="115.64,-64.13 113.14,-53.84 108.68,-63.44 115.64,-64.13"></polygon>
+</g>
+</g>
+</g></svg>

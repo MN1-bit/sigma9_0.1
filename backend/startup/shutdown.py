@@ -26,13 +26,13 @@ async def shutdown_all(
 ) -> None:
     """
     모든 서비스 종료
-    
+
     📌 Graceful shutdown 순서:
         1. RealtimeScanner
         2. IgnitionMonitor
         3. Scheduler
         4. IBKR
-    
+
     Args:
         realtime_scanner: RealtimeScanner 인스턴스
         ignition_monitor: IgnitionMonitor 인스턴스
@@ -40,7 +40,7 @@ async def shutdown_all(
         ibkr: IBKR 커넥터 인스턴스
     """
     logger.info("🛑 Server Shutting Down...")
-    
+
     # 1. RealtimeScanner 종료 [Step 4.A.5]
     if realtime_scanner:
         try:
@@ -48,7 +48,7 @@ async def shutdown_all(
             logger.info("✅ RealtimeScanner stopped")
         except Exception as e:
             logger.error(f"❌ RealtimeScanner shutdown error: {e}")
-    
+
     # 2. IgnitionMonitor 종료 [Bugfix: Ignition Score 자동 종료]
     if ignition_monitor:
         try:
@@ -56,7 +56,7 @@ async def shutdown_all(
             logger.info("✅ IgnitionMonitor stopped")
         except Exception as e:
             logger.error(f"❌ IgnitionMonitor shutdown error: {e}")
-    
+
     # 3. Scheduler 종료
     if scheduler:
         try:
@@ -64,7 +64,7 @@ async def shutdown_all(
             logger.info("✅ Scheduler stopped")
         except Exception as e:
             logger.error(f"❌ Scheduler shutdown error: {e}")
-    
+
     # 4. IBKR 연결 해제
     if ibkr:
         try:
@@ -72,14 +72,14 @@ async def shutdown_all(
             logger.info("✅ IBKR disconnected")
         except Exception as e:
             logger.error(f"❌ IBKR disconnect error: {e}")
-    
+
     logger.info("👋 Goodbye!")
 
 
 async def shutdown_from_result(result: "RealtimeServicesResult") -> None:
     """
     RealtimeServicesResult 객체를 받아 모든 서비스 종료
-    
+
     Args:
         result: RealtimeServicesResult 인스턴스
     """

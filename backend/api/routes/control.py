@@ -27,72 +27,72 @@ router = APIRouter()
 async def control_engine(request: ControlRequest):
     """
     트레이딩 엔진을 제어합니다.
-    
+
     📌 명령:
         - start: 엔진 시작 (IBKR 연결, 전략 로드, 모니터링 시작)
         - stop: 엔진 정지 (신규 거래 차단, 기존 포지션 유지)
         - kill: 긴급 정지 (모든 주문 취소, 모든 포지션 청산)
     """
-    
+
     logger.info(f"🎮 Control command received: {request.command}")
-    
+
     if request.command == EngineCommand.START:
         if is_engine_running():
             return ControlResponse(
                 status="rejected",
                 command=request.command,
                 message="Engine is already running",
-                timestamp=get_timestamp()
+                timestamp=get_timestamp(),
             )
-        
+
         # TODO: 실제 엔진 시작 로직
         # app_state.engine.start()
         set_engine_running(True)
         logger.info("🚀 Trading Engine Started")
-        
+
         return ControlResponse(
             status="accepted",
             command=request.command,
             message="Engine started successfully",
-            timestamp=get_timestamp()
+            timestamp=get_timestamp(),
         )
-    
+
     elif request.command == EngineCommand.STOP:
         if not is_engine_running():
             return ControlResponse(
                 status="rejected",
                 command=request.command,
                 message="Engine is not running",
-                timestamp=get_timestamp()
+                timestamp=get_timestamp(),
             )
-        
+
         # TODO: 실제 엔진 정지 로직
         # app_state.engine.stop()
         set_engine_running(False)
         logger.info("⏹ Trading Engine Stopped")
-        
+
         return ControlResponse(
             status="accepted",
             command=request.command,
             message="Engine stopped successfully",
-            timestamp=get_timestamp()
+            timestamp=get_timestamp(),
         )
-    
+
     elif request.command == EngineCommand.KILL:
         # Kill Switch는 항상 실행
         logger.warning("⚡ KILL SWITCH ACTIVATED!")
-        
+
         # TODO: 실제 Kill Switch 로직
         # 1. 모든 미체결 주문 취소
         # 2. 모든 포지션 시장가 청산
         # 3. 엔진 정지
         set_engine_running(False)
-        
+
         return ControlResponse(
             status="accepted",
             command=request.command,
             message="Kill switch executed - All orders cancelled, all positions closed",
-            timestamp=get_timestamp()
+            timestamp=get_timestamp(),
         )
 
 
@@ -100,7 +100,7 @@ async def control_engine(request: ControlRequest):
 async def kill_switch():
     """
     🔴 긴급 정지 버튼
-    
+
     모든 미체결 주문을 취소하고 모든 포지션을 시장가로 청산합니다.
     확인 없이 즉시 실행됩니다.
     """

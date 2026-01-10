@@ -386,7 +386,7 @@ class Container(containers.DeclarativeContainer):
 | 문서 | 변경 필요 | 내용 |
 |------|----------|------|
 | `@PROJECT_DNA.md` | ❌ | 정책 변경 없음 |
-| `docs/context/ARCHITECTURE.md` | ⚠️ 선택 | Section 3 데이터 파이프라인에 `event_time` 전파 설명 추가 가능 |
+| `.agent\Ref\archt.md` | ⚠️ 선택 | Section 3 데이터 파이프라인에 `event_time` 전파 설명 추가 가능 |
 | `docs/Plan/MASTERPLAN.md` | ❌ | 아키텍처 변경 없음 |
 
 ---

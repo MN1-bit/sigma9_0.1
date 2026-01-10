@@ -46,9 +46,9 @@ IBKR_TO_MASSIVE_MANUAL: Dict[str, str] = {
 
 # 제외할 심볼 패턴 (거래 불가 또는 데이터 불일치)
 EXCLUDED_PATTERNS = [
-    r".*\.WS$",   # 워런트 (IBKR에서 별도 처리)
-    r".*\.U$",    # 유닛
-    r".*\.R$",    # 라이트
+    r".*\.WS$",  # 워런트 (IBKR에서 별도 처리)
+    r".*\.U$",  # 유닛
+    r".*\.R$",  # 라이트
     r".*TEST.*",  # 테스트 심볼
 ]
 
@@ -57,17 +57,18 @@ EXCLUDED_PATTERNS = [
 # SymbolMapper 클래스
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 class SymbolMapper:
     """
     Massive.com ↔ IBKR 심볼 매퍼
-    
+
     티커 심볼 형식 차이를 자동으로 처리합니다.
-    
+
     주요 기능:
         - MASSIVE_TO_IBKR(): Massive 심볼 → IBKR 심볼
         - IBKR_TO_MASSIVE(): IBKR 심볼 → Massive 심볼
         - is_tradeable(): IBKR에서 거래 가능한 심볼인지 확인
-    
+
     Example:
         >>> mapper = SymbolMapper()
         >>> mapper.MASSIVE_TO_IBKR("BRK/A")
@@ -75,43 +76,45 @@ class SymbolMapper:
         >>> mapper.IBKR_TO_MASSIVE("BRK.A")
         'BRK/A'
     """
-    
+
     def __init__(self):
         """매퍼 초기화"""
         # 제외 패턴 컴파일
         self._excluded_patterns = [re.compile(p) for p in EXCLUDED_PATTERNS]
-        
+
         # 역방향 매핑 테이블 생성
         self._MASSIVE_TO_IBKR = MASSIVE_TO_IBKR_MANUAL.copy()
         self._IBKR_TO_MASSIVE = IBKR_TO_MASSIVE_MANUAL.copy()
-        
+
         # MASSIVE_TO_IBKR_MANUAL의 역방향 자동 생성
         for massive_sym, ibkr_sym in MASSIVE_TO_IBKR_MANUAL.items():
             if ibkr_sym not in self._IBKR_TO_MASSIVE:
                 self._IBKR_TO_MASSIVE[ibkr_sym] = massive_sym
-        
-        logger.debug(f"🔄 SymbolMapper 초기화 (수동 매핑: {len(self._MASSIVE_TO_IBKR)}개)")
-    
+
+        logger.debug(
+            f"🔄 SymbolMapper 초기화 (수동 매핑: {len(self._MASSIVE_TO_IBKR)}개)"
+        )
+
     # ═══════════════════════════════════════════════════════════════════════
     # 변환 메서드
     # ═══════════════════════════════════════════════════════════════════════
-    
+
     def MASSIVE_TO_IBKR(self, massive_symbol: str) -> Optional[str]:
         """
         Massive 심볼 → IBKR 심볼 변환
-        
+
         변환 규칙:
             1. 수동 매핑 테이블 확인
             2. "/" → "." 변환 (클래스 주식)
             3. 대문자 변환
             4. 제외 패턴 체크
-        
+
         Args:
             massive_symbol: Massive.com 심볼 (예: "BRK/A", "AAPL")
-        
+
         Returns:
             str: IBKR 심볼, 또는 None (거래 불가 심볼)
-        
+
         Example:
             >>> mapper.MASSIVE_TO_IBKR("BRK/A")
             'BRK.A'
@@ -120,130 +123,104 @@ class SymbolMapper:
         """
         if not massive_symbol:
             return None
-        
+
         symbol = massive_symbol.upper().strip()
-        
+
         # 1. 제외 패턴 체크
         if self._is_excluded(symbol):
             return None
-        
+
         # 2. 수동 매핑 확인
         if symbol in self._MASSIVE_TO_IBKR:
             return self._MASSIVE_TO_IBKR[symbol]
-        
+
         # 3. 자동 변환: "/" → "." (클래스 주식)
         # 예: BRK/A → BRK.A, GOOG/L → GOOG.L
         ibkr_symbol = symbol.replace("/", ".")
-        
+
         return ibkr_symbol
-    
+
     def IBKR_TO_MASSIVE(self, ibkr_symbol: str) -> Optional[str]:
         """
         IBKR 심볼 → Massive 심볼 변환
-        
+
         Args:
             ibkr_symbol: IBKR 심볼 (예: "BRK.A", "AAPL")
-        
+
         Returns:
             str: Massive.com 심볼, 또는 None (변환 불가)
-        
+
         Example:
             >>> mapper.IBKR_TO_MASSIVE("BRK.A")
             'BRK/A'
         """
         if not ibkr_symbol:
             return None
-        
+
         symbol = ibkr_symbol.upper().strip()
-        
+
         # 1. 수동 매핑 확인
         if symbol in self._IBKR_TO_MASSIVE:
             return self._IBKR_TO_MASSIVE[symbol]
-        
+
         # 2. 자동 변환: "." → "/" (클래스 주식)
         # 주의: 일부 "."은 클래스가 아닌 다른 의미일 수 있음
         # 단순 변환만 수행, 복잡한 케이스는 수동 매핑 필요
         massive_symbol = symbol.replace(".", "/")
-        
+
         return massive_symbol
-    
+
     def is_tradeable(self, massive_symbol: str) -> bool:
         """
         IBKR에서 거래 가능한 심볼인지 확인
-        
+
         Args:
             massive_symbol: Massive.com 심볼
-        
+
         Returns:
             bool: 거래 가능 여부
         """
         return self.MASSIVE_TO_IBKR(massive_symbol) is not None
-    
+
     # ═══════════════════════════════════════════════════════════════════════
     # 유틸리티
     # ═══════════════════════════════════════════════════════════════════════
-    
+
     def _is_excluded(self, symbol: str) -> bool:
         """제외 패턴에 해당하는지 확인"""
         for pattern in self._excluded_patterns:
             if pattern.match(symbol):
                 return True
         return False
-    
+
     def batch_convert(
-        self, 
-        symbols: list[str], 
-        direction: str = "MASSIVE_TO_IBKR"
+        self, symbols: list[str], direction: str = "MASSIVE_TO_IBKR"
     ) -> Dict[str, Optional[str]]:
         """
         여러 심볼 일괄 변환
-        
+
         Args:
             symbols: 변환할 심볼 리스트
             direction: "MASSIVE_TO_IBKR" 또는 "IBKR_TO_MASSIVE"
-        
+
         Returns:
             dict: {원본 심볼: 변환된 심볼 또는 None}
-        
+
         Example:
             >>> mapper.batch_convert(["AAPL", "BRK/A", "TSLA"])
             {'AAPL': 'AAPL', 'BRK/A': 'BRK.A', 'TSLA': 'TSLA'}
         """
         result = {}
         convert_fn = (
-            self.MASSIVE_TO_IBKR if direction == "MASSIVE_TO_IBKR" 
+            self.MASSIVE_TO_IBKR
+            if direction == "MASSIVE_TO_IBKR"
             else self.IBKR_TO_MASSIVE
         )
-        
+
         for sym in symbols:
             result[sym] = convert_fn(sym)
-        
+
         return result
-
-
-# ═══════════════════════════════════════════════════════════════════════════
-# 싱글톤 인스턴스 (편의 함수용)
-# ═══════════════════════════════════════════════════════════════════════════
-
-_mapper_instance: Optional[SymbolMapper] = None
-
-
-def get_symbol_mapper() -> SymbolMapper:
-    """전역 SymbolMapper 인스턴스 반환"""
-    global _mapper_instance
-    if _mapper_instance is None:
-        _mapper_instance = SymbolMapper()
-    return _mapper_instance
-
-
-def MASSIVE_TO_IBKR(symbol: str) -> Optional[str]:
-    """편의 함수: Massive → IBKR 변환"""
-    return get_symbol_mapper().MASSIVE_TO_IBKR(symbol)
-
-
-def IBKR_TO_MASSIVE(symbol: str) -> Optional[str]:
-    """편의 함수: IBKR → Massive 변환"""
-    return get_symbol_mapper().IBKR_TO_MASSIVE(symbol)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -253,12 +230,12 @@ def IBKR_TO_MASSIVE(symbol: str) -> Optional[str]:
 if __name__ == "__main__":
     """독립 실행 테스트"""
     import sys
-    
+
     logger.remove()
     logger.add(sys.stderr, level="DEBUG")
-    
+
     mapper = SymbolMapper()
-    
+
     # 테스트 케이스
     test_cases = [
         ("AAPL", "MASSIVE_TO_IBKR"),
@@ -268,11 +245,11 @@ if __name__ == "__main__":
         ("TEST.WS", "MASSIVE_TO_IBKR"),  # 제외 패턴
         ("BRK.A", "IBKR_TO_MASSIVE"),
     ]
-    
+
     print("\n" + "=" * 60)
     print("📋 Symbol Mapping Test")
     print("=" * 60)
-    
+
     for symbol, direction in test_cases:
         if direction == "MASSIVE_TO_IBKR":
             result = mapper.MASSIVE_TO_IBKR(symbol)
@@ -280,7 +257,7 @@ if __name__ == "__main__":
         else:
             result = mapper.IBKR_TO_MASSIVE(symbol)
             print(f"  IBKR→Polygon: {symbol:10} → {result}")
-    
+
     # 배치 변환 테스트
     print("\n" + "-" * 60)
     batch_result = mapper.batch_convert(["AAPL", "BRK/A", "TSLA"])

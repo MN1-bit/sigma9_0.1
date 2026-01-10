@@ -28,7 +28,7 @@ from typing import Any, Dict, List, Optional
 class BacktestConfig:
     """
     백테스트 설정
-    
+
     Attributes:
         initial_capital: 초기 자본금 (USD)
         position_size_pct: 포지션 크기 (계좌 대비 %)
@@ -39,6 +39,7 @@ class BacktestConfig:
         entry_stage: 진입 가능 Stage (기본값 Stage 4)
         min_score: 최소 진입 스코어
     """
+
     initial_capital: float = 100_000.0
     position_size_pct: float = 10.0
     max_positions: int = 5
@@ -53,7 +54,7 @@ class BacktestConfig:
 class Trade:
     """
     개별 거래 기록
-    
+
     Attributes:
         ticker: 종목 심볼
         entry_date: 진입 날짜
@@ -66,6 +67,7 @@ class Trade:
         score: 진입 시 Score
         metadata: 추가 메타데이터
     """
+
     ticker: str
     entry_date: str
     entry_price: float
@@ -76,16 +78,16 @@ class Trade:
     stage: int = 0
     score: float = 0.0
     metadata: Dict[str, Any] = field(default_factory=dict)
-    
+
     def close(self, exit_date: str, exit_price: float, exit_reason: str) -> float:
         """
         거래 청산
-        
+
         Args:
             exit_date: 청산 날짜
             exit_price: 청산 가격
             exit_reason: 청산 이유
-            
+
         Returns:
             float: 손익률 (%)
         """
@@ -94,15 +96,15 @@ class Trade:
         self.exit_reason = exit_reason
         self.pnl_pct = ((exit_price - self.entry_price) / self.entry_price) * 100
         return self.pnl_pct
-    
+
     def is_closed(self) -> bool:
         """거래가 청산되었는지 확인"""
         return self.exit_date is not None
-    
+
     def is_winner(self) -> bool:
         """수익 거래인지 확인"""
         return self.pnl_pct is not None and self.pnl_pct > 0
-    
+
     def to_dict(self) -> dict:
         """딕셔너리로 변환"""
         return {
@@ -123,9 +125,9 @@ class Trade:
 class BacktestReport:
     """
     백테스트 결과 리포트
-    
+
     모든 거래 기록과 성과 메트릭을 관리합니다.
-    
+
     Attributes:
         start_date: 백테스트 시작일
         end_date: 백테스트 종료일
@@ -134,53 +136,54 @@ class BacktestReport:
         trades: 거래 기록 리스트
         equity_curve: 자산 곡선 데이터
     """
+
     start_date: str = ""
     end_date: str = ""
     initial_capital: float = 100_000.0
     strategy_name: str = ""
     trades: List[Trade] = field(default_factory=list)
     equity_curve: List[Dict[str, Any]] = field(default_factory=list)
-    
+
     def add_trade(self, trade: Trade) -> None:
         """거래 추가"""
         self.trades.append(trade)
-    
+
     def get_open_trades(self) -> List[Trade]:
         """미청산 거래 조회"""
         return [t for t in self.trades if not t.is_closed()]
-    
+
     def get_closed_trades(self) -> List[Trade]:
         """청산 완료된 거래 조회"""
         return [t for t in self.trades if t.is_closed()]
-    
+
     @property
     def total_trades(self) -> int:
         """총 거래 횟수 (청산 완료된 것만)"""
         return len(self.get_closed_trades())
-    
+
     @property
     def winning_trades(self) -> int:
         """수익 거래 수"""
         return len([t for t in self.get_closed_trades() if t.is_winner()])
-    
+
     @property
     def losing_trades(self) -> int:
         """손실 거래 수"""
         return len([t for t in self.get_closed_trades() if not t.is_winner()])
-    
+
     @property
     def win_rate(self) -> float:
         """승률 (%)"""
         if self.total_trades == 0:
             return 0.0
         return (self.winning_trades / self.total_trades) * 100
-    
+
     @property
     def total_pnl_pct(self) -> float:
         """총 손익률 (%) - 단순 합산"""
         closed = self.get_closed_trades()
         return sum(t.pnl_pct for t in closed if t.pnl_pct is not None)
-    
+
     @property
     def avg_pnl_pct(self) -> float:
         """평균 손익률 (%)"""

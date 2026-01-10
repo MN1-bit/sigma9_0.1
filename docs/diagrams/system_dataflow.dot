@@ -1,0 +1,247 @@
+digraph Sigma9 {
+    // Graph settings
+    bgcolor="#1a1a2e"
+    rankdir=TB
+    splines=ortho
+    nodesep=0.8
+    ranksep=1.2
+    
+    // Node defaults
+    node [
+        fontname="Consolas"
+        fontsize=10
+        fontcolor="white"
+        shape=box
+        style="rounded,filled"
+        margin="0.2,0.1"
+    ]
+    
+    // Edge defaults
+    edge [
+        color="#888888"
+        penwidth=1.2
+        arrowsize=0.7
+    ]
+    
+    // ═══════════════════════════════════════════════════════════════
+    // EXTERNAL APIs
+    // ═══════════════════════════════════════════════════════════════
+    subgraph cluster_external {
+        label="☁️ EXTERNAL"
+        fontname="Arial Bold"
+        fontsize=12
+        fontcolor="#94a3b8"
+        style="dashed"
+        color="#94a3b8"
+        fillcolor="#0d1520"
+        
+        massive_api [label="Massive API\n(Market Data)" fillcolor="#1e3a5f"]
+        ibkr_tws [label="IBKR TWS\n(Trading)" fillcolor="#1e3a5f"]
+        openai [label="OpenAI/Claude\n(LLM)" fillcolor="#1e3a5f"]
+    }
+    
+    // ═══════════════════════════════════════════════════════════════
+    // FRONTEND (PyQt6)
+    // ═══════════════════════════════════════════════════════════════
+    subgraph cluster_frontend {
+        label="🖥️ FRONTEND (Windows)"
+        fontname="Arial Bold"
+        fontsize=12
+        fontcolor="#f472b6"
+        style="dashed"
+        color="#f472b6"
+        fillcolor="#2e0d1f"
+        
+        dashboard [label="Dashboard\n(Orchestrator)" fillcolor="#be185d"]
+        panels [label="Panels/\nwatchlist, tier2, log" fillcolor="#9d174d"]
+        chart [label="PyQtGraphChart" fillcolor="#9d174d"]
+        backend_client [label="BackendClient" fillcolor="#831843"]
+        rest_adapter [label="RestAdapter" fillcolor="#831843"]
+        ws_adapter [label="WsAdapter" fillcolor="#831843"]
+        chart_svc [label="ChartDataService\n(DB Direct)" fillcolor="#831843"]
+    }
+    
+    // ═══════════════════════════════════════════════════════════════
+    // API LAYER
+    // ═══════════════════════════════════════════════════════════════
+    subgraph cluster_api {
+        label="🌐 API LAYER"
+        fontname="Arial Bold"
+        fontsize=12
+        fontcolor="#fb923c"
+        style="dashed"
+        color="#fb923c"
+        fillcolor="#2e1a0d"
+        
+        server [label="server.py\nFastAPI" fillcolor="#c2410c"]
+        routes [label="routes/\n12 endpoints" fillcolor="#ea580c"]
+        tier2_api [label="/tier2/*\ncheck-promotion" fillcolor="#ea580c" color="#4ade80" penwidth=2]
+        ws_api [label="websocket.py\nWS Feed" fillcolor="#c2410c"]
+    }
+    
+    // ═══════════════════════════════════════════════════════════════
+    // CORE ENGINE
+    // ═══════════════════════════════════════════════════════════════
+    subgraph cluster_core {
+        label="⚙️ CORE ENGINE"
+        fontname="Arial Bold"
+        fontsize=12
+        fontcolor="#60a5fa"
+        style="dashed"
+        color="#60a5fa"
+        fillcolor="#0d1a2e"
+        
+        scanner [label="RealtimeScanner" fillcolor="#1d4ed8"]
+        ignition [label="IgnitionMonitor" fillcolor="#1d4ed8"]
+        tick_disp [label="TickDispatcher" fillcolor="#1e3a5f"]
+        tick_bc [label="TickBroadcaster" fillcolor="#1e3a5f"]
+        sub_mgr [label="SubscriptionManager" fillcolor="#1e3a5f"]
+        di_container [label="DI Container" fillcolor="#1e40af"]
+    }
+    
+    // ═══════════════════════════════════════════════════════════════
+    // STRATEGIES
+    // ═══════════════════════════════════════════════════════════════
+    subgraph cluster_strategies {
+        label="🎯 STRATEGIES"
+        fontname="Arial Bold"
+        fontsize=12
+        fontcolor="#a78bfa"
+        style="dashed"
+        color="#a78bfa"
+        fillcolor="#1a0d2e"
+        
+        seismograph [label="SeismographStrategy\nsignals/ + scoring/" fillcolor="#7c3aed"]
+        strategy_base [label="StrategyBase" fillcolor="#5b21b6"]
+    }
+    
+    // ═══════════════════════════════════════════════════════════════
+    // DATA LAYER
+    // ═══════════════════════════════════════════════════════════════
+    subgraph cluster_data {
+        label="📦 DATA LAYER"
+        fontname="Arial Bold"
+        fontsize=12
+        fontcolor="#4ade80"
+        style="dashed"
+        color="#4ade80"
+        fillcolor="#0d1f0d"
+        
+        market_db [label="MarketDB\n(SQLite WAL)" fillcolor="#166534"]
+        massive_client [label="MassiveClient" fillcolor="#166534"]
+        watchlist_store [label="WatchlistStore" fillcolor="#166534"]
+    }
+    
+    // ═══════════════════════════════════════════════════════════════
+    // BROKER
+    // ═══════════════════════════════════════════════════════════════
+    subgraph cluster_broker {
+        label="💹 BROKER"
+        fontname="Arial Bold"
+        fontsize=12
+        fontcolor="#f87171"
+        style="dashed"
+        color="#f87171"
+        fillcolor="#2e0d0d"
+        
+        ibkr_conn [label="IBKRConnector" fillcolor="#b91c1c"]
+    }
+    
+    // ═══════════════════════════════════════════════════════════════
+    // LLM
+    // ═══════════════════════════════════════════════════════════════
+    subgraph cluster_llm {
+        label="🤖 LLM"
+        fontname="Arial Bold"
+        fontsize=12
+        fontcolor="#2dd4bf"
+        style="dashed"
+        color="#2dd4bf"
+        fillcolor="#0d2e2a"
+        
+        oracle [label="Oracle\n(Read-Only)" fillcolor="#0f766e"]
+    }
+    
+    // ═══════════════════════════════════════════════════════════════
+    // EDGES - External
+    // ═══════════════════════════════════════════════════════════════
+    massive_api -> massive_client
+    ibkr_tws -> ibkr_conn
+    openai -> oracle
+    
+    // ═══════════════════════════════════════════════════════════════
+    // EDGES - API Layer
+    // ═══════════════════════════════════════════════════════════════
+    server -> routes
+    server -> ws_api
+    routes -> tier2_api
+    
+    // ═══════════════════════════════════════════════════════════════
+    // EDGES - Core
+    // ═══════════════════════════════════════════════════════════════
+    routes -> scanner
+    routes -> ignition
+    tier2_api -> scanner [color="#4ade80" penwidth=2 label="[05-004]" fontcolor="#4ade80"]
+    ws_api -> tick_bc
+    
+    scanner -> seismograph
+    scanner -> watchlist_store
+    scanner -> tick_disp
+    scanner -> sub_mgr
+    scanner -> massive_client
+    scanner -> market_db
+    
+    ignition -> tick_bc
+    tick_disp -> sub_mgr
+    
+    // ═══════════════════════════════════════════════════════════════
+    // EDGES - Strategy
+    // ═══════════════════════════════════════════════════════════════
+    seismograph -> strategy_base
+    seismograph -> market_db
+    
+    // ═══════════════════════════════════════════════════════════════
+    // EDGES - Data
+    // ═══════════════════════════════════════════════════════════════
+    massive_client -> market_db
+    
+    // ═══════════════════════════════════════════════════════════════
+    // EDGES - DI
+    // ═══════════════════════════════════════════════════════════════
+    di_container -> scanner [style=dashed color="#60a5fa"]
+    di_container -> ignition [style=dashed color="#60a5fa"]
+    di_container -> watchlist_store [style=dashed color="#60a5fa"]
+    
+    // ═══════════════════════════════════════════════════════════════
+    // EDGES - Frontend
+    // ═══════════════════════════════════════════════════════════════
+    dashboard -> backend_client
+    dashboard -> panels
+    dashboard -> chart
+    
+    backend_client -> rest_adapter
+    backend_client -> ws_adapter
+    
+    rest_adapter -> routes [color="#f472b6"]
+    ws_adapter -> ws_api [color="#f472b6"]
+    
+    chart -> chart_svc
+    chart_svc -> market_db [color="#f472b6" label="Direct" fontcolor="#f472b6"]
+    
+    // ═══════════════════════════════════════════════════════════════
+    // LEGEND
+    // ═══════════════════════════════════════════════════════════════
+    subgraph cluster_legend {
+        label="LEGEND"
+        fontname="Arial"
+        fontsize=10
+        fontcolor="#aaaaaa"
+        style="filled"
+        color="#444444"
+        fillcolor="#111111"
+        
+        leg1 [label="━━━ Normal" shape=plaintext fontcolor="#888888"]
+        leg2 [label="━━━ [05-004] New" shape=plaintext fontcolor="#4ade80"]
+        leg3 [label="- - - DI Inject" shape=plaintext fontcolor="#60a5fa"]
+    }
+}

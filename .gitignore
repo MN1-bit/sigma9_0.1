@@ -1,3 +1,6 @@
+# Data directory (large parquet files)
+data/
+
 # Auto Claude data directory
 .auto-claude/
 

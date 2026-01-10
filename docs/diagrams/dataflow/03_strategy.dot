@@ -1,0 +1,65 @@
+// Sigma9 Strategy Calculation Flow
+// Domain 3: Signals → Scoring → Output
+// Convert: dot -Tsvg 03_strategy.dot -o 03_strategy.svg
+
+digraph StrategyCalculation {
+    rankdir=TB;
+    node [fontname="Arial", fontsize=11];
+    edge [fontname="Arial", fontsize=9];
+    
+    // Cluster: Input
+    subgraph cluster_input {
+        label="📥 Input Data";
+        style=filled;
+        fillcolor="#f0fdf4";
+        
+        daily_df [label="일봉 DataFrame\n(30일)", shape=box, style=filled, fillcolor="#4ade80"];
+        current_vwap [label="현재 VWAP", shape=box, style=filled, fillcolor="#4ade80"];
+    }
+    
+    // Cluster: Signals
+    subgraph cluster_signals {
+        label="🔍 Signal Detection (signals/)";
+        style=filled;
+        fillcolor="#faf5ff";
+        
+        tight_range [label="calc_tight_range\n_intensity_v3", shape=box, style=filled, fillcolor="#a78bfa"];
+        obv_divergence [label="calc_obv\n_divergence_v3", shape=box, style=filled, fillcolor="#a78bfa"];
+        accumulation_bar [label="calc_accumulation\n_bar_intensity_v3", shape=box, style=filled, fillcolor="#a78bfa"];
+        volume_dryout [label="calc_volume\n_dryout_intensity_v3", shape=box, style=filled, fillcolor="#a78bfa"];
+    }
+    
+    // Cluster: Scoring
+    subgraph cluster_scoring {
+        label="📊 Scoring (scoring/)";
+        style=filled;
+        fillcolor="#eff6ff";
+        
+        score_v1 [label="V1: Stage-based", shape=box, style=filled, fillcolor="#93c5fd"];
+        score_v2 [label="V2: Weighted Sum", shape=box, style=filled, fillcolor="#93c5fd"];
+        score_v3 [label="V3: Pinpoint\n(Main)", shape=box, style=filled, fillcolor="#60a5fa"];
+    }
+    
+    // Output
+    result [label="ScoreResult\n{score, stage,\nintensities}", shape=box, style=filled, fillcolor="#4ade80"];
+    
+    // Edges
+    daily_df -> tight_range;
+    daily_df -> obv_divergence;
+    daily_df -> accumulation_bar;
+    daily_df -> volume_dryout;
+    current_vwap -> tight_range [style=dashed];
+    
+    tight_range -> score_v3 [label="0.25"];
+    obv_divergence -> score_v3 [label="0.20"];
+    accumulation_bar -> score_v3 [label="0.30"];
+    volume_dryout -> score_v3 [label="0.25"];
+    
+    score_v3 -> result;
+    
+    // Legacy paths (dashed)
+    tight_range -> score_v1 [style=dashed, color=gray];
+    tight_range -> score_v2 [style=dashed, color=gray];
+    score_v1 -> result [style=dashed, color=gray];
+    score_v2 -> result [style=dashed, color=gray];
+}

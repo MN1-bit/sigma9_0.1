@@ -3,7 +3,10 @@
 
 from .tight_range import calc_tight_range_intensity, calc_tight_range_intensity_v3
 from .obv_divergence import calc_obv_divergence_intensity, calc_absorption_intensity_v3
-from .accumulation_bar import calc_accumulation_bar_intensity, calc_accumulation_bar_intensity_v3
+from .accumulation_bar import (
+    calc_accumulation_bar_intensity,
+    calc_accumulation_bar_intensity_v3,
+)
 from .volume_dryout import calc_volume_dryout_intensity, calc_volume_dryout_intensity_v3
 
 __all__ = [

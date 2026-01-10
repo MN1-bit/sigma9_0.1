@@ -31,20 +31,20 @@ from typing import Any, Dict, Optional
 class WatchlistItem:
     """
     Watchlist 항목 구조체 - 개별 신호 메타데이터 포함
-    
+
     ═══════════════════════════════════════════════════════════════════════
     Step 2.2.5: Trading Restrictions 지원
     ═══════════════════════════════════════════════════════════════════════
-    
+
     Stage 1-2 종목은 can_trade=False (Monitoring Only)
     Stage 3-4 종목만 can_trade=True (트레이딩 허용)
-    
+
     ═══════════════════════════════════════════════════════════════════════
     쉬운 설명 (ELI5):
     ═══════════════════════════════════════════════════════════════════════
     "주목할 종목" 리스트의 각 항목입니다.
     종목의 점수, 단계, 매수 가능 여부 등을 담고 있습니다.
-    
+
     Attributes:
         ticker: 종목 코드 (예: "AAPL")
         score: Accumulation Score (0~100)
@@ -55,7 +55,7 @@ class WatchlistItem:
         last_close: 최근 종가
         avg_volume: 평균 거래량
         scan_timestamp: 스캔 시각
-    
+
     Example:
         >>> item = WatchlistItem(
         ...     ticker="AAPL",
@@ -68,6 +68,7 @@ class WatchlistItem:
         ...     avg_volume=150000,
         ... )
     """
+
     ticker: str
     score: float
     stage: str
@@ -77,11 +78,11 @@ class WatchlistItem:
     last_close: float = 0.0
     avg_volume: float = 0.0
     scan_timestamp: Optional[datetime] = None
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """
         dict로 변환 (JSON 직렬화용)
-        
+
         Returns:
             dict: JSON 직렬화 가능한 딕셔너리
         """
@@ -94,7 +95,9 @@ class WatchlistItem:
             "can_trade": self.can_trade,
             "last_close": self.last_close,
             "avg_volume": self.avg_volume,
-            "scan_timestamp": self.scan_timestamp.isoformat() if self.scan_timestamp else None,
+            "scan_timestamp": self.scan_timestamp.isoformat()
+            if self.scan_timestamp
+            else None,
         }
 
 

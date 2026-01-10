@@ -10,19 +10,43 @@ import win32gui
 
 try:
     from PyQt6.QtCore import Qt, QTimer, QPointF, QSize
-    from PyQt6.QtGui import QGuiApplication, QPainter, QPen, QPainterPath, \
-        QIcon, QCursor
+    from PyQt6.QtGui import (
+        QGuiApplication,
+        QPainter,
+        QPen,
+        QPainterPath,
+        QIcon,
+        QCursor,
+    )
     from PyQt6.QtWidgets import (
-        QWidget, QToolButton, QLabel, QHBoxLayout, 
-        QPushButton, QComboBox, QSlider, QAbstractButton, QLineEdit
+        QWidget,
+        QToolButton,
+        QLabel,
+        QHBoxLayout,
+        QPushButton,
+        QComboBox,
+        QSlider,
+        QAbstractButton,
+        QLineEdit,
     )
 except ModuleNotFoundError:
-    from PySide6.QtCore import Qt, QTimer, QPointF, QSize
-    from PySide6.QtGui import QGuiApplication, QPainter, QPen, QPainterPath, \
-        QIcon, QCursor
+    from PySide6.QtCore import Qt, QTimer, QPointF
+    from PySide6.QtGui import (
+        QGuiApplication,
+        QPainter,
+        QPen,
+        QPainterPath,
+        QCursor,
+    )
     from PySide6.QtWidgets import (
-        QWidget, QToolButton, QLabel, QHBoxLayout, 
-        QPushButton, QComboBox, QSlider, QAbstractButton, QLineEdit
+        QWidget,
+        QToolButton,
+        QLabel,
+        QHBoxLayout,
+        QComboBox,
+        QSlider,
+        QAbstractButton,
+        QLineEdit,
     )
 from win32comext.shell import shellcon
 
@@ -31,32 +55,29 @@ from .window_effects import WindowsEffects
 
 class APPBARDATA(Structure):
     _fields_ = [
-        ('cbSize', DWORD),
-        ('hWnd', HWND),
-        ('uCallbackMessage', UINT),
-        ('uEdge', UINT),
-        ('rc', RECT),
-        ('lParam', LPARAM)
+        ("cbSize", DWORD),
+        ("hWnd", HWND),
+        ("uCallbackMessage", UINT),
+        ("uEdge", UINT),
+        ("rc", RECT),
+        ("lParam", LPARAM),
     ]
 
 
 class PWINDOWPOS(Structure):
     _fields_ = [
-        ('hWnd', HWND),
-        ('hwndInsertAfter', HWND),
-        ('x', c_int),
-        ('y', c_int),
-        ('cx', c_int),
-        ('cy', c_int),
-        ('flags', UINT)
+        ("hWnd", HWND),
+        ("hwndInsertAfter", HWND),
+        ("x", c_int),
+        ("y", c_int),
+        ("cx", c_int),
+        ("cy", c_int),
+        ("flags", UINT),
     ]
 
 
 class NCCALCSIZE_PARAMS(Structure):
-    _fields_ = [
-        ('rgrc', RECT * 3),
-        ('lppos', POINTER(PWINDOWPOS))
-    ]
+    _fields_ = [("rgrc", RECT * 3), ("lppos", POINTER(PWINDOWPOS))]
 
 
 LPNCCALCSIZE_PARAMS = POINTER(NCCALCSIZE_PARAMS)
@@ -88,7 +109,7 @@ def is_full_screen(h_wnd):
     if not monitor_info:
         return False
 
-    monitor_rect = monitor_info['Monitor']
+    monitor_rect = monitor_info["Monitor"]
     return all(i == j for i, j in zip(win_rect, monitor_rect))
 
 
@@ -111,7 +132,8 @@ def get_resize_border_thickness(h_wnd):
         return 0
 
     result = win32api.GetSystemMetrics(
-        win32con.SM_CXSIZEFRAME) + win32api.GetSystemMetrics(92)
+        win32con.SM_CXSIZEFRAME
+    ) + win32api.GetSystemMetrics(92)
 
     if result > 0:
         return result
@@ -133,20 +155,19 @@ class Taskbar:
 
     @staticmethod
     def is_auto_hide():
-        appbar_data = APPBARDATA(
-            sizeof(APPBARDATA), 0, 0, 0, RECT(0, 0, 0, 0), 0)
+        appbar_data = APPBARDATA(sizeof(APPBARDATA), 0, 0, 0, RECT(0, 0, 0, 0), 0)
         taskbar_state = windll.shell32.SHAppBarMessage(
-            shellcon.ABM_GETSTATE, byref(appbar_data))
+            shellcon.ABM_GETSTATE, byref(appbar_data)
+        )
         return taskbar_state == shellcon.ABS_AUTOHIDE
 
     @classmethod
     def get_position(cls, h_wnd):
-        monitor_info = get_monitor_info(
-            h_wnd, win32con.MONITOR_DEFAULTTONEAREST)
+        monitor_info = get_monitor_info(h_wnd, win32con.MONITOR_DEFAULTTONEAREST)
         if not monitor_info:
             return cls.NO_POSITION
 
-        monitor = RECT(*monitor_info['Monitor'])
+        monitor = RECT(*monitor_info["Monitor"])
         appbar_data = APPBARDATA(sizeof(APPBARDATA), 0, 0, 0, monitor, 0)
         for position in (cls.LEFT, cls.TOP, cls.RIGHT, cls.BOTTOM):
             appbar_data.uEdge = position
@@ -165,17 +186,17 @@ def is_system_dark_mode():
 
 
 def invert_color(color):
-    inverted_color = ''
+    inverted_color = ""
     for i in range(0, 5, 2):
-        channel = int(color[i:i + 2], base=16)
+        channel = int(color[i : i + 2], base=16)
         inverted_color += hex(round(channel / 6))[2:].upper().zfill(2)
     inverted_color += color[-2:]
     return inverted_color
 
 
 class CustomBase(QWidget):
-    def __init__(self, use_mica='false', theme='auto', color="F0F0F0A0"):
-        """ Customizable window without titlebar
+    def __init__(self, use_mica="false", theme="auto", color="F0F0F0A0"):
+        """Customizable window without titlebar
 
         Parameters
         ----------
@@ -189,27 +210,28 @@ class CustomBase(QWidget):
         """
         super().__init__()
         self.is_win11 = getwindowsversion().build >= 22000
-        if use_mica == 'true' and not self.is_win11:
-            raise ValueError("Wrong argument 'use_mica': "
-                             "mica available only in Windows 11")
-        if use_mica == 'if available':
+        if use_mica == "true" and not self.is_win11:
+            raise ValueError(
+                "Wrong argument 'use_mica': mica available only in Windows 11"
+            )
+        if use_mica == "if available":
             self.use_mica = self.is_win11
-        elif use_mica == 'true':
+        elif use_mica == "true":
             self.use_mica = True
-        elif use_mica == 'false':
+        elif use_mica == "false":
             self.use_mica = False
         else:
-            raise ValueError("Wrong argument 'use_mica': "
-                             "can be 'false', 'true' or 'if available'")
-        if theme == 'auto':
+            raise ValueError(
+                "Wrong argument 'use_mica': can be 'false', 'true' or 'if available'"
+            )
+        if theme == "auto":
             self.dark_mode = is_system_dark_mode()
-        elif theme == 'dark':
+        elif theme == "dark":
             self.dark_mode = True
-        elif theme == 'light':
+        elif theme == "light":
             self.dark_mode = False
         else:
-            raise ValueError("Wrong argument 'theme': "
-                             "can be 'auto', 'dark' or 'light'")
+            raise ValueError("Wrong argument 'theme': can be 'auto', 'dark' or 'light'")
         if len(color) != 8:
             raise ValueError("Wrong argument 'color': must be 8 hex symbols")
         if self.dark_mode:
@@ -241,8 +263,7 @@ class CustomBase(QWidget):
         if enable and self.use_mica:
             self.win_effects.add_mica_effect(self.winId(), self.dark_mode)
         elif enable:
-            self.win_effects.add_acrylic_effect(
-                self.winId(), self.acrylic_color)
+            self.win_effects.add_acrylic_effect(self.winId(), self.acrylic_color)
         else:
             self.win_effects.remove_background_effect(self.winId())
         self.update()
@@ -255,7 +276,7 @@ class CustomBase(QWidget):
         """
         if len(color) != 8:
             return
-            
+
         # Re-apply inversion logic if needed, but usually caller should handle it
         # or we accept that 'color' is the *input* color before inversion.
         # But here consistent with __init__, we should check dark_mode.
@@ -263,11 +284,10 @@ class CustomBase(QWidget):
             self.acrylic_color = invert_color(color)
         else:
             self.acrylic_color = color
-            
+
         if self.effect_enabled and not self.use_mica:
             self.win_effects.add_acrylic_effect(self.winId(), self.acrylic_color)
             self.update()
-
 
     def _temporary_disable_effect(self):
         self.set_effect(False)
@@ -359,7 +379,8 @@ class TitleBarButton(QToolButton):
     def set_state(self, state):
         self._state = state
         self.setStyleSheet(
-            f"background-color: {self.colors[state.value]};\n{self._style}")
+            f"background-color: {self.colors[state.value]};\n{self._style}"
+        )
 
     def enterEvent(self, e):
         self.set_state(TitleBarButtonState.HOVER)
@@ -404,8 +425,7 @@ class MaximizeButton(TitleBarButton):
         r = self.devicePixelRatioF()
         painter.scale(1 / r, 1 / r)
         if not self.is_max:
-            painter.drawRect(
-                int(18 * r), int(11 * r), int(10 * r), int(10 * r))
+            painter.drawRect(int(18 * r), int(11 * r), int(10 * r), int(10 * r))
         else:
             r_18, r_8 = int(18 * r), int(8 * r)
             painter.drawRect(r_18, int(13 * r), r_8, r_8)
@@ -430,7 +450,11 @@ class CloseButton(TitleBarButton):
     def paintEvent(self, event):
         super().paintEvent(event)
         painter = QPainter(self)
-        pen = QPen(Qt.GlobalColor.white if self._state != TitleBarButtonState.NORMAL or self._dark_mode else Qt.GlobalColor.black)
+        pen = QPen(
+            Qt.GlobalColor.white
+            if self._state != TitleBarButtonState.NORMAL or self._dark_mode
+            else Qt.GlobalColor.black
+        )
         pen.setCosmetic(True)
         pen.setWidth(1)
         painter.setPen(pen)
@@ -485,15 +509,17 @@ class TitleBar(QWidget):
         win32gui.ReleaseCapture()
         win32api.SendMessage(
             int(self.window().winId()),
-            win32con.WM_SYSCOMMAND, win32con.SC_MOVE | win32con.HTCAPTION, 0
+            win32con.WM_SYSCOMMAND,
+            win32con.SC_MOVE | win32con.HTCAPTION,
+            0,
         )
 
 
 class CustomWindow(CustomBase):
     BORDER_WIDTH = 4
 
-    def __init__(self, use_mica='false', theme='auto', color="F2F2F299"):
-        """ Customizable window with custom titlebar
+    def __init__(self, use_mica="false", theme="auto", color="F2F2F299"):
+        """Customizable window with custom titlebar
 
         Parameters
         ----------
@@ -535,12 +561,15 @@ class CustomWindow(CustomBase):
             pos = QCursor.pos()
             x = pos.x() - self.x()
             y = pos.y() - self.y()
-            if self.is_win11 and self.title_bar.childAt(
-                    pos - self.geometry().topLeft()) is self.title_bar.max_btn:
+            if (
+                self.is_win11
+                and self.title_bar.childAt(pos - self.geometry().topLeft())
+                is self.title_bar.max_btn
+            ):
                 self.max_btn_hovered = True
                 self.title_bar.max_btn.set_state(TitleBarButtonState.HOVER)
                 return True, win32con.HTMAXBUTTON
-            
+
             # [FIX] Check if mouse is over an interactive widget (Button, Combo, etc.)
             # This prevents the resize border from "stealing" clicks if the widget is near the edge.
             global_pos = QCursor.pos()
@@ -552,7 +581,7 @@ class CustomWindow(CustomBase):
                 # Also check parent (sometimes childAt returns a sub-element)
                 parent = child.parent()
                 if isinstance(parent, (QAbstractButton, QComboBox, QSlider, QLineEdit)):
-                     return True, win32con.HTCLIENT
+                    return True, win32con.HTCLIENT
 
             lx = x < self.BORDER_WIDTH
             rx = x > self.width() - self.BORDER_WIDTH
@@ -578,11 +607,12 @@ class CustomWindow(CustomBase):
             if msg.message == win32con.WM_NCLBUTTONDOWN:
                 self.title_bar.max_btn.set_state(TitleBarButtonState.PRESSED)
                 return True, 0
-            elif msg.message in [win32con.WM_NCLBUTTONUP,
-                                 win32con.WM_NCRBUTTONUP]:
+            elif msg.message in [win32con.WM_NCLBUTTONUP, win32con.WM_NCRBUTTONUP]:
                 self.title_bar.max_btn.click()
-            elif msg.message in [0x2A2, win32con.WM_MOUSELEAVE] \
-                    and self.title_bar.max_btn.get_state() != 0:
+            elif (
+                msg.message in [0x2A2, win32con.WM_MOUSELEAVE]
+                and self.title_bar.max_btn.get_state() != 0
+            ):
                 self.max_btn_hovered = False
                 self.title_bar.max_btn.set_state(TitleBarButtonState.NORMAL)
 

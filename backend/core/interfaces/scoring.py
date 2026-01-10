@@ -26,27 +26,25 @@ from typing import Any, Dict, List
 class ScoringStrategy(ABC):
     """
     Score 계산 전략 인터페이스
-    
+
     모든 스코어링 전략(SeismographStrategy 등)은 이 인터페이스를 구현해야 합니다.
     이를 통해 RealtimeScanner가 구현체에 직접 의존하지 않고,
     런타임에 구현체를 주입받을 수 있습니다.
     """
-    
+
     @abstractmethod
     def calculate_watchlist_score_detailed(
-        self, 
-        ticker: str, 
-        ohlcv_data: List[Dict[str, Any]]
+        self, ticker: str, ohlcv_data: List[Dict[str, Any]]
     ) -> Dict[str, Any]:
         """
         Watchlist 점수 상세 계산
-        
+
         Args:
             ticker: 종목 심볼 (예: "AAPL")
             ohlcv_data: OHLCV 데이터 리스트
-                [{"open": float, "high": float, "low": float, 
+                [{"open": float, "high": float, "low": float,
                   "close": float, "volume": int}, ...]
-        
+
         Returns:
             Dict containing:
                 - score: float (Score V2)

@@ -80,6 +80,23 @@ GUI 관련 리팩터링 시:
 `docs/context/REFACTORING.md` 섹션 2 우선순위 테이블에서 해당 항목 상태를 업데이트합니다:
 - `📋 대기` → `🔄 진행 중` → `✅ 완료`
 
+## 7. 핵심 문서 업데이트 (필수)
+
+> **원칙**: 아키텍처 변경 시 문서 동기화 필수
+
+신규 모듈/API/데이터 명세 변경 시 다음 문서를 반드시 업데이트:
+
+| 문서 | 업데이트 대상 |
+|------|-------------|
+| `@PROJECT_DNA.md` | 디렉터리 구조, Tech Stack |
+| `.agent/Ref/archt.md` | 모듈 구조, 데이터 파이프라인 다이어그램 |
+| `.agent/Ref/MPlan.md` | Tech Stack, 완료 마일스톤 |
+
+체크리스트:
+- [ ] `@PROJECT_DNA.md` - 해당 섹션 업데이트
+- [ ] `.agent/Ref/archt.md` - 해당 섹션 업데이트
+- [ ] `.agent/Ref/MPlan.md` - 해당 섹션 업데이트
+
 ---
 
 **다음 단계**: `/refactoring-pr` 워크플로우 실행

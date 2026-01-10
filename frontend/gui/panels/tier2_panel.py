@@ -11,6 +11,8 @@
 # ==============================================================================
 from __future__ import annotations
 
+from dataclasses import dataclass
+from datetime import datetime
 from typing import TYPE_CHECKING, Callable
 
 from PyQt6.QtWidgets import (
@@ -26,7 +28,33 @@ from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QColor
 
 if TYPE_CHECKING:
-    from ..state.dashboard_state import DashboardState, Tier2Item
+    from ..state.dashboard_state import DashboardState
+
+
+# ==============================================================================
+# Tier2Item: Hot Zone 종목 데이터 모델
+# ==============================================================================
+@dataclass
+class Tier2Item:
+    """
+    Tier 2 Hot Zone 종목 데이터 모델
+
+    ELI5: Hot Zone(뜨거운 구역)에 올라온 종목의 정보를 담는 상자예요.
+    가격, 등락율, Z-Score, Ignition Score 등을 기록합니다.
+    """
+
+    ticker: str
+    price: float = 0.0  # 실시간 가격
+    change_pct: float = 0.0  # 등락율
+    zenV: float = 0.0  # Z-score Volume
+    zenP: float = 0.0  # Z-score Price
+    ignition: float = 0.0  # Ignition Score
+    signal: str = ""  # "🔥" (Divergence) 또는 "🎯" (Ignition>=70)
+    last_update: datetime = None  # 마지막 틱 수신 시간
+
+    def __post_init__(self):
+        if self.last_update is None:
+            self.last_update = datetime.now()
 
 
 class NumericTableWidgetItem(QTableWidgetItem):
@@ -252,30 +280,33 @@ class Tier2Panel(QFrame):
         # zenV
         zenV_text = f"{item.zenV:.1f}" if item.zenV != 0 else "-"
         zenV_item = NumericTableWidgetItem(zenV_text, item.zenV)
+        # [REFAC] Theme-01: tier colors from theme
         if item.zenV >= 2.0:
-            zenV_item.setForeground(QColor("#ff9800"))  # Orange
+            zenV_item.setForeground(QColor(self._theme.get_color("tier_zenV_high")))
         elif item.zenV >= 1.0:
-            zenV_item.setForeground(QColor("#4caf50"))  # Green
+            zenV_item.setForeground(QColor(self._theme.get_color("tier_zenV_mid")))
         else:
-            zenV_item.setForeground(QColor("#9e9e9e"))  # Gray
+            zenV_item.setForeground(QColor(self._theme.get_color("tier_zenV_low")))
         self._table.setItem(row, 3, zenV_item)
 
         # zenP
         zenP_text = f"{item.zenP:.1f}" if item.zenP != 0 else "-"
         zenP_item = NumericTableWidgetItem(zenP_text, item.zenP)
         if item.zenP >= 2.0:
-            zenP_item.setForeground(QColor("#ff9800"))
+            zenP_item.setForeground(QColor(self._theme.get_color("tier_zenV_high")))
         elif item.zenP >= 1.0:
-            zenP_item.setForeground(QColor("#4caf50"))
+            zenP_item.setForeground(QColor(self._theme.get_color("tier_zenV_mid")))
         else:
-            zenP_item.setForeground(QColor("#9e9e9e"))
+            zenP_item.setForeground(QColor(self._theme.get_color("tier_zenV_low")))
         self._table.setItem(row, 4, zenP_item)
 
         # Ign
         if item.ignition > 0:
             ign_item = NumericTableWidgetItem(f"{int(item.ignition)}", item.ignition)
             if item.ignition >= 70:
-                ign_item.setBackground(QColor(255, 193, 7, 80))
+                ign_item.setBackground(
+                    QColor(self._theme.get_color("warning") + "50")
+                )  # 50 = alpha hex
         else:
             ign_item = NumericTableWidgetItem("-", 0)
         self._table.setItem(row, 5, ign_item)
@@ -283,9 +314,9 @@ class Tier2Panel(QFrame):
         # Signal
         sig_item = QTableWidgetItem(item.signal if item.signal else "")
         if item.signal == "🔥":
-            sig_item.setForeground(QColor("#ff5722"))
+            sig_item.setForeground(QColor(self._theme.get_color("danger")))
         elif item.signal == "🎯":
-            sig_item.setForeground(QColor("#e91e63"))
+            sig_item.setForeground(QColor(self._theme.get_color("primary")))
         self._table.setItem(row, 6, sig_item)
 
     def add_row(self, item: Tier2Item) -> int:

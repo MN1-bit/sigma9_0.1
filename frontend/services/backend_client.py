@@ -18,7 +18,6 @@ HTTP/WebSocket 기반 Backend 통신 클라이언트.
 import asyncio
 from enum import Enum
 from dataclasses import dataclass
-from typing import Optional, List
 from loguru import logger
 
 try:
@@ -188,7 +187,7 @@ class BackendClient(QObject):
 
         # [08-001] Heartbeat 시그널 연결 (TimeDisplayWidget용)
         if hasattr(self.ws, "heartbeat_received"):
-            self.ws.heartbeat_received.connect(self.heartbeat_received.emit)
+            self.ws.heartbeat_received.connect(self._on_heartbeat_received)
 
         logger.info(f"BackendClient initialized: {self._base_url}")
 
@@ -217,6 +216,16 @@ class BackendClient(QObject):
         self.ws.status_changed.connect(self._on_status_changed)
         self.ws.error_occurred.connect(self.error_occurred.emit)
 
+        # [08-001 FIX] 누락된 시그널 연결 추가
+        if hasattr(self.ws, "ignition_updated"):
+            self.ws.ignition_updated.connect(self.ignition_updated.emit)
+        if hasattr(self.ws, "bar_received"):
+            self.ws.bar_received.connect(self.bar_received.emit)
+        if hasattr(self.ws, "tick_received"):
+            self.ws.tick_received.connect(self.tick_received.emit)
+        if hasattr(self.ws, "heartbeat_received"):
+            self.ws.heartbeat_received.connect(self._on_heartbeat_received)
+
         self.log_message.emit(f"🔄 Server changed to: {self._base_url}")
         logger.info(f"Server changed to: {self._base_url}")
 
@@ -243,7 +252,6 @@ class BackendClient(QObject):
         하나의 영구 루프를 백그라운드 스레드에서 유지합니다.
         """
         import threading
-        import asyncio
 
         if cls._bg_loop is None or not cls._bg_loop.is_running():
             cls._bg_loop = asyncio.new_event_loop()
@@ -261,7 +269,6 @@ class BackendClient(QObject):
         """
         코루틴을 백그라운드 이벤트 루프에서 실행하고 결과를 동기적으로 대기
         """
-        import asyncio
 
         loop = self._get_event_loop()
         future = asyncio.run_coroutine_threadsafe(coro, loop)
@@ -327,7 +334,6 @@ class BackendClient(QObject):
 
         결과는 watchlist_updated 시그널을 통해 전달됩니다.
         """
-        import asyncio
 
         try:
             loop = self._get_event_loop()
@@ -337,6 +343,59 @@ class BackendClient(QObject):
         except Exception as e:
             logger.error(f"run_scanner_sync failed: {e}")
             self.log_message.emit(f"❌ Scanner failed: {e}")
+
+    def check_tier2_promotion_sync(
+        self,
+        ticker: str,
+        ignition_score: float,
+        passed_filter: bool = True,
+        stage_number: int = 0,
+        acc_score: float = 0.0,
+        source: str = "",
+        zenV: float = 0.0,
+        zenP: float = 0.0,
+    ) -> dict:
+        """
+        [05-004] Tier 2 승격 조건 판단 (Backend API 호출)
+
+        Args:
+            ticker: 종목 코드
+            ignition_score: Ignition Score
+            passed_filter: Anti-Trap 필터 통과 여부
+            stage_number: Stage 번호
+            acc_score: Accumulation Score
+            source: 소스 (realtime_gainer 등)
+            zenV: Z-Score Volume
+            zenP: Z-Score Price
+
+        Returns:
+            dict: {"should_promote": bool, "reason": str}
+        """
+        import httpx
+
+        try:
+            resp = httpx.post(
+                f"{self._base_url}/api/tier2/check-promotion",
+                json={
+                    "ticker": ticker,
+                    "ignition_score": ignition_score,
+                    "passed_filter": passed_filter,
+                    "stage_number": stage_number,
+                    "acc_score": acc_score,
+                    "source": source,
+                    "zenV": zenV,
+                    "zenP": zenP,
+                },
+                timeout=5.0,
+            )
+            if resp.status_code == 200:
+                return resp.json()
+            else:
+                logger.warning(f"check_tier2_promotion API failed: {resp.status_code}")
+                return {"should_promote": False, "reason": ""}
+        except Exception as e:
+            logger.error(f"check_tier2_promotion_sync failed: {e}")
+            return {"should_promote": False, "reason": ""}
 
     # ─────────────────────────────────────────────────────────────
     # Connection Management
@@ -590,3 +649,7 @@ class BackendClient(QObject):
         elif event == "engine_stopped":
             self._set_state(ConnectionState.CONNECTED)
             self.log_message.emit("⏹ Engine stopped (server notification)")
+
+    def _on_heartbeat_received(self, data: dict):
+        """[08-001] Heartbeat 수신 핸들러"""
+        self.heartbeat_received.emit(data)

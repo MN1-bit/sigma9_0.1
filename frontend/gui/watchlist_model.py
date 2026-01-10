@@ -28,55 +28,57 @@ from PyQt6.QtCore import Qt
 class WatchlistModel(QStandardItemModel):
     """
     Watchlist 데이터 모델
-    
+
     QTableWidget의 데이터+뷰 결합 방식 대신,
     Model/View 분리를 통해 정렬 시 인덱스 안정성을 보장합니다.
-    
+
     Features:
         - ticker→row 매핑으로 O(1) 조회
         - update_item()으로 개별 항목 upsert
         - UserRole에 숫자값 저장으로 올바른 정렬 지원
         - Transparency Protocol: 데이터 누락 시 ⚠️ 표시
     """
-    
+
     # 컬럼 정의 (인덱스)
     COL_TICKER = 0
     COL_CHANGE = 1
     COL_DOLVOL = 2
     COL_SCORE = 3
     COL_IGNITION = 4
-    
+
     # 컬럼 헤더
     HEADERS = ["Ticker", "Chg%", "DolVol", "Score", "Ign"]
-    
+
     def __init__(self, parent=None):
         """모델 초기화"""
         super().__init__(parent)
         self.setHorizontalHeaderLabels(self.HEADERS)
-        
+
         # ticker → row 매핑 (빠른 조회용)
         self._ticker_to_row: dict[str, int] = {}
-        
+
         # [03-001 FIX] 설정은 lazy loading으로 변경 (GUI 초기화 블로킹 방지)
         self._settings = None
         self._use_v3 = None  # 첫 호출 시 로드
-        
+
         # 색상 설정 (테마에서 가져오기)
+        # [REFAC] Theme-01: 모든 색상을 theme에서 가져옴
         try:
             from .theme import theme
-            self._color_success = QColor(theme.get_color('success'))
-            self._color_danger = QColor(theme.get_color('danger'))
-            self._color_warning = QColor(255, 165, 0)  # 주황색
+
+            self._color_success = QColor(theme.get_color("chart_up"))
+            self._color_danger = QColor(theme.get_color("chart_down"))
+            self._color_warning = QColor(theme.get_color("warning"))
         except ImportError:
             # 테마 없을 경우 기본값
-            self._color_success = QColor('#22c55e')
-            self._color_danger = QColor('#ef4444')
-            self._color_warning = QColor(255, 165, 0)
-    
+            self._color_success = QColor("#22c55e")
+            self._color_danger = QColor("#ef4444")
+            self._color_warning = QColor("#FF9800")
+
     def update_item(self, item_data: dict) -> int:
         """
         단일 항목 업데이트 (있으면 수정, 없으면 추가)
-        
+
         Args:
             item_data: dict with keys:
                 - ticker: str (필수)
@@ -84,14 +86,14 @@ class WatchlistModel(QStandardItemModel):
                 - dollar_volume: float
                 - score: float
                 - ignition: float
-        
+
         Returns:
             int: 업데이트된 행 번호
         """
         ticker = item_data.get("ticker")
         if not ticker:
             return -1
-        
+
         if ticker in self._ticker_to_row:
             # 기존 항목 업데이트
             row = self._ticker_to_row[ticker]
@@ -102,64 +104,64 @@ class WatchlistModel(QStandardItemModel):
             self.insertRow(row)
             self._ticker_to_row[ticker] = row
             self._set_row_data(row, item_data)
-        
+
         return row
-    
+
     def update_all(self, items: list):
         """
         전체 목록 업데이트
-        
+
         Args:
             items: List[dict] - 각 dict는 update_item과 동일한 형식
         """
         for item in items:
             self.update_item(item)
-    
+
     def clear_all(self):
         """모든 데이터 삭제"""
         self.setRowCount(0)
         self._ticker_to_row.clear()
-    
+
     def remove_ticker(self, ticker: str) -> bool:
         """
         특정 종목 제거
-        
+
         Args:
             ticker: 제거할 종목 심볼
-            
+
         Returns:
             bool: 제거 성공 여부
         """
         if ticker not in self._ticker_to_row:
             return False
-        
+
         row = self._ticker_to_row[ticker]
         self.removeRow(row)
-        
+
         # 매핑 재구성 (제거된 행 이후의 모든 행 인덱스 감소)
         del self._ticker_to_row[ticker]
         for t, r in list(self._ticker_to_row.items()):
             if r > row:
                 self._ticker_to_row[t] = r - 1
-        
+
         return True
-    
+
     def get_ticker_at_row(self, row: int) -> str:
         """특정 행의 ticker 반환"""
         item = self.item(row, self.COL_TICKER)
         return item.text() if item else ""
-    
+
     def _set_row_data(self, row: int, data: dict):
         """
         행 데이터 설정
-        
+
         UserRole에 숫자값을 저장하여 정렬 시 올바른 비교가 이루어지도록 합니다.
         Transparency Protocol: 데이터 누락 시 ⚠️ 경고 아이콘 표시
         """
         # Ticker (텍스트)
         ticker_item = QStandardItem(data.get("ticker", ""))
         self.setItem(row, self.COL_TICKER, ticker_item)
-        
+
         # Change % (숫자, 색상 적용)
         change = data.get("change_pct", 0) or 0
         sign = "+" if change >= 0 else ""
@@ -170,7 +172,7 @@ class WatchlistModel(QStandardItemModel):
         else:
             change_item.setForeground(self._color_danger)
         self.setItem(row, self.COL_CHANGE, change_item)
-        
+
         # Dollar Volume (Transparency Protocol)
         dolvol = data.get("dollar_volume", 0) or 0
         if dolvol > 0:
@@ -182,22 +184,23 @@ class WatchlistModel(QStandardItemModel):
             dolvol_item.setForeground(self._color_warning)
             dolvol_item.setData(0, Qt.ItemDataRole.UserRole)
         self.setItem(row, self.COL_DOLVOL, dolvol_item)
-        
+
         # Score (설정에 따라 v1 또는 v3 사용)
         # [03-001] Lazy loading - 첫 호출 시에만 설정 로드
         if self._use_v3 is None:
             from ..config.loader import load_settings
+
             self._settings = load_settings()
             self._use_v3 = self._settings.get("score_version", "v3") == "v3"
-        
+
         score_v3 = data.get("score_v3")
         score_v1 = data.get("score", 0) or 0
         intensities = data.get("intensities", {})  # [03-001] 신호 강도
-        
+
         if self._use_v3:
             # [03-001] 모든 케이스에서 _build_score_tooltip 사용
             tooltip = self._build_score_tooltip(score_v3, intensities)
-            
+
             if score_v3 is not None and score_v3 > 0:
                 display_text = f"{score_v3:.1f}"
                 score_item = QStandardItem(display_text)
@@ -233,7 +236,6 @@ class WatchlistModel(QStandardItemModel):
                 score_item.setData(0, Qt.ItemDataRole.UserRole)
         self.setItem(row, self.COL_SCORE, score_item)
 
-        
         # Ignition (Transparency Protocol)
         ign = data.get("ignition", 0) or 0
         if ign > 0:
@@ -245,39 +247,39 @@ class WatchlistModel(QStandardItemModel):
             ign_item = QStandardItem("-")
             ign_item.setData(0, Qt.ItemDataRole.UserRole)
         self.setItem(row, self.COL_IGNITION, ign_item)
-    
+
     def _format_dolvol(self, value: float) -> str:
         """
         Dollar Volume K/M/B 포맷팅
-        
+
         Args:
             value: 달러 볼륨 값
-            
+
         Returns:
             str: 포맷팅된 문자열 (예: $1.2B, $450M, $50K)
         """
         if value >= 1_000_000_000:
-            return f"${value/1_000_000_000:.1f}B"
+            return f"${value / 1_000_000_000:.1f}B"
         elif value >= 1_000_000:
-            return f"${value/1_000_000:.1f}M"
+            return f"${value / 1_000_000:.1f}M"
         elif value >= 1_000:
-            return f"${value/1_000:.0f}K"
+            return f"${value / 1_000:.0f}K"
         elif value > 0:
             return f"${value:.0f}"
         return "⚠️"
-    
+
     # ═══════════════════════════════════════════════════════════════════════════
     # [03-001] Score V3 툴팁 생성
     # ═══════════════════════════════════════════════════════════════════════════
-    
+
     def _build_score_tooltip(self, score_v3, intensities: dict) -> str:
         """
         Score V3 상세 툴팁 생성 (신호 강도 시각화)
-        
+
         Args:
             score_v3: Score V3 값 (None, -1, 0, 또는 양수)
             intensities: 4가지 신호 강도 dict
-            
+
         Returns:
             str: 포맷팅된 툴팁 문자열
         """
@@ -288,7 +290,7 @@ class WatchlistModel(QStandardItemModel):
             "volume_dryout": "Volume Dryout",
         }
         MAX_LABEL_LEN = 14  # 가장 긴 라벨 기준
-        
+
         if score_v3 == -1:
             return "🆕 신규/IPO 종목 - 일봉 데이터 부족 (5일 미만)"
         elif score_v3 is None:
@@ -297,11 +299,15 @@ class WatchlistModel(QStandardItemModel):
             return "➖ 매집 신호 없음"
         else:
             lines = [f"📊 Score V3: {score_v3:.1f}\n"]
-            for key in ["tight_range", "obv_divergence", "accumulation_bar", "volume_dryout"]:
+            for key in [
+                "tight_range",
+                "obv_divergence",
+                "accumulation_bar",
+                "volume_dryout",
+            ]:
                 val = intensities.get(key, 0)
                 label = LABELS[key].ljust(MAX_LABEL_LEN)  # 고정폭 정렬
                 bar = "█" * int(val * 5) + "░" * (5 - int(val * 5))
                 marker = " ⬅" if val >= 0.8 else ""
                 lines.append(f"• {label} {bar} {val:.2f}{marker}")
             return "\n".join(lines)
-

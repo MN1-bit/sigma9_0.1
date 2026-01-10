@@ -112,4 +112,3 @@ __all__ = [
     "AnalysisRequest",
     "Tier2PromoteRequest",
 ]
-

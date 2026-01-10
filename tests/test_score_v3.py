@@ -1,7 +1,9 @@
 """Quick test for score_v3 calculation"""
+
 import asyncio
 from backend.strategies.seismograph import SeismographStrategy
 from backend.data.database import MarketDB
+
 
 async def test():
     db = MarketDB("data/market_data.db")
@@ -18,6 +20,7 @@ async def test():
     else:
         print("No bars found for AMCI")
     await db.close()
+
 
 if __name__ == "__main__":
     asyncio.run(test())

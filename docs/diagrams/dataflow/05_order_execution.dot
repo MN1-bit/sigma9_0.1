@@ -1,0 +1,68 @@
+// Sigma9 Order Execution Flow
+// Domain 5: Ignition → Broker → Fill → Management
+// Convert: dot -Tsvg 05_order_execution.dot -o 05_order_execution.svg
+
+digraph OrderExecution {
+    rankdir=TB;
+    node [fontname="Arial", fontsize=11];
+    edge [fontname="Arial", fontsize=9];
+    
+    // Cluster: Detection
+    subgraph cluster_detection {
+        label="🔍 Ignition Detection";
+        style=filled;
+        fillcolor="#faf5ff";
+        
+        ignition_monitor [label="IgnitionMonitor\n(1초 폴링)", shape=component, style=filled, fillcolor="#a78bfa"];
+        ignition_score [label="Ignition Score\n(0-100)", shape=box, style=filled, fillcolor="#c4b5fd"];
+    }
+    
+    // Cluster: Decision
+    subgraph cluster_decision {
+        label="🎯 Entry Decision";
+        style=filled;
+        fillcolor="#eff6ff";
+        
+        threshold [label="Score ≥ 70?", shape=diamond, style=filled, fillcolor="#60a5fa"];
+        anti_trap [label="Anti-Trap\nFilter", shape=box, style=filled, fillcolor="#60a5fa"];
+        risk_manager [label="RiskManager\n(허용 체크)", shape=component, style=filled, fillcolor="#60a5fa"];
+    }
+    
+    // Cluster: Execution
+    subgraph cluster_execution {
+        label="⚡ Execution";
+        style=filled;
+        fillcolor="#fef2f2";
+        
+        broker_gateway [label="BrokerGateway", shape=component, style=filled, fillcolor="#f87171"];
+        oca_order [label="OCA Order\n(Bracket)", shape=box, style=filled, fillcolor="#fca5a5"];
+        ibkr [label="IBKR TWS", shape=box, style=filled, fillcolor="#f87171"];
+    }
+    
+    // Cluster: Position Management
+    subgraph cluster_management {
+        label="📊 Position Management";
+        style=filled;
+        fillcolor="#f0fdf4";
+        
+        fill [label="Fill 수신", shape=box, style=filled, fillcolor="#4ade80"];
+        trailing_stop [label="TrailingStop", shape=component, style=filled, fillcolor="#4ade80"];
+        exit_logic [label="Exit Logic", shape=box, style=filled, fillcolor="#4ade80"];
+    }
+    
+    // Edges
+    ignition_monitor -> ignition_score;
+    ignition_score -> threshold;
+    threshold -> anti_trap [label="Yes"];
+    threshold -> ignition_monitor [label="No", style=dashed];
+    anti_trap -> risk_manager [label="Pass"];
+    anti_trap -> ignition_monitor [label="Fail", style=dashed];
+    risk_manager -> broker_gateway [label="허용"];
+    risk_manager -> ignition_monitor [label="거부", style=dashed];
+    broker_gateway -> oca_order;
+    oca_order -> ibkr;
+    ibkr -> fill [label="체결 콜백"];
+    fill -> trailing_stop;
+    trailing_stop -> exit_logic;
+    exit_logic -> broker_gateway [label="청산 주문"];
+}

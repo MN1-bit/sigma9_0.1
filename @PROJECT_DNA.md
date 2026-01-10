@@ -98,7 +98,7 @@ Sigma9-0.1/
 │
 ├── docs/
 │   └── context/                      # 📘 핵심 정책 문서
-│       ├── ARCHITECTURE.md           # 시스템 아키텍처
+│       ├── ARCHITECTURE.md           # 시스템 아키텍처 → .agent/Ref/archt.md 참조
 │       ├── REFACTORING.md            # 리팩터링 가이드
 │       └── strategy/                 # 전략별 문서
 │
@@ -233,7 +233,7 @@ WebSocket:
 
 0. **🔴 Pre-Step Verification (신규 스탭 진입 전 반드시 확인)**:
    - **MUST READ** the following files before entering ANY new step:
-     - `docs/Plan/masterplan.md` — 전체 설계 및 아키텍처 확인
+     - `.agent/Ref/MPlan.md` — 전체 설계 및 아키텍처 확인
      - `docs/Plan/steps/development_steps.md` — 스탭 목록 및 진행 상황 확인
      - Previous step's devlog (`docs/devlog/step_X.Y_report.md`) — 이전 스탭 결과 확인
    - **Purpose**: 컨텍스트 연속성 보장, 중복 작업 방지, 일관성 유지
@@ -267,7 +267,7 @@ WebSocket:
 
 | File | Description |
 |------|-------------|
-| `docs/context/ARCHITECTURE.md` | 시스템 아키텍처 |
+| `.agent/Ref/archt.md` | 시스템 아키텍처 |
 | `docs/context/REFACTORING.md` | 리팩터링 가이드 |
 | `docs/context/strategy/seismograph.md` | Seismograph 전략 (Score V3 포함) |
 | `docs/context/strategy/mep.md` | MEP 실행 프로토콜 |

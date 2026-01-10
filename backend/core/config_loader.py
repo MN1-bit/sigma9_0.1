@@ -8,7 +8,7 @@ YAML 설정 파일을 Python 객체로 로드하는 유틸리티.
     from backend.core.config_loader import load_server_config
     config = load_server_config()
     print(config.server.host)  # "0.0.0.0"
-    
+
     # 클라이언트 설정 로드
     from backend.core.config_loader import load_client_config
     config = load_client_config()
@@ -26,9 +26,11 @@ import yaml
 # Server Config Data Classes (서버 설정 데이터 클래스)
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 @dataclass
 class ServerNetworkConfig:
     """서버 네트워크 설정"""
+
     host: str = "0.0.0.0"
     port: int = 8000
     debug: bool = True
@@ -39,6 +41,7 @@ class ServerNetworkConfig:
 @dataclass
 class IBKRConfig:
     """IBKR 연결 설정"""
+
     host: str = "127.0.0.1"
     port: int = 7497
     client_id: int = 1
@@ -51,6 +54,7 @@ class IBKRConfig:
 @dataclass
 class DatabaseConfig:
     """데이터베이스 설정"""
+
     type: str = "sqlite"
     path: str = "data/sigma9.db"
     wal_mode: bool = True
@@ -59,6 +63,7 @@ class DatabaseConfig:
 @dataclass
 class MarketDataConfig:
     """시장 데이터 설정"""
+
     db_path: str = "data/market_data.db"
     initial_load_days: int = 30
     auto_update_on_start: bool = True
@@ -67,6 +72,7 @@ class MarketDataConfig:
 @dataclass
 class MassiveConfig:
     """Massive.com API 설정"""
+
     enabled: bool = True
     base_url: str = "https://api.Massive.com"
     rate_limit: int = 5
@@ -77,6 +83,7 @@ class MassiveConfig:
 @dataclass
 class StrategyConfig:
     """전략 설정"""
+
     default: str = "seismograph"
     auto_load: bool = True
     hot_reload: bool = True
@@ -85,6 +92,7 @@ class StrategyConfig:
 @dataclass
 class RiskConfig:
     """리스크 관리 설정"""
+
     max_position_pct: float = 50.0
     max_concurrent: int = 3
     max_daily_trades: int = 50
@@ -97,6 +105,7 @@ class RiskConfig:
 @dataclass
 class SchedulerConfig:
     """스케줄러 설정"""
+
     enabled: bool = True
     timezone: str = "America/New_York"
     market_open_scan: bool = True
@@ -108,6 +117,7 @@ class SchedulerConfig:
 @dataclass
 class LoggingFileConfig:
     """파일 로깅 설정"""
+
     enabled: bool = True
     path: str = "logs/sigma9.log"
     rotation: str = "1 day"
@@ -118,6 +128,7 @@ class LoggingFileConfig:
 @dataclass
 class LoggingConsoleConfig:
     """콘솔 로깅 설정"""
+
     enabled: bool = True
     colorize: bool = True
 
@@ -125,6 +136,7 @@ class LoggingConsoleConfig:
 @dataclass
 class LoggingConfig:
     """로깅 설정"""
+
     level: str = "DEBUG"
     format: str = "json"
     console: LoggingConsoleConfig = field(default_factory=LoggingConsoleConfig)
@@ -134,6 +146,7 @@ class LoggingConfig:
 @dataclass
 class LLMConfig:
     """LLM Oracle 설정"""
+
     enabled: bool = False
     default_provider: str = "openai"
     default_model: str = "gpt-4-turbo"
@@ -146,6 +159,7 @@ class LLMConfig:
 @dataclass
 class ServerConfig:
     """서버 전체 설정"""
+
     server: ServerNetworkConfig = field(default_factory=ServerNetworkConfig)
     ibkr: IBKRConfig = field(default_factory=IBKRConfig)
     database: DatabaseConfig = field(default_factory=DatabaseConfig)
@@ -162,9 +176,11 @@ class ServerConfig:
 # Client Config Data Classes (클라이언트 설정 데이터 클래스)
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 @dataclass
 class ClientServerConfig:
     """클라이언트 → 서버 연결 설정"""
+
     host: str = "localhost"
     port: int = 8000
     ws_path: str = "/ws/feed"
@@ -175,6 +191,7 @@ class ClientServerConfig:
 @dataclass
 class ConnectionConfig:
     """연결 동작 설정"""
+
     auto_connect: bool = True
     reconnect_enabled: bool = True
     reconnect_interval: int = 5
@@ -186,6 +203,7 @@ class ConnectionConfig:
 @dataclass
 class GUIConfig:
     """GUI 설정"""
+
     theme: str = "dark"
     window_opacity: float = 0.95
     acrylic_alpha: int = 180
@@ -198,6 +216,7 @@ class GUIConfig:
 @dataclass
 class ChartConfig:
     """차트 설정"""
+
     default_timeframe: str = "1D"
     show_volume: bool = True
     show_vwap: bool = True
@@ -208,6 +227,7 @@ class ChartConfig:
 @dataclass
 class ClientLoggingConfig:
     """클라이언트 로깅 설정"""
+
     level: str = "INFO"
     console_visible: bool = True
     max_console_lines: int = 500
@@ -216,6 +236,7 @@ class ClientLoggingConfig:
 @dataclass
 class ClientConfig:
     """클라이언트 전체 설정"""
+
     server: ClientServerConfig = field(default_factory=ClientServerConfig)
     connection: ConnectionConfig = field(default_factory=ConnectionConfig)
     gui: GUIConfig = field(default_factory=GUIConfig)
@@ -226,6 +247,7 @@ class ClientConfig:
 # ═══════════════════════════════════════════════════════════════════════════
 # Config Loader Functions (설정 로더 함수)
 # ═══════════════════════════════════════════════════════════════════════════
+
 
 def _get_project_root() -> Path:
     """프로젝트 루트 디렉토리 반환"""
@@ -238,28 +260,29 @@ def _load_yaml(file_path: Path) -> Dict[str, Any]:
     """YAML 파일 로드"""
     if not file_path.exists():
         raise FileNotFoundError(f"Config file not found: {file_path}")
-    
-    with open(file_path, 'r', encoding='utf-8') as f:
+
+    with open(file_path, "r", encoding="utf-8") as f:
         return yaml.safe_load(f) or {}
 
 
 def _dict_to_dataclass(data: Dict[str, Any], cls: type) -> Any:
     """
     딕셔너리를 데이터클래스로 변환 (재귀적)
-    
+
     📌 중첩된 dataclass도 자동 변환
     """
     if data is None:
         return cls()
-    
+
     # 해당 dataclass의 필드 정보 가져오기
     import dataclasses
+
     if not dataclasses.is_dataclass(cls):
         return data
-    
+
     field_types = {f.name: f.type for f in dataclasses.fields(cls)}
     kwargs = {}
-    
+
     for field_name, field_type in field_types.items():
         if field_name in data:
             value = data[field_name]
@@ -268,23 +291,23 @@ def _dict_to_dataclass(data: Dict[str, Any], cls: type) -> Any:
                 kwargs[field_name] = _dict_to_dataclass(value, field_type)
             else:
                 kwargs[field_name] = value
-    
+
     return cls(**kwargs)
 
 
 def load_server_config(config_path: Optional[str] = None) -> ServerConfig:
     """
     서버 설정 로드
-    
+
     📌 환경변수 오버라이드 지원:
         - SIGMA9_SERVER_HOST
         - SIGMA9_SERVER_PORT
         - SIGMA9_IBKR_HOST
         - SIGMA9_IBKR_PORT
-    
+
     Args:
         config_path: 설정 파일 경로 (기본: backend/config/server_config.yaml)
-    
+
     Returns:
         ServerConfig: 서버 설정 객체
     """
@@ -292,10 +315,10 @@ def load_server_config(config_path: Optional[str] = None) -> ServerConfig:
         config_path = _get_project_root() / "backend" / "config" / "server_config.yaml"
     else:
         config_path = Path(config_path)
-    
+
     # YAML 로드
     data = _load_yaml(config_path)
-    
+
     # 환경변수 오버라이드
     if os.getenv("SIGMA9_SERVER_HOST"):
         data.setdefault("server", {})["host"] = os.getenv("SIGMA9_SERVER_HOST")
@@ -305,26 +328,40 @@ def load_server_config(config_path: Optional[str] = None) -> ServerConfig:
         data.setdefault("ibkr", {})["host"] = os.getenv("SIGMA9_IBKR_HOST")
     if os.getenv("SIGMA9_IBKR_PORT"):
         data.setdefault("ibkr", {})["port"] = int(os.getenv("SIGMA9_IBKR_PORT"))
-    
+
     # 데이터클래스로 변환
     config = ServerConfig()
-    
-    for section_name in ["server", "ibkr", "database", "market_data", "massive", 
-                         "strategy", "risk", "scheduler", "logging", "llm"]:
+
+    for section_name in [
+        "server",
+        "ibkr",
+        "database",
+        "market_data",
+        "massive",
+        "strategy",
+        "risk",
+        "scheduler",
+        "logging",
+        "llm",
+    ]:
         if section_name in data:
             section_cls = type(getattr(config, section_name))
-            setattr(config, section_name, _dict_to_dataclass(data[section_name], section_cls))
-    
+            setattr(
+                config,
+                section_name,
+                _dict_to_dataclass(data[section_name], section_cls),
+            )
+
     return config
 
 
 def load_client_config(config_path: Optional[str] = None) -> ClientConfig:
     """
     클라이언트 설정 로드
-    
+
     Args:
         config_path: 설정 파일 경로 (기본: frontend/config/client_config.yaml)
-    
+
     Returns:
         ClientConfig: 클라이언트 설정 객체
     """
@@ -332,18 +369,22 @@ def load_client_config(config_path: Optional[str] = None) -> ClientConfig:
         config_path = _get_project_root() / "frontend" / "config" / "client_config.yaml"
     else:
         config_path = Path(config_path)
-    
+
     # YAML 로드
     data = _load_yaml(config_path)
-    
+
     # 데이터클래스로 변환
     config = ClientConfig()
-    
+
     for section_name in ["server", "connection", "gui", "chart", "logging"]:
         if section_name in data:
             section_cls = type(getattr(config, section_name))
-            setattr(config, section_name, _dict_to_dataclass(data[section_name], section_cls))
-    
+            setattr(
+                config,
+                section_name,
+                _dict_to_dataclass(data[section_name], section_cls),
+            )
+
     return config
 
 

@@ -1,0 +1,66 @@
+// Sigma9 Frontend State Flow
+// Domain 6: API → Dashboard → Panels
+// Convert: dot -Tsvg 06_frontend_state.dot -o 06_frontend_state.svg
+
+digraph FrontendState {
+    rankdir=TB;
+    node [fontname="Arial", fontsize=11];
+    edge [fontname="Arial", fontsize=9];
+    
+    // Cluster: Backend
+    subgraph cluster_backend {
+        label="⚙️ Backend";
+        style=filled;
+        fillcolor="#eff6ff";
+        
+        rest_api [label="REST API", shape=box, style=filled, fillcolor="#60a5fa"];
+        websocket [label="WebSocket", shape=box, style=filled, fillcolor="#60a5fa"];
+    }
+    
+    // Cluster: Services
+    subgraph cluster_services {
+        label="🔌 Services Layer";
+        style=filled;
+        fillcolor="#fff7ed";
+        
+        rest_adapter [label="RestAdapter", shape=component, style=filled, fillcolor="#fb923c"];
+        ws_adapter [label="WsAdapter", shape=component, style=filled, fillcolor="#fb923c"];
+        backend_client [label="BackendClient", shape=component, style=filled, fillcolor="#fb923c"];
+    }
+    
+    // Cluster: State
+    subgraph cluster_state {
+        label="📦 State Management";
+        style=filled;
+        fillcolor="#f0fdf4";
+        
+        dashboard_state [label="DashboardState", shape=component, style=filled, fillcolor="#4ade80"];
+    }
+    
+    // Cluster: UI
+    subgraph cluster_ui {
+        label="🖥️ UI Layer";
+        style=filled;
+        fillcolor="#faf5ff";
+        
+        dashboard [label="Dashboard", shape=box, style=filled, fillcolor="#a78bfa"];
+        watchlist_panel [label="WatchlistPanel", shape=box, style=filled, fillcolor="#c4b5fd"];
+        tier2_panel [label="Tier2Panel", shape=box, style=filled, fillcolor="#c4b5fd"];
+        chart_panel [label="ChartPanel", shape=box, style=filled, fillcolor="#c4b5fd"];
+        position_panel [label="PositionPanel", shape=box, style=filled, fillcolor="#c4b5fd"];
+        oracle_panel [label="OraclePanel", shape=box, style=filled, fillcolor="#c4b5fd"];
+    }
+    
+    // Edges
+    rest_api -> rest_adapter;
+    websocket -> ws_adapter;
+    rest_adapter -> backend_client;
+    ws_adapter -> backend_client;
+    backend_client -> dashboard_state [label="Qt Signals"];
+    dashboard_state -> dashboard;
+    dashboard -> watchlist_panel;
+    dashboard -> tier2_panel;
+    dashboard -> chart_panel;
+    dashboard -> position_panel;
+    dashboard -> oracle_panel;
+}

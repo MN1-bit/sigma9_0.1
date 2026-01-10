@@ -13,37 +13,18 @@
 # ==============================================================================
 from __future__ import annotations
 
-from dataclasses import dataclass
-from datetime import datetime
 from typing import TYPE_CHECKING
 
 from PyQt6.QtCore import QObject, pyqtSignal
 
+# [REFAC Phase 4] Tier2Item을 tier2_panel.py로 이동
+from ..panels.tier2_panel import Tier2Item
+
 if TYPE_CHECKING:
     pass
 
-
-@dataclass
-class Tier2Item:
-    """
-    Tier 2 Hot Zone 종목 데이터 모델
-
-    ELI5: Hot Zone(뜨거운 구역)에 올라온 종목의 정보를 담는 상자예요.
-    가격, 등락율, Z-Score, Ignition Score 등을 기록합니다.
-    """
-
-    ticker: str
-    price: float = 0.0  # 실시간 가격
-    change_pct: float = 0.0  # 등락율
-    zenV: float = 0.0  # Z-score Volume
-    zenP: float = 0.0  # Z-score Price
-    ignition: float = 0.0  # Ignition Score
-    signal: str = ""  # "🔥" (Divergence) 또는 "🎯" (Ignition>=70)
-    last_update: datetime = None  # 마지막 틱 수신 시간
-
-    def __post_init__(self):
-        if self.last_update is None:
-            self.last_update = datetime.now()
+# 하위 호환성을 위해 re-export
+__all__ = ["DashboardState", "Tier2Item"]
 
 
 class DashboardState(QObject):

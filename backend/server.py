@@ -32,7 +32,6 @@ import json  # [08-001] heartbeat JSON serialization
 from loguru import logger
 
 # [02-001] DI Container import
-from backend.container import container, Container
 
 # [04-001] Startup module imports
 from backend.startup.config import initialize_config

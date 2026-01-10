@@ -8,25 +8,27 @@ Signals 공통 유틸리티 모듈
 """
 
 from typing import Any, List
-import numpy as np
 
 
 def get_column(data: Any, col_name: str, lookback: int = 20) -> List[float]:
     """
     데이터에서 특정 컬럼 추출 (DataFrame/dict 호환)
-    
+
     Args:
         data: OHLCV 데이터 (DataFrame 또는 list of dict)
         col_name: 컬럼명 ('open', 'high', 'low', 'close', 'volume')
         lookback: 가져올 데이터 수
-        
+
     Returns:
         list: 숫자 리스트
     """
-    if hasattr(data, 'iloc'):
+    if hasattr(data, "iloc"):
         # DataFrame
-        col = data[col_name].tail(lookback).tolist() if col_name in data.columns else \
-              data[col_name.capitalize()].tail(lookback).tolist()
+        col = (
+            data[col_name].tail(lookback).tolist()
+            if col_name in data.columns
+            else data[col_name.capitalize()].tail(lookback).tolist()
+        )
     else:
         # list of dict
         col = [
@@ -36,15 +38,17 @@ def get_column(data: Any, col_name: str, lookback: int = 20) -> List[float]:
     return col
 
 
-def calculate_atr(highs: List[float], lows: List[float], closes: List[float]) -> List[float]:
+def calculate_atr(
+    highs: List[float], lows: List[float], closes: List[float]
+) -> List[float]:
     """
     True Range 리스트 계산
-    
+
     Args:
         highs: 고가 리스트
         lows: 저가 리스트
         closes: 종가 리스트
-        
+
     Returns:
         list: True Range 값들
     """
@@ -60,11 +64,11 @@ def calculate_atr(highs: List[float], lows: List[float], closes: List[float]) ->
 def calculate_obv(closes: List[float], volumes: List[float]) -> List[float]:
     """
     On-Balance Volume 계산
-    
+
     Args:
         closes: 종가 리스트
         volumes: 거래량 리스트
-        
+
     Returns:
         list: OBV 값들
     """

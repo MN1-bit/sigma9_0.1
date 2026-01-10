@@ -4,13 +4,10 @@ from PyQt6.QtWidgets import (
     QPushButton,
     QLabel,
     QComboBox,
-    QSizePolicy,
     QWidget,
-    QVBoxLayout,
-    QGraphicsOpacityEffect,
 )
 from PyQt6.QtGui import QIcon
-from PyQt6.QtCore import Qt, pyqtSignal, QPropertyAnimation, QEasingCurve
+from PyQt6.QtCore import Qt, pyqtSignal
 import os
 from .theme import theme
 from .widgets.time_display_widget import TimeDisplayWidget  # [08-001] 시간 표시
@@ -127,7 +124,7 @@ class ControlPanel(QFrame):
             icon_path = os.path.join(os.path.dirname(__file__), "assets", "ico01.ico")
             icon_pixmap = QIcon(icon_path).pixmap(24, 24)
             icon_label.setPixmap(icon_pixmap)
-        except Exception as e:
+        except Exception:
             icon_label.setText("⚡")  # Fallback
 
         icon_label.setStyleSheet("border: none; background: transparent;")
@@ -298,3 +295,15 @@ class ControlPanel(QFrame):
     def get_selected_strategy(self) -> str:
         """현재 선택된 전략 반환"""
         return self.strategy_combo.currentText()
+
+    def update_time(self, data: dict) -> None:
+        """
+        [08-001] 시간 정보 업데이트
+
+        백엔드에서 수신한 시간 정보를 TimeDisplayWidget에 전달합니다.
+
+        Args:
+            data: {"server_time_utc": str, "sent_at": int}
+        """
+        if hasattr(self, "time_display"):
+            self.time_display.update_from_heartbeat(data)

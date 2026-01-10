@@ -24,7 +24,7 @@ router = APIRouter()
 async def get_status():
     """
     서버, 엔진, IBKR, 스케줄러 상태를 조회합니다.
-    
+
     📌 상태값:
         - server: running/stopped
         - engine: running/stopped
@@ -32,15 +32,17 @@ async def get_status():
         - scheduler: active/inactive
     """
     from backend.server import app_state
-    
+
     # IBKR 상태 확인
     ibkr_status = "disconnected"
     if app_state.ibkr:
         try:
-            ibkr_status = "connected" if app_state.ibkr.is_connected() else "disconnected"
+            ibkr_status = (
+                "connected" if app_state.ibkr.is_connected() else "disconnected"
+            )
         except Exception:
             ibkr_status = "error"
-    
+
     # 스케줄러 상태 확인
     scheduler_status = "inactive"
     if app_state.scheduler:
@@ -48,7 +50,7 @@ async def get_status():
             scheduler_status = "active" if app_state.scheduler.running else "inactive"
         except Exception:
             scheduler_status = "error"
-    
+
     # 엔진 상태 확인
     engine_status = "stopped"
     active_positions = 0
@@ -62,7 +64,7 @@ async def get_status():
             pass
     elif is_engine_running():
         engine_status = "running"
-    
+
     return ServerStatus(
         server="running",
         engine=engine_status,
@@ -71,7 +73,7 @@ async def get_status():
         uptime_seconds=get_uptime_seconds(),
         active_positions=active_positions,
         active_orders=active_orders,
-        timestamp=get_timestamp()
+        timestamp=get_timestamp(),
     )
 
 
@@ -82,5 +84,5 @@ async def get_engine_status():
         "running": is_engine_running(),
         "strategy": "seismograph" if is_engine_running() else None,
         "watchlist_count": 0,  # TODO: 실제 값
-        "timestamp": get_timestamp()
+        "timestamp": get_timestamp(),
     }

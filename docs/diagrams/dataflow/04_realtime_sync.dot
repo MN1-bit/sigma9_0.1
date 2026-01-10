@@ -1,0 +1,77 @@
+// Sigma9 Realtime Sync Flow
+// Domain 4: Backend → WebSocket → Frontend
+// Convert: dot -Tsvg 04_realtime_sync.dot -o 04_realtime_sync.svg
+
+digraph RealtimeSync {
+    rankdir=LR;
+    node [fontname="Arial", fontsize=11];
+    edge [fontname="Arial", fontsize=9];
+    
+    // Cluster: Backend Producers
+    subgraph cluster_producers {
+        label="⚙️ Backend (Producers)";
+        style=filled;
+        fillcolor="#eff6ff";
+        
+        tick_broadcaster [label="TickBroadcaster", shape=component, style=filled, fillcolor="#60a5fa"];
+        realtime_scanner [label="RealtimeScanner", shape=component, style=filled, fillcolor="#60a5fa"];
+        ignition_monitor [label="IgnitionMonitor", shape=component, style=filled, fillcolor="#60a5fa"];
+    }
+    
+    // Cluster: Message Hub
+    subgraph cluster_hub {
+        label="📨 Message Hub";
+        style=filled;
+        fillcolor="#fff7ed";
+        
+        connection_manager [label="ConnectionManager", shape=component, style=filled, fillcolor="#fb923c"];
+    }
+    
+    // Message Types
+    subgraph cluster_messages {
+        label="Message Types";
+        style=filled;
+        fillcolor="#fef3c7";
+        
+        msg_tick [label="TICK", shape=box, style=filled, fillcolor="#fcd34d"];
+        msg_bar [label="BAR", shape=box, style=filled, fillcolor="#fcd34d"];
+        msg_watchlist [label="WATCHLIST", shape=box, style=filled, fillcolor="#fcd34d"];
+        msg_ignition [label="IGNITION", shape=box, style=filled, fillcolor="#fcd34d"];
+        msg_status [label="STATUS", shape=box, style=filled, fillcolor="#fcd34d"];
+    }
+    
+    // Cluster: Frontend Consumers
+    subgraph cluster_frontend {
+        label="🖥️ Frontend (Consumers)";
+        style=filled;
+        fillcolor="#faf5ff";
+        
+        ws_adapter [label="WsAdapter", shape=component, style=filled, fillcolor="#a78bfa"];
+        backend_client [label="BackendClient", shape=component, style=filled, fillcolor="#a78bfa"];
+        qt_signals [label="Qt Signals", shape=ellipse, style=filled, fillcolor="#c4b5fd"];
+        dashboard [label="Dashboard", shape=box, style=filled, fillcolor="#a78bfa"];
+    }
+    
+    // Edges: Producers → Hub
+    tick_broadcaster -> connection_manager [label="broadcast_tick\nbroadcast_bar"];
+    realtime_scanner -> connection_manager [label="broadcast_watchlist"];
+    ignition_monitor -> connection_manager [label="broadcast_ignition"];
+    
+    // Edges: Hub → Messages
+    connection_manager -> msg_tick;
+    connection_manager -> msg_bar;
+    connection_manager -> msg_watchlist;
+    connection_manager -> msg_ignition;
+    connection_manager -> msg_status;
+    
+    // Edges: Messages → Frontend
+    msg_tick -> ws_adapter;
+    msg_bar -> ws_adapter;
+    msg_watchlist -> ws_adapter;
+    msg_ignition -> ws_adapter;
+    msg_status -> ws_adapter;
+    
+    ws_adapter -> backend_client [label="parse"];
+    backend_client -> qt_signals [label="emit"];
+    qt_signals -> dashboard;
+}

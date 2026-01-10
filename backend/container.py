@@ -125,6 +125,60 @@ class Container(containers.DeclarativeContainer):
     # MassiveClient: API 클라이언트 (Singleton)
     massive_client = providers.Singleton(_create_massive_client)
 
+    # ───────────────────────────────────────────────────────────────────────
+    # [11-002] ParquetManager: Parquet I/O 관리자 (Singleton)
+    # ───────────────────────────────────────────────────────────────────────
+    @staticmethod
+    def _create_parquet_manager(base_dir: str | None = None):
+        """
+        ParquetManager 생성 팩토리
+
+        📌 [11-002] DataRepository의 Low-Level I/O 담당
+        """
+        from backend.data.parquet_manager import ParquetManager
+
+        # config 미설정 시 기본값 사용
+        actual_dir = base_dir or "data/parquet"
+        return ParquetManager(base_dir=actual_dir)
+
+    parquet_manager = providers.Singleton(_create_parquet_manager)
+
+    # ───────────────────────────────────────────────────────────────────────
+    # [11-002] DataRepository: 통합 데이터 접근 레이어 (Singleton)
+    # ───────────────────────────────────────────────────────────────────────
+    @staticmethod
+    def _create_data_repository(
+        parquet_manager: Any,
+        massive_client: Any,
+        flush_policy_type: str | None = None,
+        flush_interval: float | None = None,
+    ):
+        """
+        DataRepository 생성 팩토리
+
+        📌 [11-002] 모든 데이터 접근은 이 레이어를 통해
+        📌 Gap Fill, Indicator 캐싱, Score Flush 지원
+        """
+        from backend.data.data_repository import DataRepository
+        from backend.data.flush_policy import create_flush_policy
+
+        # config 미설정 시 기본값 사용
+        actual_policy_type = flush_policy_type or "interval"
+        actual_interval = flush_interval if flush_interval is not None else 30.0
+
+        policy = create_flush_policy(actual_policy_type, interval_seconds=actual_interval)
+        return DataRepository(
+            parquet_manager=parquet_manager,
+            massive_client=massive_client,
+            flush_policy=policy,
+        )
+
+    data_repository = providers.Singleton(
+        _create_data_repository,
+        parquet_manager=parquet_manager,
+        massive_client=massive_client,
+    )
+
     @staticmethod
     def _create_database(db_path: Optional[str] = None):
         """
@@ -151,6 +205,40 @@ class Container(containers.DeclarativeContainer):
     # 테스트 시 Mock ScoringStrategy로 교체 가능
     #
 
+    # ───────────────────────────────────────────────────────────────────────
+    # [02-004] WatchlistStore: Watchlist 저장소 (Singleton)
+    # ───────────────────────────────────────────────────────────────────────
+    @staticmethod
+    def _create_watchlist_store():
+        """
+        WatchlistStore 생성 팩토리
+
+        📌 [02-004] 싱글톤 패턴 제거, Container로 관리
+        📌 Watchlist JSON 저장/로드 담당
+        """
+        from backend.data.watchlist_store import WatchlistStore
+
+        return WatchlistStore()
+
+    watchlist_store = providers.Singleton(_create_watchlist_store)
+
+    # ───────────────────────────────────────────────────────────────────────
+    # [02-005] SymbolMapper: 심볼 매핑 서비스 (Singleton)
+    # ───────────────────────────────────────────────────────────────────────
+    @staticmethod
+    def _create_symbol_mapper():
+        """
+        SymbolMapper 생성 팩토리
+
+        📌 [02-005] 싱글톤 패턴 제거, Container로 관리
+        📌 Massive ↔ IBKR 심볼 변환 담당
+        """
+        from backend.data.symbol_mapper import SymbolMapper
+
+        return SymbolMapper()
+
+    symbol_mapper = providers.Singleton(_create_symbol_mapper)
+
     @staticmethod
     def _create_scoring_strategy():
         """
@@ -174,14 +262,14 @@ class Container(containers.DeclarativeContainer):
     def _create_realtime_scanner(
         massive_client: Any,
         ws_manager: Any,
-        database: Any,
+        data_repository: Any,  # [11-002] DataRepository 주입
         scoring_strategy: Any,
         poll_interval: float = 1.0,
     ):
         """
         RealtimeScanner 생성 팩토리
 
-        📌 모든 의존성을 명시적으로 주입받음
+        📌 [11-002] DataRepository를 통해 데이터 접근
         📌 Singleton 패턴 제거 - Container가 생명주기 관리
         """
         from backend.core.realtime_scanner import RealtimeScanner
@@ -189,7 +277,7 @@ class Container(containers.DeclarativeContainer):
         return RealtimeScanner(
             massive_client=massive_client,
             ws_manager=ws_manager,
-            db=database,
+            data_repository=data_repository,  # [11-002]
             ignition_monitor=None,  # 순환 참조 방지: 나중에 설정
             poll_interval=poll_interval,
             scoring_strategy=scoring_strategy,
@@ -200,9 +288,8 @@ class Container(containers.DeclarativeContainer):
         _create_realtime_scanner,
         massive_client=massive_client,
         ws_manager=ws_manager,
-        database=database,
+        data_repository=data_repository,  # [11-002] DataRepository 주입
         scoring_strategy=scoring_strategy,
-        poll_interval=config.scanner.poll_interval.as_float(),
     )
 
     @staticmethod

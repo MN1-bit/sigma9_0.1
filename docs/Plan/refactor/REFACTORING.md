@@ -70,11 +70,13 @@ from backend.data.watchlist_store import load_watchlist, save_watchlist
 
 ### 1.4 Singleton Anti-Pattern
 
-| 모듈 | 패턴 | 문제점 |
-|------|------|--------|
-| `realtime_scanner.py` | `_scanner_instance` | 테스트 어려움, 상태 오염 |
-| `ignition_monitor.py` | `get_ignition_monitor()` | 의존성 주입 불가 |
-| `backend_client.py` | `BackendClient.instance()` | 멀티 인스턴스 테스트 불가 |
+| 모듈 | 패턴 | 문제점 | 상태 |
+|------|------|--------|------|
+| `realtime_scanner.py` | ~~`_scanner_instance`~~ | ~~테스트 어려움, 상태 오염~~ | ✅ 제거 (02-002) |
+| `ignition_monitor.py` | ~~`get_ignition_monitor()`~~ | ~~의존성 주입 불가~~ | ✅ 제거 (02-003) |
+| `watchlist_store.py` | ~~`_store_instance`~~ | ~~레거시 편의 함수~~ | ✅ 제거 (02-006) |
+| `symbol_mapper.py` | ~~`_mapper_instance`~~ | ~~레거시 편의 함수~~ | ✅ 제거 (02-006) |
+| `backend_client.py` | `BackendClient.instance()` | 멀티 인스턴스 테스트 불가 | 📋 대기 (Frontend) |
 
 ### 1.5 데이터 플로우 시각화
 
@@ -254,7 +256,7 @@ echo "data/market_data.db-*" >> .gitignore
 | 3b | `seismograph.py` Phase 2 (로직 분리) | 4-5h | 중간 | ✅ 완료 |
 | 3c | `seismograph.py` Phase 3 (완전 마이그레이션) | 1h | 낮음 | ✅ 완료 |
 | 4 | `server.py` lifespan 분리 | 2-3h | 낮음 | ✅ 완료 |
-| 5 | `dashboard.py` 분리 | 6-8h | 중간 | 📋 대기 |
+| 5 | `dashboard.py` 분리 | 6-8h | 중간 | 🔄 Phase 4 완료 (2,324줄) |
 | 6 | `routes.py` 분할 | 2-3h | 낮음 | ✅ 완료 |
 | 7 | 데이터 모델 통합 | 1-2h | 낮음 | 📋 대기 |
 

@@ -1,0 +1,144 @@
+---
+description: 새 기능 구현 계획서 작성 (구현 시작 전 필수)
+---
+
+# IMP-planning
+
+> **원칙**: 리팩터링 없는 코드. REFACTORING.md 규칙 100% 준수.
+
+## 1. 필수 컨텍스트
+
+// turbo
+```
+docs/Plan/refactor/REFACTORING.md  ← 핵심 (§3-§6 필수)
+.agent\Ref\archt.md   ← 모듈 배치 참조
+.agent\Ref\MPlan.md   ← 마일스톤 참조
+```
+
+---
+
+## 2. 레이어 의존성 (REFACTORING.md §3.3)
+
+```
+[상위] ← [하위] 방향만 허용
+
+backend.api
+    ↓
+backend.core
+    ↓
+backend.strategies
+    ↓
+backend.data
+    ↓
+backend.broker
+```
+
+| 위반 시 | 결과 |
+|--------|------|
+| 역방향 import | `lint-imports` 실패 → 머지 불가 |
+| 순환 import | `pydeps --show-cycles` 검출 → 수정 필수 |
+
+### 금지된 import 패턴
+```python
+# ❌ backend.data가 strategies import
+from backend.strategies import ...
+
+# ❌ backend.strategies가 api import
+from backend.api import ...
+
+# ❌ backend ↔ frontend 상호 import
+from frontend import ...  # in backend
+from backend import ...   # in frontend
+```
+
+---
+
+## 3. DI 패턴 (REFACTORING.md §5-§6)
+
+### 금지 패턴
+```python
+# ❌ 전역 싱글톤
+_instance = None
+def get_scanner_instance(): ...
+```
+
+### 필수 패턴
+```python
+# ✅ Container 등록
+# backend/container.py
+scanner = providers.Singleton(RealtimeScanner, db=db_client)
+
+# ✅ 주입받아 사용
+def __init__(self, scanner: RealtimeScanner): ...
+```
+
+### 순환 의존성 해소
+```python
+# ✅ 인터페이스 추출 (DIP)
+# backend/core/interfaces/xxx.py
+class ScoringStrategy(ABC):
+    @abstractmethod
+    def calculate_score(self, ...): ...
+```
+
+---
+
+## 4. 크기 제한 (REFACTORING.md §8)
+
+| 대상 | 제한 | 위반 시 |
+|------|------|--------|
+| 파일 | ≤ **500줄** | 분할 필수 |
+| 클래스 | ≤ **30 메서드** | 분할 필수 |
+| 클래스 | ≤ **400줄** | 분할 필수 |
+
+---
+
+## 5. 사전 체크리스트
+
+계획서 작성 전 **반드시** 확인:
+
+- [ ] 레이어 규칙 위반 없는가? (§2)
+- [ ] 신규 서비스 → Container 등록 계획 있는가?
+- [ ] 순환 의존성 위험 → 인터페이스 추출 계획 있는가?
+- [ ] 기존 500줄+ 파일 수정 → 분할 선행 필요?
+
+---
+
+## 6. 계획서 템플릿
+
+경로: `docs/Plan/impl/{기능명}_plan.md`
+
+```markdown
+# [기능명] 구현 계획서
+
+> **작성일**: YYYY-MM-DD | **예상**: Xh
+
+## 1. 목표
+-
+
+## 2. 레이어 체크
+- [ ] 레이어 규칙 위반 없음
+- [ ] 순환 의존성 없음
+- [ ] DI Container 등록 필요: 예/아니오
+
+## 3. 변경 파일
+| 파일 | 유형 | 예상 라인 |
+|------|-----|----------|
+|      |     |          |
+
+## 4. 실행 단계
+### Step 1:
+### Step 2:
+
+## 5. 검증
+- [ ] lint-imports
+- [ ] pydeps --show-cycles
+```
+
+## 7. 승인
+
+**반드시** 사용자 승인 후 코드 작성.
+
+---
+
+**다음**: `/IMP-execution`

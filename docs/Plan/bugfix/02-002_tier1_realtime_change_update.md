@@ -1,15 +1,20 @@
 # 02-002: Tier1 Watchlist 실시간 change% 업데이트
 
-## 문제 설명
-Tier1 Watchlist의 `change%` 컬럼이 실시간으로 업데이트되지 않음.
+> **작성일**: 2026-01-10 | **예상**: 2h
 
-## 근본 원인
-현재 아키텍처는 **Tier2 종목만** T 채널(틱)을 구독하여 실시간 가격을 수신함.
-Tier1 종목은 Gainers API 폴링(1초)에 의존하지만, 이는 **Top 21개 급등주만** 반환하므로 Watchlist 전체 종목을 커버하지 못함.
+## 1. 목표
 
-## 제안된 해결책: Massive A 채널 (1초봉) 구독
+Tier1 Watchlist의 `change%` 컬럼이 실시간으로 업데이트되도록 개선.
 
-### 왜 A 채널인가?
+### 문제 설명
+- **현상**: Tier1 Watchlist의 `change%` 컬럼이 실시간 반영되지 않음
+- **근본 원인**: 
+  - Tier2 종목만 T 채널(틱) 구독
+  - Tier1은 Gainers API 폴링(1초)에 의존하지만, **Top 21개 급등주만** 반환되므로 Tier1 전체 커버 불가
+
+---
+
+## 2. 제안된 해결책: A 채널(1초봉) 구독
 
 | 채널 | 설명 | 초당 메시지 | 적합성 |
 |------|------|-----------|--------|
@@ -17,151 +22,110 @@ Tier1 종목은 Gainers API 폴링(1초)에 의존하지만, 이는 **Top 21개 
 | **AM** | 1분봉 | 1/분/종목 | ❌ 너무 느림 |
 | **A** | **1초봉** | **1/초/종목** | ✅ 최적 |
 
-Tier1 종목 50개 × 1메시지/초 = **50 메시지/초** (가벼움)
+Tier1 50개 × 1메시지/초 = **50 메시지/초** (가벼움)
 
 ---
 
-## 구현 계획
+## 3. 레이어 체크
 
-### Phase 1: SubscriptionManager 확장
-
-#### [MODIFY] [subscription_manager.py](file:///d:/Codes/Sigma9-0.1/backend/core/subscription_manager.py)
-
-**변경 1**: Tier1용 A 채널 구독 메서드 추가
-
-```python
-async def subscribe_tier1_second_bars(self, tickers: List[str]):
-    """
-    Tier1 종목 1초봉(A 채널) 구독
-    
-    change% 실시간 업데이트를 위해 모든 Tier1 종목에 1초봉 구독
-    
-    Args:
-        tickers: Tier1 종목 목록
-    """
-    if not self.massive_ws or not self.massive_ws.is_connected:
-        return
-    
-    from backend.data.massive_ws_client import Channel
-    
-    if not hasattr(self, '_second_bar_subscribed'):
-        self._second_bar_subscribed: Set[str] = set()
-    
-    new_tickers = [t for t in tickers if t not in self._second_bar_subscribed]
-    if new_tickers:
-        await self.massive_ws.subscribe(new_tickers, Channel.A)
-        self._second_bar_subscribed.update(new_tickers)
-        logger.info(f"📋 Second bar (A) subscribed: {len(new_tickers)} tickers")
-```
-
-**변경 2**: `sync_watchlist()` 호출 시 A 채널 자동 구독
-
-```python
-async def sync_watchlist(self, watchlist: List[str]):
-    # ... 기존 AM 채널 동기화 로직 ...
-    
-    # [NEW] Tier1 종목 A 채널 구독 (change% 실시간 업데이트)
-    await self.subscribe_tier1_second_bars(list(watchlist_set))
-```
+- [ ] 레이어 규칙 위반 없음
+- [ ] 순환 의존성 없음
+- [ ] DI Container 등록 필요: 아니오 (기존 의존성 재사용)
 
 ---
 
-### Phase 2: 1초봉 수신 및 가격 캐시 업데이트
+## 4. 변경 파일
 
-#### [MODIFY] [massive_ws_client.py](file:///d:/Codes/Sigma9-0.1/backend/data/massive_ws_client.py)
+| 파일 | 유형 | 예상 라인 |
+|------|-----|----------|
+| [massive_ws_client.py](file:///d:/Codes/Sigma9-0.1/backend/data/massive_ws_client.py) | MODIFY | +20줄 |
+| [subscription_manager.py](file:///d:/Codes/Sigma9-0.1/backend/core/subscription_manager.py) | MODIFY | +25줄 |
+| [realtime_scanner.py](file:///d:/Codes/Sigma9-0.1/backend/core/realtime_scanner.py) | MODIFY | +10줄 |
 
-**변경**: A 채널 메시지 파싱 추가 (이미 T, AM이 있으므로 A 추가)
+---
+
+## 5. 실행 단계
+
+### Step 1: A 채널 파싱 로직 추가
+
+**파일**: `backend/data/massive_ws_client.py`
+
+1. `on_second_bar` 콜백 속성 추가 (Line ~117)
+2. `_parse_message()`에 A 채널 분기 추가 (Line ~340)
+3. `_reconnect()`에 A 채널 복원 로직 추가 (Line ~362)
 
 ```python
+# __init__에 추가
+self.on_second_bar: Optional[Callable[[dict], None]] = None
+
+# _parse_message에 A 채널 분기 추가
 elif ev == "A":
-    # Aggregate Second (1초봉)
     bar = {
         "type": "second_bar",
         "ticker": data.get("sym"),
         "timeframe": "1s",
         "time": data.get("s", 0) / 1000,
-        "open": data.get("o"),
-        "high": data.get("h"),
-        "low": data.get("l"),
         "close": data.get("c"),
         "volume": data.get("v"),
-        "vwap": data.get("a"),
     }
-    
     if self.on_second_bar:
         self.on_second_bar(bar)
-    
     return bar
 ```
 
 ---
 
-### Phase 3: RealtimeScanner 가격 캐시 연동
+### Step 2: SubscriptionManager Tier1 A 채널 구독
 
-#### [MODIFY] [realtime_scanner.py](file:///d:/Codes/Sigma9-0.1/backend/core/realtime_scanner.py)
+**파일**: `backend/core/subscription_manager.py`
 
-**변경**: A 채널 콜백 등록 및 `_latest_prices` 업데이트
+1. `_second_bar_subscribed: Set[str]` 상태 추가
+2. `subscribe_tier1_second_bars()` 메서드 추가
+3. `sync_watchlist()`에서 자동 구독
 
 ```python
-# start() 메서드에서:
-if massive_ws:
-    massive_ws.on_second_bar = self._on_second_bar_received
+async def subscribe_tier1_second_bars(self, tickers: List[str]):
+    """Tier1 종목 1초봉(A 채널) 구독"""
+    from backend.data.massive_ws_client import Channel
+    
+    new_tickers = [t for t in tickers if t not in self._second_bar_subscribed]
+    if new_tickers:
+        await self.massive_ws.subscribe(new_tickers, Channel.A)
+        self._second_bar_subscribed.update(new_tickers)
+```
 
+---
+
+### Step 3: RealtimeScanner A 채널 콜백 연동
+
+**파일**: `backend/core/realtime_scanner.py`
+
+1. `start()` 메서드에서 A 채널 콜백 등록
+2. `_on_second_bar_received()` 메서드 추가
+
+```python
 def _on_second_bar_received(self, bar: dict):
     """1초봉 수신 시 가격 캐시 업데이트"""
     ticker = bar.get("ticker")
     price = bar.get("close", 0)
-    volume = bar.get("volume", 0)
-    
     if ticker and price > 0:
-        self._latest_prices[ticker] = (price, volume)
+        self._latest_prices[ticker] = (price, 0, int(time.time() * 1000))
 ```
 
-이미 `_periodic_watchlist_broadcast()`에서 `_latest_prices`를 사용해 `change_pct`를 재계산하므로, 자동으로 GUI에 반영됨.
-
 ---
 
-### Phase 4: Frontend 업데이트
-
-> [!NOTE]
-> Frontend 수정 불필요. 현재 `_update_watchlist_panel()`이 이미 `change_pct` 값을 수신하여 표시 중.
-
----
-
-## 예상 효과
-
-| 항목 | 수정 전 | 수정 후 |
-|------|--------|--------|
-| change% 업데이트 빈도 | Gainers에 있을 때만 (불확실) | **매 1초** |
-| 커버리지 | Top 21 급등주만 | **Tier1 전체** |
-| 추가 부하 | - | 50 메시지/초 (미미) |
-
----
-
-## 검증 계획
-
-### 자동 테스트
-- 없음 (실시간 WebSocket 테스트는 Mocking 필요)
+## 6. 검증
 
 ### 수동 테스트
-1. 애플리케이션 실행: `python -m frontend.main`
-2. 백엔드 연결 후 Watchlist에 종목이 표시될 때까지 대기
-3. Tier1 종목의 `change%` 컬럼이 1초마다 변경되는지 확인
-4. 로그에서 `📋 Second bar (A) subscribed` 메시지 확인
+1. 서버 시작: `python -m backend`
+2. 클라이언트 시작: `python -m frontend.main`
+3. 확인:
+   - [ ] 로그: `📡 Subscribed: A x N tickers`
+   - [ ] Tier1 `change%` 1초마다 업데이트
+   - [ ] Gainers 21위 밖 종목도 가격 반영
 
----
-
-## 대안 고려사항
-
-### 왜 T 채널(틱)을 사용하지 않는가?
-
-T 채널은 매 체결마다 메시지가 발생하여:
-- NVDA 같은 고거래량 종목: **초당 수백 틱**
-- 50개 종목 × 100틱/초 = **5,000 메시지/초**
-
-A 채널(1초봉)은 정확히 **50 메시지/초**로 99% 적은 부하.
-
-### Gainers API만으로 충분하지 않은 이유
-
-Gainers API는 **Top 21개 급등주만** 반환.
-Watchlist에 추가된 후 순위가 떨어지면 price 업데이트가 중단됨.
+### 코드 검증
+```bash
+lint-imports
+pydeps backend --only backend --show-cycles --no-output
+```

@@ -1,0 +1,70 @@
+// Sigma9 Market Data Flow
+// Domain 1: Massive.com → Backend → Frontend
+// Convert: dot -Tsvg 01_market_data.dot -o 01_market_data.svg
+
+digraph MarketDataFlow {
+    rankdir=LR;
+    node [fontname="Arial", fontsize=11];
+    edge [fontname="Arial", fontsize=9];
+    
+    // Color scheme
+    // Data (Green), API (Orange), Core (Blue), Frontend (Purple)
+    
+    // Cluster: External
+    subgraph cluster_external {
+        label="📡 External (Massive.com)";
+        style=filled;
+        fillcolor="#f0fdf4";
+        
+        massive_rest [label="REST API\n/grouped_daily\n/aggregates", shape=box, style=filled, fillcolor="#4ade80"];
+        massive_ws [label="WebSocket\nAM.*/T.*", shape=box, style=filled, fillcolor="#4ade80"];
+    }
+    
+    // Cluster: Backend Data Layer
+    subgraph cluster_data {
+        label="💾 Data Layer";
+        style=filled;
+        fillcolor="#fff7ed";
+        
+        massive_client [label="MassiveClient", shape=component, style=filled, fillcolor="#fb923c"];
+        massive_ws_client [label="MassiveWSClient", shape=component, style=filled, fillcolor="#fb923c"];
+        market_db [label="MarketDB\n(SQLite)", shape=cylinder, style=filled, fillcolor="#fcd34d"];
+    }
+    
+    // Cluster: Backend Core
+    subgraph cluster_core {
+        label="⚙️ Core Layer";
+        style=filled;
+        fillcolor="#eff6ff";
+        
+        tick_broadcaster [label="TickBroadcaster", shape=component, style=filled, fillcolor="#60a5fa"];
+        tick_dispatcher [label="TickDispatcher", shape=component, style=filled, fillcolor="#60a5fa"];
+    }
+    
+    // Cluster: Backend API
+    subgraph cluster_api {
+        label="🌐 API Layer";
+        style=filled;
+        fillcolor="#fef3c7";
+        
+        connection_manager [label="ConnectionManager", shape=component, style=filled, fillcolor="#fb923c"];
+    }
+    
+    // Cluster: Frontend
+    subgraph cluster_frontend {
+        label="🖥️ Frontend";
+        style=filled;
+        fillcolor="#faf5ff";
+        
+        gui [label="Dashboard\nPanels", shape=box, style=filled, fillcolor="#a78bfa"];
+    }
+    
+    // Edges
+    massive_rest -> massive_client [label="HTTP"];
+    massive_client -> market_db [label="store"];
+    massive_ws -> massive_ws_client [label="stream"];
+    massive_ws_client -> tick_broadcaster [label="on_bar\non_tick"];
+    tick_broadcaster -> tick_dispatcher [label="dispatch"];
+    tick_broadcaster -> connection_manager [label="broadcast_bar\nbroadcast_tick"];
+    connection_manager -> gui [label="WebSocket"];
+}

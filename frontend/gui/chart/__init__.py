@@ -1,7 +1,7 @@
 # ============================================================================
-# Chart Module - PyQtGraph 기반 차트 컴포넌트
+# Chart Module - finplot 기반 차트 컴포넌트
 # ============================================================================
-from .candlestick_item import CandlestickItem
-from .pyqtgraph_chart import PyQtGraphChartWidget
+from .chart_data_manager import ChartDataManager
+from .finplot_chart import FinplotChartWidget
 
-__all__ = ['CandlestickItem', 'PyQtGraphChartWidget']
+__all__ = ["ChartDataManager", "FinplotChartWidget"]

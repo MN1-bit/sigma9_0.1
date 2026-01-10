@@ -27,6 +27,7 @@ from typing import Optional
 
 class OrderStatus(Enum):
     """주문 상태"""
+
     PENDING = auto()
     PARTIAL_FILL = auto()
     FILLED = auto()
@@ -37,6 +38,7 @@ class OrderStatus(Enum):
 
 class OrderType(Enum):
     """주문 유형"""
+
     MARKET = "MKT"
     LIMIT = "LMT"
     STOP = "STP"
@@ -48,9 +50,9 @@ class OrderType(Enum):
 class OrderRecord:
     """
     주문 기록
-    
+
     주문의 전체 라이프사이클을 추적합니다.
-    
+
     Attributes:
         order_id: 주문 ID
         symbol: 종목 심볼
@@ -68,6 +70,7 @@ class OrderRecord:
         signal_id: 시그널 ID (추적용)
         notes: 메모
     """
+
     order_id: int
     symbol: str
     action: str  # "BUY" or "SELL"
@@ -83,7 +86,7 @@ class OrderRecord:
     oca_group: Optional[str] = None
     signal_id: Optional[str] = None
     notes: str = ""
-    
+
     def to_dict(self) -> dict:
         """딕셔너리로 변환"""
         return {
@@ -98,7 +101,9 @@ class OrderRecord:
             "fill_price": self.fill_price,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "filled_at": self.filled_at.isoformat() if self.filled_at else None,
-            "cancelled_at": self.cancelled_at.isoformat() if self.cancelled_at else None,
+            "cancelled_at": self.cancelled_at.isoformat()
+            if self.cancelled_at
+            else None,
             "oca_group": self.oca_group,
             "signal_id": self.signal_id,
             "notes": self.notes,
@@ -109,7 +114,7 @@ class OrderRecord:
 class Position:
     """
     포지션 정보
-    
+
     Attributes:
         symbol: 종목 심볼
         qty: 보유 수량
@@ -118,18 +123,19 @@ class Position:
         unrealized_pnl: 미실현 손익
         realized_pnl: 실현 손익
     """
+
     symbol: str
     qty: int
     avg_price: float
     current_price: float = 0.0
     unrealized_pnl: float = 0.0
     realized_pnl: float = 0.0
-    
+
     @property
     def market_value(self) -> float:
         """시장가치"""
         return self.qty * self.current_price
-    
+
     @property
     def pnl_pct(self) -> float:
         """손익률"""

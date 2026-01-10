@@ -27,7 +27,6 @@ Acrylic 효과와 파티클 이펙트를 지원합니다.
 
 import sys
 import os
-from dataclasses import dataclass
 from datetime import datetime
 
 # 고DPI 스케일링 문제 해결을 위한 환경변수
@@ -35,39 +34,31 @@ os.environ["QT_ENABLE_HIGHDPI_SCALING"] = "1"
 os.environ["QT_AUTO_SCREEN_SCALE_FACTOR"] = "1"
 
 try:
-    from PyQt6.QtGui import QIcon, QColor, QFont
+    from PyQt6.QtGui import QColor
     from PyQt6.QtWidgets import (
         QApplication,
         QVBoxLayout,
         QHBoxLayout,
         QLabel,
         QFrame,
-        QSlider,
         QPushButton,
         QSplitter,
         QTextEdit,
         QListWidget,
-        QWidget,
         QSizePolicy,
         QComboBox,
-        QTableWidgetItem,
     )
     from PyQt6.QtCore import Qt, QTimer, pyqtSlot
 except ModuleNotFoundError:
-    from PySide6.QtGui import QIcon, QColor, QFont
+    from PySide6.QtGui import QColor
     from PySide6.QtWidgets import (
         QApplication,
         QVBoxLayout,
         QHBoxLayout,
         QLabel,
         QFrame,
-        QSlider,
         QPushButton,
         QSplitter,
-        QTextEdit,
-        QListWidget,
-        QWidget,
-        QSizePolicy,
         QComboBox,
     )
     from PySide6.QtCore import Qt, QTimer
@@ -78,17 +69,17 @@ from .theme import theme  # [REFAC] 테마 매니저 임포트
 from .settings_dialog import SettingsDialog
 
 # from .chart_widget import ChartWidget  # Step 2.4.7: 차트 위젯 (Backup) - REMOVED due to missing dependency
-from .chart.pyqtgraph_chart import PyQtGraphChartWidget  # [NEW] PyQtGraph 기반 차트
+# [REFAC Phase 4] PyQtGraphChartWidget 제거됨 → ChartPanel 내부에서 import
 from .control_panel import (
     ControlPanel,
-    StatusIndicator,
-    LoadingOverlay,
 )  # [NEW] Step 3.4
-from .watchlist_model import WatchlistModel  # [Issue 01-004] Model/View 아키텍처
 from .panels.log_panel import LogPanel  # [REFAC Phase 2] 로그 패널 분리
 from .panels.watchlist_panel import (
     WatchlistPanel,
 )  # [REFAC Phase 2] 워치리스트 패널 분리
+from .panels.chart_panel import ChartPanel  # [REFAC Phase 4] 차트 패널 분리
+from .panels.position_panel import PositionPanel  # [REFAC Phase 4] 포지션 패널 분리
+from .panels.oracle_panel import OraclePanel  # [REFAC Phase 4] Oracle 패널 분리
 from ..config.loader import load_settings, save_settings
 from ..services.backend_client import (
     BackendClient,
@@ -96,58 +87,8 @@ from ..services.backend_client import (
     WatchlistItem,
 )  # [NEW] Step 3.4
 
-
-# ============================================================================
-# Step 4.A.2: Tier 2 Hot Zone 데이터 모델
-# ============================================================================
-@dataclass
-class Tier2Item:
-    """Tier 2 Hot Zone 종목 데이터 모델"""
-
-    ticker: str
-    price: float = 0.0  # 실시간 가격
-    change_pct: float = 0.0  # 등락율
-    zenV: float = 0.0  # Z-score Volume (Step 4.A.3에서 구현)
-    zenP: float = 0.0  # Z-score Price (Step 4.A.3에서 구현)
-    ignition: float = 0.0  # Ignition Score
-    signal: str = ""  # [4.A.4] "🔥" (Divergence) 또는 "🎯" (Ignition>=70)
-    last_update: datetime = None  # 마지막 틱 수신 시간
-
-    def __post_init__(self):
-        if self.last_update is None:
-            self.last_update = datetime.now()
-
-
-# ============================================================================
-# [Bugfix] 숫자 정렬을 위한 커스텀 QTableWidgetItem
-# ============================================================================
-class NumericTableWidgetItem(QTableWidgetItem):
-    """
-    숫자 값으로 정렬되는 QTableWidgetItem
-
-    일반 QTableWidgetItem은 문자열 기준으로 정렬하여
-    "10" < "2" 같은 잘못된 결과가 나옴.
-    이 클래스는 내부 숫자 값으로 정렬함.
-    """
-
-    def __init__(self, display_text: str, sort_value: float = 0.0):
-        super().__init__(display_text)
-        self._sort_value = sort_value
-        # UserRole에도 저장 (하위 호환성)
-        self.setData(Qt.ItemDataRole.UserRole, sort_value)
-
-    def __lt__(self, other):
-        """정렬 비교: 숫자 값으로 비교"""
-        if isinstance(other, NumericTableWidgetItem):
-            return self._sort_value < other._sort_value
-        # 일반 QTableWidgetItem과 비교 시
-        try:
-            other_value = other.data(Qt.ItemDataRole.UserRole)
-            if other_value is not None:
-                return self._sort_value < float(other_value)
-        except (TypeError, ValueError):
-            pass
-        return super().__lt__(other)
+# [REFAC Phase 4] Tier2Item, NumericTableWidgetItem → 정식 위치에서 import
+from .panels.tier2_panel import Tier2Item, NumericTableWidgetItem
 
 
 class Sigma9Dashboard(CustomWindow):
@@ -298,7 +239,7 @@ class Sigma9Dashboard(CustomWindow):
                             self._run_scanner_for_strategy(current_strategy)
 
                     QTimer.singleShot(0, run_scanner)
-            except Exception as e:
+            except Exception:
                 from PyQt6.QtCore import QTimer
 
                 QTimer.singleShot(
@@ -760,7 +701,6 @@ class Sigma9Dashboard(CustomWindow):
         API 호출: POST /api/watchlist/recalculate
         """
         import threading
-        from datetime import datetime
 
         if (
             not hasattr(self, "backend_client")
@@ -806,7 +746,7 @@ class Sigma9Dashboard(CustomWindow):
                 self._pending_score_v2_result = {"success": False, "error": str(e)}
 
             # GUI 스레드에서 업데이트 실행
-            from PyQt6.QtCore import QMetaObject, Qt, Q_ARG
+            from PyQt6.QtCore import QMetaObject, Qt
 
             QMetaObject.invokeMethod(
                 self, "_apply_score_v2_result", Qt.ConnectionType.QueuedConnection
@@ -838,129 +778,31 @@ class Sigma9Dashboard(CustomWindow):
         """
         CENTER PANEL - Chart Area (차트 영역)
 
-        [REFAC] PyQtGraph 기반 차트로 전환 (Acrylic 호환)
+        [REFAC Phase 4] ChartPanel 모듈 사용으로 교체
         """
-        frame, layout = self._create_panel_frame("📈 Chart")
+        # ChartPanel 생성 (panels/chart_panel.py)
+        self._chart_panel = ChartPanel(theme=theme)
 
-        # [NEW] PyQtGraph 기반 차트 위젯 (Acrylic 완전 호환)
-        self.chart_widget = PyQtGraphChartWidget()
-        self.chart_widget.setSizePolicy(
-            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
-        )
+        # 시그널 연결
+        self._chart_panel.timeframe_changed.connect(self._on_timeframe_changed)
+        self._chart_panel.viewport_data_needed.connect(self._on_viewport_data_needed)
 
-        # 타임프레임 변경 시그널 연결
-        self.chart_widget.timeframe_changed.connect(self._on_timeframe_changed)
-
-        # [Step 2.7.4] Viewport 변경 시 동적 데이터 로딩 시그널 연결
-        self.chart_widget.viewport_data_needed.connect(self._on_viewport_data_needed)
-
-        layout.addWidget(self.chart_widget)
+        # 호환성을 위한 속성 포워딩
+        self.chart_widget = self._chart_panel.chart_widget
 
         # 시작 시 샘플 데이터 로드 (1.5초 후)
-        from PyQt6.QtCore import QTimer
+        self._chart_panel.schedule_sample_load(1500)
 
-        QTimer.singleShot(1500, self._load_sample_chart_data)
+        return self._chart_panel
 
-        return frame
-
-    def _load_sample_chart_data(self):
-        """
-        Step 2.4.8: 샘플 차트 데이터 로드 (Volume, MA 포함)
-
-        차트 위젯이 정상적으로 표시되는지 확인을 위한 테스트 데이터
-        """
-        import numpy as np
-        import time as time_module
-
-        # 100개 캔들 생성 (일봉)
-        base_time = time_module.time() - 86400 * 100
-        candles = []
-        volumes = []
-        price = 10.0
-
-        for i in range(100):
-            o = price
-            delta = np.random.uniform(-0.3, 0.35)  # 약간 상승 편향
-            c = price + delta
-            h = max(o, c) + np.random.uniform(0, 0.2)
-            l = min(o, c) - np.random.uniform(0, 0.2)
-            vol = int(np.random.uniform(100000, 500000))
-            is_up = c >= o
-
-            timestamp = base_time + i * 86400
-            candles.append(
-                {
-                    "time": timestamp,
-                    "open": round(o, 2),
-                    "high": round(h, 2),
-                    "low": round(l, 2),
-                    "close": round(c, 2),
-                }
-            )
-            volumes.append(
-                {
-                    "time": timestamp,
-                    "volume": vol,
-                    "is_up": is_up,
-                }
-            )
-            price = c
-
-        # 캔들스틱 설정
-        self.chart_widget.set_candlestick_data(candles)
-
-        # Volume 설정
-        self.chart_widget.set_volume_data(volumes)
-
-        # VWAP (간이 계산)
-        vwap_data = []
-        cumulative = 0
-        for i, c in enumerate(candles):
-            tp = (c["high"] + c["low"] + c["close"]) / 3
-            cumulative = (cumulative * i + tp) / (i + 1) if i > 0 else tp
-            vwap_data.append({"time": c["time"], "value": cumulative})
-        self.chart_widget.set_vwap_data(vwap_data)
-
-        # SMA 20 (간이 계산)
-        closes = [c["close"] for c in candles]
-        sma_data = []
-        for i in range(19, len(candles)):
-            sma = sum(closes[i - 19 : i + 1]) / 20
-            sma_data.append({"time": candles[i]["time"], "value": sma})
-        self.chart_widget.set_ma_data(sma_data, period=20, color="#3b82f6")
-
-        # EMA 9 (간이 계산)
-        ema = closes[0]
-        mult = 2 / 10
-        ema_data = []
-        for i, c in enumerate(candles):
-            ema = (closes[i] - ema) * mult + ema
-            if i >= 8:
-                ema_data.append({"time": c["time"], "value": ema})
-        self.chart_widget.set_ma_data(ema_data, period=9, color="#a855f7")
-
-        # 진입/손절/익절 레벨
-        current_price = candles[-1]["close"]
-        self.chart_widget.set_price_levels(
-            entry=current_price,
-            stop_loss=current_price * 0.95,  # -5%
-            take_profit=current_price * 1.10,  # +10%
-        )
-
-        # Ignition 마커 (80번째 캔들)
-        self.chart_widget.add_ignition_marker(
-            candles[80]["time"], candles[80]["high"], score=85
-        )
-
-        self.log("[INFO] Chart loaded with sample data (Volume, MA, SL/TP)")
+    # [REFAC Phase 4] _load_sample_chart_data() 제거됨 → ChartPanel.load_sample_data()로 이동
 
     def _create_right_panel(self) -> QFrame:
         """
-        RIGHT PANEL - Positions & P&L + Oracle (Step 4.2.5)
+        RIGHT PANEL - Positions & P&L + Oracle
 
-        두 섹션이 세로로 배치됩니다:
-        1. Trading (Positions & P&L) - 상단
-        2. Oracle (분석 요청) - 하단
+        [REFAC Phase 4] PositionPanel + OraclePanel 모듈 사용으로 교체
+        두 패널이 세로로 배치됩니다.
         """
         frame = QFrame()
         frame.setStyleSheet(theme.get_stylesheet("panel"))
@@ -972,144 +814,32 @@ class Sigma9Dashboard(CustomWindow):
         main_layout.setSpacing(8)
 
         # ═══════════════════════════════════════════════════════════
-        # 1. Trading Section (Positions & P&L)
+        # 1. PositionPanel (Positions & P&L)
         # ═══════════════════════════════════════════════════════════
-        trading_label = QLabel("💰 Positions & P&L")
-        trading_label.setStyleSheet(f"""
-            color: {theme.get_color("text_secondary")}; 
-            font-size: 12px; 
-            font-weight: bold;
-            background: transparent;
-            border: none;
-        """)
-        main_layout.addWidget(trading_label)
+        self._position_panel = PositionPanel(theme=theme)
+        main_layout.addWidget(self._position_panel)
 
-        # P&L 요약
-        pnl_frame = QFrame()
-        c = theme.colors
-        pnl_frame.setStyleSheet(f"""
-            background-color: {c["surface"]};
-            border: 1px solid {c["success"]};
-            border-radius: 8px;
-        """)
-        pnl_layout = QVBoxLayout(pnl_frame)
-        pnl_layout.setContentsMargins(8, 8, 8, 8)
-
-        pnl_label = QLabel("Today's P&L")
-        pnl_label.setStyleSheet(
-            f"color: {c['text_secondary']}; font-size: 11px; background: transparent; border: none;"
-        )
-        pnl_layout.addWidget(pnl_label)
-
-        self.pnl_value = QLabel("+ $0.00")
-        self.pnl_value.setStyleSheet(f"""
-            color: {c["success"]}; 
-            font-size: 20px; 
-            font-weight: bold;
-            background: transparent;
-            border: none;
-        """)
-        pnl_layout.addWidget(self.pnl_value)
-
-        main_layout.addWidget(pnl_frame)
-
-        # 포지션 리스트 (축소)
-        positions_label = QLabel("Active Positions")
-        positions_label.setStyleSheet(
-            f"color: {c['text_secondary']}; font-size: 11px; background: transparent; border: none;"
-        )
-        main_layout.addWidget(positions_label)
-
-        self.positions_list = QListWidget()
-        styles = theme.get_stylesheet("list")
-        styles += "QListWidget { background-color: transparent; max-height: 80px; }"
-        self.positions_list.setStyleSheet(styles)
-        self.positions_list.setMaximumHeight(80)
-        self.positions_list.addItem("No active positions")
-        main_layout.addWidget(self.positions_list)
+        # 호환성을 위한 속성 포워딩
+        self.pnl_value = self._position_panel.pnl_value
+        self.positions_list = self._position_panel.positions_list
 
         # ═══════════════════════════════════════════════════════════
-        # 2. Oracle Section (Step 4.2.5)
+        # 2. OraclePanel (LLM 분석)
         # ═══════════════════════════════════════════════════════════
-        oracle_label = QLabel("🔮 Oracle")
-        oracle_label.setStyleSheet(f"""
-            color: {theme.get_color("text_secondary")}; 
-            font-size: 12px; 
-            font-weight: bold;
-            background: transparent;
-            border: none;
-            margin-top: 8px;
-        """)
-        main_layout.addWidget(oracle_label)
+        self._oracle_panel = OraclePanel(theme=theme)
+        main_layout.addWidget(self._oracle_panel)
 
-        # Oracle 프레임 (색상 제거 - 기본 테마와 통일)
-        oracle_frame = QFrame()
-        oracle_frame.setStyleSheet(f"""
-            background-color: {c["surface"]};
-            border: 1px solid {c["border"]};
-            border-radius: 8px;
-        """)
-        oracle_layout = QVBoxLayout(oracle_frame)
-        oracle_layout.setContentsMargins(8, 8, 8, 8)
-        oracle_layout.setSpacing(6)
+        # 호환성을 위한 속성 포워딩
+        self.oracle_why_btn = self._oracle_panel.oracle_why_btn
+        self.oracle_fundamental_btn = self._oracle_panel.oracle_fundamental_btn
+        self.oracle_reflection_btn = self._oracle_panel.oracle_reflection_btn
+        self.oracle_result = self._oracle_panel.oracle_result
 
-        # 분석 버튼들
-        self.oracle_why_btn = QPushButton("❓ Why?")
-        self.oracle_why_btn.setToolTip("선택된 종목이 왜 신호를 발생했는지 분석")
-        self.oracle_why_btn.setStyleSheet(self._get_oracle_btn_style())
-        self.oracle_why_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        oracle_layout.addWidget(self.oracle_why_btn)
-
-        self.oracle_fundamental_btn = QPushButton("📊 Fundamental")
-        self.oracle_fundamental_btn.setToolTip("종목 펀더멘털 분석")
-        self.oracle_fundamental_btn.setStyleSheet(self._get_oracle_btn_style())
-        self.oracle_fundamental_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        oracle_layout.addWidget(self.oracle_fundamental_btn)
-
-        self.oracle_reflection_btn = QPushButton("💭 Reflection")
-        self.oracle_reflection_btn.setToolTip("거래 복기 및 교훈 분석")
-        self.oracle_reflection_btn.setStyleSheet(self._get_oracle_btn_style())
-        self.oracle_reflection_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        oracle_layout.addWidget(self.oracle_reflection_btn)
-
-        # 결과 표시 영역
-        self.oracle_result = QTextEdit()
-        self.oracle_result.setReadOnly(True)
-        self.oracle_result.setPlaceholderText("Select a stock and click a button...")
-        self.oracle_result.setStyleSheet(f"""
-            QTextEdit {{
-                background-color: rgba(0,0,0,0.3);
-                border: 1px solid {c["border"]};
-                border-radius: 4px;
-                color: {c["text"]};
-                font-size: 11px;
-            }}
-        """)
-        self.oracle_result.setMaximumHeight(100)
-        oracle_layout.addWidget(self.oracle_result)
-
-        main_layout.addWidget(oracle_frame)
         main_layout.addStretch()
 
         return frame
 
-    def _get_oracle_btn_style(self) -> str:
-        """Oracle 버튼 스타일 (색상 제거 - 기본 테마와 통일)"""
-        c = theme.colors
-        return f"""
-            QPushButton {{
-                background-color: transparent;
-                border: 1px solid {c["border"]};
-                border-radius: 4px;
-                color: {c["text"]};
-                padding: 6px 12px;
-                font-size: 11px;
-                text-align: left;
-            }}
-            QPushButton:hover {{
-                background-color: {c["surface"]};
-            }}
-        """
+    # [REFAC Phase 4] _get_oracle_btn_style() 제거됨 → OraclePanel._get_btn_style()로 이동
 
     def _create_bottom_panel(self) -> QFrame:
         """
@@ -1196,7 +926,7 @@ class Sigma9Dashboard(CustomWindow):
                 try:
                     resp = httpx.get(f"http://{aws_host}:{port}/health", timeout=5.0)
                     if resp.status_code == 200:
-                        log_safe(f"[INFO] ✅ AWS server found!")
+                        log_safe("[INFO] ✅ AWS server found!")
                         self.backend_client.set_server(aws_host, port)
                         if self.backend_client.connect_sync():
                             QTimer.singleShot(0, self._auto_start_engine)
@@ -1211,7 +941,7 @@ class Sigma9Dashboard(CustomWindow):
             try:
                 resp = httpx.get(f"http://{local_host}:{port}/health", timeout=3.0)
                 if resp.status_code == 200:
-                    log_safe(f"[INFO] ✅ Local server found!")
+                    log_safe("[INFO] ✅ Local server found!")
                     self.backend_client.set_server(local_host, port)
                     if self.backend_client.connect_sync():
                         QTimer.singleShot(0, self._auto_start_engine)
@@ -1498,54 +1228,49 @@ class Sigma9Dashboard(CustomWindow):
         self, ticker: str, ignition_score: float, passed_filter: bool, data: dict = None
     ) -> tuple:
         """
-        [Issue 6.3 Fix] Hot Zone 승격 조건 검사 (복합 조건)
+        [05-004] Hot Zone 승격 조건 검사 (Backend API 위임)
 
-        승격 철학: "상승 확률(Probability) × 기대 배율(Multiplier)"
+        승격 조건 판단은 Backend에서 수행하고, Frontend는 결과만 받아 처리합니다.
 
         Returns:
             (should_promote: bool, reason: str)
         """
-        # 이미 Tier 2에 있으면 건너뛰기
+        # 이미 Tier 2에 있으면 건너뛰기 (로컬 캐시 확인 - 빠른 리턴)
         if hasattr(self, "_tier2_cache") and ticker in self._tier2_cache:
             return False, ""
 
-        # [Issue 6.3 Fix] Watchlist 캐시에서 데이터 조회
+        # Watchlist 캐시에서 컨텍스트 조회
         watchlist_entry = {}
         if hasattr(self, "_watchlist_data"):
             watchlist_entry = self._watchlist_data.get(ticker, {})
 
-        # 1. Ignition Score ≥ 70 (기존 - 폭발 임박)
-        if ignition_score >= 70 and passed_filter:
-            return True, "🎯 Ignition Ready"
-
-        # 2. Stage 4 (VCP Breakout Imminent) - Watchlist 캐시에서 확인
-        stage_number = (
-            watchlist_entry.get("stage_number", 0)
-            if isinstance(watchlist_entry, dict)
-            else 0
-        )
-        if stage_number >= 4:
-            return True, "🔥 VCP Breakout"
-
-        # 3. zenV-zenP Divergence (High Volume + Low Price Change = 매집 중)
+        # Tier 2 캐시에서 Z-Score 조회
+        zenV = 0.0
+        zenP = 0.0
         if hasattr(self, "_tier2_cache") and ticker in self._tier2_cache:
             item = self._tier2_cache[ticker]
-            if item.zenV >= 2.0 and item.zenP < 0.5:
-                return True, "📊 Accumulation Divergence"
+            zenV = getattr(item, "zenV", 0.0)
+            zenP = getattr(item, "zenP", 0.0)
 
-        # 4. High Accumulation Score (≥ 80) + Day Gainer
-        acc_score = (
-            watchlist_entry.get("score", 0) if isinstance(watchlist_entry, dict) else 0
-        )
-        source = (
-            watchlist_entry.get("source", "")
+        # Backend API 호출
+        resp = self.backend_client.check_tier2_promotion_sync(
+            ticker=ticker,
+            ignition_score=ignition_score,
+            passed_filter=passed_filter,
+            stage_number=watchlist_entry.get("stage_number", 0)
             if isinstance(watchlist_entry, dict)
-            else ""
+            else 0,
+            acc_score=watchlist_entry.get("score", 0)
+            if isinstance(watchlist_entry, dict)
+            else 0,
+            source=watchlist_entry.get("source", "")
+            if isinstance(watchlist_entry, dict)
+            else "",
+            zenV=zenV,
+            zenP=zenP,
         )
-        if acc_score >= 80 and source == "realtime_gainer":
-            return True, "⭐ High Score Gainer"
 
-        return False, ""
+        return resp.get("should_promote", False), resp.get("reason", "")
 
     def _promote_to_tier2(self, ticker: str, ignition_score: float = 0.0):
         """
@@ -1555,7 +1280,6 @@ class Sigma9Dashboard(CustomWindow):
             ticker: 종목 코드
             ignition_score: Ignition Score (optional)
         """
-        from PyQt6.QtWidgets import QTableWidgetItem
         from PyQt6.QtCore import Qt
 
         # 이미 Tier 2에 있는지 확인
@@ -1629,7 +1353,7 @@ class Sigma9Dashboard(CustomWindow):
                             )
 
                     QTimer.singleShot(0, update_zscore)
-            except Exception as e:
+            except Exception:
                 from PyQt6.QtCore import QTimer
 
                 QTimer.singleShot(
@@ -1646,7 +1370,7 @@ class Sigma9Dashboard(CustomWindow):
                 import asyncio
 
                 asyncio.run(self.backend_client.rest.promote_to_tier2([ticker]))
-            except Exception as e:
+            except Exception:
                 # GUI 스레드에서 로그 출력
                 from PyQt6.QtCore import QTimer
 
@@ -1665,7 +1389,6 @@ class Sigma9Dashboard(CustomWindow):
     def _set_tier2_row(self, row: int, item: Tier2Item):
         """Tier 2 테이블 행 데이터 설정"""
         from PyQt6.QtWidgets import QTableWidgetItem
-        from PyQt6.QtCore import Qt
 
         # Ticker (텍스트 - 일반 QTableWidgetItem 사용)
         self.tier2_table.setItem(row, 0, QTableWidgetItem(item.ticker))
@@ -1967,7 +1690,7 @@ class Sigma9Dashboard(CustomWindow):
             self._pending_tick = None
 
     def log(self, message: str):
-        """로그 콘솔에 메시지 추가 (자동 스크롤)"""
+        """로그 콘솔에 메시지 추가 (다이나믹 스크롤)"""
         # Safety check: log_console may not exist during initialization
         if not hasattr(self, "log_console") or self.log_console is None:
             print(f"[LOG] {message}")
@@ -1975,11 +1698,16 @@ class Sigma9Dashboard(CustomWindow):
 
         from datetime import datetime
 
+        # 스크롤 위치 저장 (메시지 추가 전)
+        scrollbar = self.log_console.verticalScrollBar()
+        at_bottom = scrollbar.value() >= scrollbar.maximum() - 20  # 20px 여유
+
         timestamp = datetime.now().strftime("%H:%M:%S")
         self.log_console.append(f"[{timestamp}] {message}")
-        # 자동 스크롤 (맨 아래로)
-        scrollbar = self.log_console.verticalScrollBar()
-        scrollbar.setValue(scrollbar.maximum())
+
+        # 사용자가 맨 아래에 있었을 때만 자동 스크롤
+        if at_bottom:
+            scrollbar.setValue(scrollbar.maximum())
 
     # ═══════════════════════════════════════════════════════════════════════
     # Step 2.5: Strategy Loader 관련 메서드
@@ -2032,12 +1760,7 @@ class Sigma9Dashboard(CustomWindow):
         except Exception as e:
             self.log(f"[ERROR] Failed to load {strategy_name}: {e}")
 
-    def _on_strategy_changed(self, strategy_name: str):
-        """전략 드롭다운 변경 이벤트"""
-        if not strategy_name:
-            return
-        self.log(f"[ACTION] Strategy selected: {strategy_name}")
-        self._load_selected_strategy(strategy_name)
+    # [REFAC Cleanup] 중복 _on_strategy_changed 제거됨 → L1066 사용
 
     def _on_reload_strategy(self):
         """전략 리로드 버튼 클릭"""
@@ -2202,7 +1925,6 @@ class Sigma9Dashboard(CustomWindow):
 
         # 비동기 데이터 로드 (별도 스레드)
         import threading
-        from PyQt6.QtCore import QTimer
 
         def load_in_thread():
             try:
@@ -2219,179 +1941,54 @@ class Sigma9Dashboard(CustomWindow):
         self, ticker: str, timeframe: str, extra_bars: int, before_timestamp: int = None
     ):
         """
-        과거 Bar 데이터 조회 (L2 → L3)
+        과거 Bar 데이터 조회 (Backend API 호출)
+
+        [REFAC Phase 5] L2→L3 캐시 로직은 Backend로 이동됨.
+        Frontend는 단순히 API를 호출하고 결과를 받기만 함.
 
         Args:
             ticker: 종목 심볼
             timeframe: 타임프레임 (1m, 5m, 15m, 1h)
             extra_bars: 추가로 필요한 바 수
-            before_timestamp: 이 시점 이전 데이터를 가져옴 (ms, None이면 현재 시간 기준)
+            before_timestamp: 이 시점 이전 데이터를 가져옴 (ms)
         """
-        import asyncio
-        from datetime import datetime, timedelta
-        from PyQt6.QtCore import QTimer
-
-        async def fetch_async():
-            from backend.data.database import MarketDB
-            from backend.data.polygon_client import PolygonClient
-            from loguru import logger
-
-            # 타임프레임 → multiplier 변환
-            tf_map = {"1m": 1, "5m": 5, "15m": 15, "1h": 60}
-            multiplier = tf_map.get(timeframe.lower(), 5)
-
-            # ═══════════════════════════════════════════════════════════
-            # 날짜 범위 계산 (차트의 첫 타임스탬프 기준으로 더 과거)
-            # ═══════════════════════════════════════════════════════════
-            if before_timestamp:
-                # 차트의 첫 타임스탬프 이전 데이터를 가져옴
-                ref_time = datetime.fromtimestamp(before_timestamp / 1000)
-            else:
-                # 기준 없으면 현재 시간
-                ref_time = datetime.now()
-
-            days_back = max(
-                5, extra_bars // (78 // multiplier) + 2
-            )  # 하루 78개 1분봉 기준
-            from_date = (ref_time - timedelta(days=days_back)).strftime("%Y-%m-%d")
-            to_date = (ref_time - timedelta(days=1)).strftime(
-                "%Y-%m-%d"
-            )  # ref_time 하루 전까지
-
-            # 타임스탬프 범위 (ms)
-            start_ts = int((ref_time - timedelta(days=days_back)).timestamp() * 1000)
-            end_ts = int((ref_time - timedelta(days=1)).timestamp() * 1000)
-
-            logger.debug(
-                f"📆 Date range: {from_date} ~ {to_date} (before {ref_time.strftime('%Y-%m-%d %H:%M')})"
-            )
-
-            # ═══════════════════════════════════════════════════════════
-            # L2: SQLite 조회
-            # ═══════════════════════════════════════════════════════════
-            db = MarketDB()
-            await db.initialize()
-
-            db_bars = await db.get_intraday_bars(
-                ticker=ticker,
-                timeframe=timeframe.lower(),
-                start_timestamp=start_ts,
-                end_timestamp=end_ts,
-            )
-
-            if db_bars and len(db_bars) >= extra_bars * 0.8:
-                # L2 Hit - DB에서 충분한 데이터 발견
-                logger.info(f"📥 L2 Hit: {len(db_bars)} bars from SQLite")
-                return [bar.to_dict() for bar in db_bars]
-
-            # ═══════════════════════════════════════════════════════════
-            # L3: API 호출 (청크 기반 순차 요청)
-            # ═══════════════════════════════════════════════════════════
-            import os
-            from dotenv import load_dotenv
-
-            load_dotenv()
-
-            api_key = os.getenv("MASSIVE_API_KEY", "")
-            if not api_key:
-                logger.error("MASSIVE_API_KEY not set in environment")
-                return []
-
-            MAX_BARS_PER_CHUNK = 500
-            all_api_bars = []
-            current_end_ts = end_ts  # 시작: before_timestamp 기준
-            chunk_count = 0
-            max_chunks = 10  # 무한 루프 방지
-
-            client = PolygonClient(api_key=api_key)
-
-            try:
-                while len(all_api_bars) < extra_bars and chunk_count < max_chunks:
-                    chunk_count += 1
-
-                    # 타임스탬프 → 날짜 변환
-                    chunk_end_date = datetime.fromtimestamp(
-                        current_end_ts / 1000
-                    ).strftime("%Y-%m-%d")
-
-                    # 청크 날짜 범위 계산 (타임프레임별 바 개수 추정)
-                    # 1분봉: 하루 390개, 5분봉: 78개, 15분봉: 26개, 1시간봉: 6.5개
-                    bars_per_day = {1: 390, 5: 78, 15: 26, 60: 7}.get(multiplier, 78)
-                    chunk_days = max(3, MAX_BARS_PER_CHUNK // bars_per_day + 1)
-                    chunk_start_date = (
-                        datetime.fromtimestamp(current_end_ts / 1000)
-                        - timedelta(days=chunk_days)
-                    ).strftime("%Y-%m-%d")
-
-                    logger.info(
-                        f"📡 L3 Chunk {chunk_count}: {chunk_start_date} ~ {chunk_end_date}"
-                    )
-
-                    chunk_bars = await client.fetch_intraday_bars(
-                        ticker=ticker,
-                        multiplier=multiplier,
-                        from_date=chunk_start_date,
-                        to_date=chunk_end_date,
-                        limit=MAX_BARS_PER_CHUNK,
-                    )
-
-                    if not chunk_bars:
-                        logger.info(f"📭 No more data available (chunk {chunk_count})")
-                        break
-
-                    # 청크 데이터를 앞에 추가 (과거 → 현재 순서 유지)
-                    all_api_bars = chunk_bars + all_api_bars
-                    logger.info(
-                        f"📦 Chunk {chunk_count}: {len(chunk_bars)} bars (total: {len(all_api_bars)})"
-                    )
-
-                    # 다음 청크의 끝점 = 이 청크의 첫 번째 타임스탬프
-                    current_end_ts = chunk_bars[0]["timestamp"]
-            finally:
-                await client.close()
-
-            if not all_api_bars:
-                logger.warning(f"No historical data from API")
-                return []
-
-            api_bars = all_api_bars
-
-            # ═══════════════════════════════════════════════════════════
-            # L2에 저장 (완성된 Bar만)
-            # ═══════════════════════════════════════════════════════════
-            bars_to_save = []
-            for bar in api_bars:
-                bars_to_save.append(
-                    {
-                        "ticker": ticker,
-                        "timeframe": timeframe.lower(),
-                        "timestamp": bar["timestamp"],
-                        "open": bar["open"],
-                        "high": bar["high"],
-                        "low": bar["low"],
-                        "close": bar["close"],
-                        "volume": bar["volume"],
-                        "vwap": bar.get("vwap", 0),
-                    }
-                )
-
-            if bars_to_save:
-                saved_count = await db.upsert_intraday_bulk(bars_to_save)
-                logger.info(f"💾 {saved_count} bars saved to L2 (SQLite)")
-
-            return api_bars
+        import requests
 
         try:
-            bars = asyncio.run(fetch_async())
+            # Backend API 호출
+            params = {
+                "ticker": ticker,
+                "timeframe": timeframe,
+                "limit": extra_bars,
+            }
+            if before_timestamp:
+                params["before"] = before_timestamp
+
+            response = requests.get(
+                f"{self.backend_client.base_url}/api/chart/bars",
+                params=params,
+                timeout=30,
+            )
+
+            if response.status_code != 200:
+                self.log(f"[WARN] Historical bars API failed: {response.status_code}")
+                return
+
+            data = response.json()
+            bars = data.get("candles", [])
 
             if bars:
                 # 차트에 적용할 데이터 준비
                 self._pending_prepend_data = bars
                 # Worker thread에서 main thread로 안전하게 호출
-                from PyQt6.QtCore import QMetaObject, Qt, Q_ARG
+                from PyQt6.QtCore import QMetaObject, Qt
 
                 QMetaObject.invokeMethod(
                     self, "_apply_prepend_data", Qt.ConnectionType.QueuedConnection
+                )
+
+                self.log(
+                    f"[INFO] Loaded {len(bars)} historical bars from {data.get('source', 'API')}"
                 )
 
         except Exception as e:
@@ -2480,7 +2077,7 @@ class Sigma9Dashboard(CustomWindow):
                 self.log(f"[INFO] ✅ {prepend_count} bars prepended, viewport shifted")
             else:
                 self.log(
-                    f"[INFO] No new data to prepend (already loaded or same timerange)"
+                    "[INFO] No new data to prepend (already loaded or same timerange)"
                 )
         else:
             # 기존 데이터 없으면 그냥 설정
@@ -2532,57 +2129,16 @@ class Sigma9Dashboard(CustomWindow):
         except Exception as e:
             self.log(f"[WARN] Bar update error: {e}")
 
-    def _on_tick_received(self, data: dict):
-        """
-        실시간 틱 데이터 수신 핸들러 (Phase 4.A.0.b)
-
-        Massive WebSocket에서 틱 데이터가 도착하면
-        가격 캐시를 업데이트하고 Tier 2 패널을 갱신합니다.
-
-        Args:
-            data: {
-                "ticker": str,
-                "price": float,
-                "volume": int,
-                "timestamp": str
-            }
-        """
-        try:
-            ticker = data.get("ticker", "")
-            price = data.get("price", 0)
-
-            if not ticker or price <= 0:
-                return
-
-            # 가격 캐시 업데이트
-            self._price_cache[ticker] = price
-
-            # TODO: Tier 2 패널 가격 업데이트
-            # self._update_tier2_price(ticker, price)
-
-        except Exception as e:
-            pass  # 틱 업데이트는 빈번하므로 에러 로깅 생략
+    # [REFAC Cleanup] 중복 _on_tick_received 제거됨 → L1625 사용
 
     def on_heartbeat_received(self, data: dict):
         """
         [08-001] Heartbeat 수신 핸들러
 
-        백엔드에서 수신한 시간 정보를 TimeDisplayWidget에 전달합니다.
-
-        Args:
-            data: {
-                "server_time_utc": str (ISO format),
-                "sent_at": int (Unix ms timestamp)
-            }
+        control_panel.update_time에 위임 (정책: dashboard는 연결만)
         """
-        try:
-            # control_panel에 TimeDisplayWidget이 있으면 업데이트
-            if hasattr(self, "control_panel") and hasattr(
-                self.control_panel, "time_display"
-            ):
-                self.control_panel.time_display.update_from_heartbeat(data)
-        except Exception as e:
-            pass  # heartbeat 업데이트는 빈번하므로 에러 로깅 생략
+        if hasattr(self, "control_panel"):
+            self.control_panel.update_time(data)
 
 
 # ═══════════════════════════════════════════════════════════════════════════

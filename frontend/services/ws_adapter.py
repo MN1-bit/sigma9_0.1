@@ -131,6 +131,9 @@ class WsAdapter(QObject):
         self._receive_task: Optional[asyncio.Task] = None
         self._heartbeat_timer: Optional[QTimer] = None
 
+        # [08-001 FIX] connected 시그널에 heartbeat 연결 (메인 스레드에서 실행)
+        self.connected.connect(self._start_heartbeat)
+
         logger.debug(f"WsAdapter initialized: {self.ws_url}")
 
     @property
@@ -167,8 +170,10 @@ class WsAdapter(QObject):
             # 수신 태스크 시작
             self._receive_task = asyncio.create_task(self._receive_loop())
 
-            # 하트비트 타이머 시작
-            self._start_heartbeat()
+            # [08-001 FIX] QTimer.singleShot으로 메인 스레드 이벤트 루프에 예약
+            # connect()가 백그라운드 스레드에서 실행되어도 QTimer가 메인 스레드에서 작동함
+            QTimer.singleShot(0, self._start_heartbeat)
+            print("[DEBUG] QTimer.singleShot scheduled _start_heartbeat")
 
             logger.info("✅ WebSocket connected")
             self.connected.emit()
@@ -208,6 +213,8 @@ class WsAdapter(QObject):
         """메시지 수신 루프"""
         try:
             async for message in self._ws:
+                # [DEBUG] 모든 수신 메시지 출력
+                print(f"[DEBUG] ws_adapter RECEIVED: {message[:100]}")
                 self._handle_message(message)
 
         except websockets.ConnectionClosed as e:
@@ -283,6 +290,22 @@ class WsAdapter(QObject):
                     wl_data = json.loads(data)
                     items = wl_data.get("items", [])
                     self.watchlist_updated.emit(items)
+
+                    # [08-001] 모든 메시지에서 시간 정보 추출 → TimeDisplayWidget 업데이트
+                    if "_server_time_utc" in wl_data and "_sent_at" in wl_data:
+                        heartbeat_data = {
+                            "server_time_utc": wl_data["_server_time_utc"],
+                            "sent_at": wl_data["_sent_at"],
+                        }
+                        # [08-001] 직접 계산된 E 레이턴시가 있으면 사용 (가장 정확)
+                        if "_event_latency_ms" in wl_data:
+                            heartbeat_data["event_latency_ms"] = wl_data[
+                                "_event_latency_ms"
+                            ]
+                        # 이벤트 타임 (fallback)
+                        elif "_event_time" in wl_data:
+                            heartbeat_data["event_time"] = wl_data["_event_time"]
+                        self.heartbeat_received.emit(heartbeat_data)
                 except json.JSONDecodeError:
                     logger.warning(f"Invalid WATCHLIST JSON: {data[:50]}")
 
@@ -295,8 +318,10 @@ class WsAdapter(QObject):
 
             elif msg_type == MessageType.PONG:
                 # [08-001] 하트비트 응답에서 시간 정보 추출
+                print(f"[DEBUG] ws_adapter PONG received: {data[:100]}")
                 try:
                     heartbeat_data = json.loads(data) if data else {}
+                    print(f"[DEBUG] Emitting heartbeat_received: {heartbeat_data}")
                     self.heartbeat_received.emit(heartbeat_data)
                 except json.JSONDecodeError:
                     # 이전 형식 (데이터 없음) 호환
@@ -330,6 +355,7 @@ class WsAdapter(QObject):
         self._heartbeat_timer = QTimer(self)
         self._heartbeat_timer.timeout.connect(self._send_ping)
         self._heartbeat_timer.start(self.heartbeat_interval * 1000)
+        print(f"[DEBUG] Heartbeat timer started: interval={self.heartbeat_interval}s")
 
     def _stop_heartbeat(self):
         """하트비트 타이머 중지"""
@@ -339,13 +365,16 @@ class WsAdapter(QObject):
 
     def _send_ping(self):
         """PING 메시지 전송"""
+        print(f"[DEBUG] _send_ping called, connected={self._is_connected}")
         if self._ws and self._is_connected:
             asyncio.create_task(self._async_send_ping())
 
     async def _async_send_ping(self):
         """비동기 PING 전송"""
         try:
+            print("[DEBUG] Sending PING to server...")
             await self._ws.send("PING")
+            print("[DEBUG] PING sent successfully")
         except Exception as e:
             logger.debug(f"PING failed: {e}")
 
