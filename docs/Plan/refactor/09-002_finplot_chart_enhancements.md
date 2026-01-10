@@ -42,30 +42,98 @@
 | **Stop 버튼** | 완전 중단 + 진행 상태 초기화 |
 | **Resume** | Pause 후 이어서 진행 |
 | **Progress Bar** | 현재/전체 티커 수, 퍼센티지 표시 |
-| **실시간 전역 리샘플 체크박스** | 활성화 시: 새 1m/1h 데이터 수집 시 자동으로 파생 TF 리샘플 |
+| **실시간 전역 리샘플 체크박스** | 활성화 시: 새 1m/1h 데이터 수집 시 **모든 티커** 자동 리샘플 |
+| **최대 이력 설정** | 리샘플 대상 기간 설정 |
+
+#### 일괄 처리 순서
+
+> **순서**: 최신 데이터 먼저 → 과거로 진행 (사용자가 최신 데이터를 빨리 볼 수 있도록)
+
+```
+처리 순서: 현재 ← 1주일 전 ← 1개월 전 ← ... ← 설정값까지
+```
+
+#### 최대 이력 UI
+
+```
+┌────────────────────────────────────┐
+│  리샘플 최대 이력: [ 2 ▼] [Weeks ▼] │
+│                    ↑       ↑      │
+│              숫자 입력   단위 선택  │
+│              (텍스트 직접 입력 가능)│
+└────────────────────────────────────┘
+```
+
+| 컴포넌트 | 타입 | 옵션 |
+|----------|------|------|
+| **숫자** | QComboBox (editable) | 1, 2, 3, 7, 14, 30... (직접 입력 가능) |
+| **단위** | QComboBox | **Hours, Days, Weeks** |
+
+| 예시 설정 | 의미 |
+|----------|------|
+| `2 Weeks` | 2주 이내 데이터만 리샘플 |
+| `14 Days` | 14일 이내 데이터만 리샘플 |
+| `48 Hours` | 48시간 이내 데이터만 리샘플 |
 
 ### 1.3 실시간 차트 리샘플 업데이트
 
 > **핵심**: 파생 타임프레임(5m, 15m 등) 차트 표시 중에도 **최신 봉이 실시간으로 업데이트**.
 
+#### 모드 구분
+
+| 모드 | 대상 | 트리거 | 용도 |
+|------|------|--------|------|
+| **On-demand (기본)** | 현재 **차트에 표시 중인 티커**만 | 1초 QTimer | 실시간 출렁이는 파생봄 |
+| **수동 일괄** | **모든 티커** (Start 버튼 클릭 시) | Settings 패널에서 수동 실행 | Parquet 전처리 |
+
 ```
 ┌────────────────────────────────────────────────────────┐
-│              실시간 5m 차트 업데이트                    │
+│           On-demand 실시간 (기본, 차트 표시 중)         │
 │                                                        │
-│  WebSocket AM.* (1분봉) 수신                            │
-│          ↓ (1초 rate)                                  │
-│  현재 5분봉 = 최근 1m 데이터 리샘플 (미완료 봉)         │
-│          ↓                                             │
-│  차트 마지막 캔들만 업데이트 (전체 리로드 X)            │
+│  AAPL 3m 차트 표시 중                                      │
+│  AM.AAPL (1분봄) 수신 → 1초마다 3m봄 리샘플 → 차트 갱신 │
+│  (다른 티커는 리샘플 안 함)                             │
+│  → "출렁이는 3분봄" 효과                                 │
+└────────────────────────────────────────────────────────┘
+
+┌────────────────────────────────────────────────────────┐
+│              수동 일괄 리샘플 (Settings 패널)              │
+│                                                        │
+│  [▶ Start] 버튼 클릭 시                                  │
+│    → 모든 티커의 파생 TF (3m/5m/15m) Parquet 생성       │
+│    → Progress Bar로 진행 상타 표시                        │
+│    → Pause/Stop/Resume 제어 가능                       │
 └────────────────────────────────────────────────────────┘
 ```
 
-| 설정 | 값 |
-|------|---|
-| 업데이트 주기 | **1초** |
-| 대상 | 차트에 표시 중인 티커의 현재 (미완료) 봉 |
-| 트리거 | AM.* (1분봉) WebSocket 이벤트 |
-| 리샘플 소스 | 메모리 버퍼 (Parquet 재로드 X) |
+#### 전역 갱신 시 인크리멘탈 업데이트
+
+> **핵심**: 기존 Parquet의 **시작/끝 시간 체크** → 필요한 범위만 리샘플 (전체 재처리 X)
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  기존 5m Parquet: 10:00 ~ 10:25                         │
+├─────────────────────────────────────────────────────────┤
+│  Case 1: 새 1m = 10:27  → 끝 append (10:25 봉 업데이트)  │
+│  Case 2: 새 1m = 09:55  → 앞 prepend (09:55 봉 추가)    │
+│  Case 3: 중간 갭        → 갭 범위만 리샘플              │
+└─────────────────────────────────────────────────────────┘
+```
+
+| 체크 | 동작 |
+|------|------|
+| `new_time < existing_start` | 앞쪽 갭 → prepend |
+| `new_time > existing_end` | 뒤쪽 갭 → append/update last bar |
+| `existing_start <= new_time <= existing_end` | 해당 봉만 업데이트 |
+
+| 설정 | On-demand | 수동 일괄 |
+|------|-----------|------|
+| 업데이트 주기 | **1초** (QTimer) | 순차 처리 |
+| 대상 | 현재 차트 티커 | 모든 티커 |
+| 리샘플 소스 | 메모리 버퍼 | Parquet 파일 |
+| Parquet 저장 | ❌ (표시용) | ✅ (영구 저장) |
+| 트리거 | AM.{ticker} | Start 버튼 |
+| 진행 제어 | N/A | Pause/Stop/Resume |
 
 | 특성 | 값 |
 |------|---|
@@ -84,7 +152,11 @@
 - [x] **순환 의존성 없음** - 신규 코드, 기존 모듈과 의존관계 단방향
 - [x] **DI Container 등록 필요**: **아니오**
   - `ParquetManager`는 이미 Container 등록됨 (11-001)
-  - `IntradayResampler`는 스크립트 전용, Container 불필요
+  - GUI 패널은 DI 불필요 (Frontend)
+- [x] **크기 제한 체크 (§8)**
+  - `parquet_manager.py` 현재 ~200줄 + 80줄 = ~280줄 ✅ (< 500줄)
+  - `resample_panel.py` 신규 ~150줄 ✅
+  - `finplot_chart.py` 현재 ~450줄 + 60줄 = ~510줄 ⚠️ → 필요시 분할 검토
 
 ---
 
@@ -102,17 +174,19 @@
 
 ## 4. 아키텍처
 
-### 4.1 디렉터리 구조 (archt.md §4.4 준수)
+### 4.1 디렉터리 구조 (기존 parquet_manager.py 패턴 유지)
+
+> **NOTE**: 기존 `{ticker}_{timeframe}.parquet` 패턴 유지 (마이그레이션 불필요)
 
 ```
-data/parquet/intraday/          # ← 기존 구조 유지 (archt.md 참조)
-├── 1m/{ticker}.parquet         # API 원본 (수집 스크립트)
-├── 1h/{ticker}.parquet         # API 원본 (수집 스크립트)
-├── 3m/{ticker}.parquet         # 리샘플링 생성
-├── 5m/{ticker}.parquet         # 리샘플링 생성
-├── 15m/{ticker}.parquet        # 리샘플링 생성
-├── 4h/{ticker}.parquet         # 리샘플링 생성
-└── 1W/{ticker}.parquet         # 리샘플링 생성
+data/parquet/intraday/          # ← 기존 구조 유지
+├── AAPL_1m.parquet             # API 원본 (수집 스크립트)
+├── AAPL_1h.parquet             # API 원본 (수집 스크립트)
+├── AAPL_3m.parquet             # 리샘플링 생성
+├── AAPL_5m.parquet             # 리샘플링 생성
+├── AAPL_15m.parquet            # 리샘플링 생성
+├── AAPL_4h.parquet             # 리샘플링 생성
+└── AAPL_1W.parquet             # 리샘플링 생성
 ```
 
 ### 4.2 데이터 흐름
@@ -149,14 +223,24 @@ data/parquet/intraday/          # ← 기존 구조 유지 (archt.md 참조)
 
 ### 5.1 Backend Gap-Fill (데이터 요청 시)
 
+#### 리샘플링 소스 규칙
+
+| Target TF | Source TF | pandas rule | 설명 |
+|-----------|-----------|-------------|------|
+| 3m  | **1m** | `3T` | 1분봉 3개 집계 |
+| 5m  | **1m** | `5T` | 1분봉 5개 집계 |
+| 15m | **1m** | `15T` | 1분봉 15개 집계 |
+| 4h  | **1h** | `4H` | 1시간봉 4개 집계 |
+| 1W  | **1D** | `W-FRI` | 일봉 5개 집계 (금요일 기준) |
+
 ```python
 # ParquetManager
 RESAMPLE_RULES = {
     "3m": ("1m", "3T"),
     "5m": ("1m", "5T"),
     "15m": ("1m", "15T"),
-    "4h": ("1h", "4H"),
-    "1W": ("1D", "W-FRI"),
+    "4h": ("1h", "4H"),   # ← 1H에서 파생
+    "1W": ("1D", "W-FRI"),  # ← 1D에서 파생
 }
 
 def get_intraday_bars(self, ticker: str, tf: str, auto_fill: bool = True):
@@ -231,8 +315,18 @@ def _setup_viewport_handler(self):
 ### Step 1: ParquetManager 확장 (1.5h)
 - `get_intraday_bars(ticker, tf, auto_fill=True)`
 - `_try_resample()`, `_resample_df()` 내부 메서드
-- `resample_all_tickers(target_tf, callback)` - 일괄 처리 + 콜백
 - 로깅 (`loguru`)
+
+```python
+# 일괄 처리 메서드 시그니처
+def resample_all_tickers(
+    self,
+    target_tf: str,
+    callback: Callable[[str, int, int], None],  # (ticker, current, total)
+    max_history: timedelta = timedelta(weeks=2),
+) -> int:
+    """모든 티커에 대해 target_tf 리샘플링 수행, 진행상황 콜백 호출"""
+```
 
 ### Step 2: ResamplePanel GUI 구현 (2h)
 - Start/Pause/Stop/Resume 버튼
@@ -249,6 +343,12 @@ def _setup_viewport_handler(self):
 ### Step 4: FinplotChartWidget viewport 연결 (0.5h)
 - `sigXRangeChanged` 연결
 - `viewport_data_needed` emit
+
+```python
+# finplot_chart.py 참조 (현재 구조):
+self.ax = fplt.create_plot(init_zoom_periods=100)
+self.ax.vb.sigXRangeChanged.connect(self._on_viewport_changed)  # ← 이 시그널 사용
+```
 
 ### Step 5: 검증 + 문서화 (0.5h)
 

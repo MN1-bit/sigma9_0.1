@@ -164,6 +164,27 @@ class ThemeManager(QObject):
         self._init_theme()
         self.theme_changed.emit()
 
+    def apply_to_widget(self, widget, include_opacity: bool = True) -> None:
+        """
+        위젯에 테마 속성 일괄 적용 (Frameless Dialog 등)
+        
+        [ELI5] 새 창 만들 때 이 메서드 한 번 호출하면 opacity 등 자동 적용.
+        
+        Args:
+            widget: QWidget (QDialog, QMainWindow 등)
+            include_opacity: True면 setWindowOpacity도 적용
+        
+        Usage:
+            from .theme import theme
+            class MyDialog(QDialog):
+                def __init__(self):
+                    super().__init__()
+                    theme.apply_to_widget(self)
+                    theme.theme_changed.connect(lambda: theme.apply_to_widget(self))
+        """
+        if include_opacity:
+            widget.setWindowOpacity(self.opacity)
+
     def get_color(self, key: str) -> str:
         """색상 코드 반환"""
         return self.colors.get(key, "#FF00FF")  # Fallback: 핫핑크

@@ -106,36 +106,133 @@ class ChartDataService:
         self, ticker: str, timeframe: str, days: int = 2
     ) -> Dict:
         """
-        Intraday 차트 데이터 조회 (API 호출)
+        Intraday 차트 데이터 조회 (Parquet + On-demand Resampling)
+
+        [09-002] ParquetManager.get_intraday_bars()를 사용하여:
+        1. 해당 TF 파일이 있으면 직접 로드
+        2. 없으면 1분 데이터에서 on-demand 리샘플링
 
         Args:
             ticker: 종목 심볼
             timeframe: 타임프레임 ("1m", "5m", "15m", "1h")
-            days: 조회 일수 (최대 10일)
+            days: 조회 일수
         """
-        import os
-        import httpx
-
-        # API days 제한 (최대 10일)
-        days = min(days, 10)
-
-        # 타임프레임 매핑
-        tf_map = {"1m": 1, "5m": 5, "15m": 15, "1h": 60}
-        multiplier = tf_map.get(timeframe, 5)
-
-        # Backend API 호출
-        api_url = os.getenv("BACKEND_API_URL", "http://localhost:8000")
-        url = f"{api_url}/api/chart/intraday/{ticker}"
 
         try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                response = await client.get(
-                    url, params={"timeframe": multiplier, "days": days}
-                )
-                response.raise_for_status()
-                data = response.json()
+            from backend.data.parquet_manager import ParquetManager
+            pm = ParquetManager()
+
+            # ParquetManager의 get_intraday_bars 호출 (on-demand 리샘플링 지원)
+            df = pm.get_intraday_bars(
+                ticker=ticker,
+                tf=timeframe,
+                days=days,
+            )
+
+            if df.empty:
+                print(f"⚠️ Intraday 데이터 없음: {ticker} {timeframe}")
+                return {
+                    "ticker": ticker,
+                    "timeframe": timeframe,
+                    "candles": [],
+                    "volume": [],
+                }
+
+            # [09-003] 안전장치: 반환 데이터가 요청한 TF와 일치하는지 검증
+            expected_interval_ms = self._get_expected_interval_ms(timeframe)
+            if expected_interval_ms and len(df) >= 2:
+                actual_interval = df.iloc[1]["timestamp"] - df.iloc[0]["timestamp"]
+                # 허용 오차: 예상 간격의 50% ~ 150%
+                if not (expected_interval_ms * 0.5 <= actual_interval <= expected_interval_ms * 1.5):
+                    print(f"⚠️ TF 불일치 감지: {ticker} 요청={timeframe}, 실제 간격={actual_interval/60000:.1f}min")
+                    # 리샘플링 강제 재시도는 하지 않음 (무한루프 방지)
+
+            # DataFrame → candles/volume 변환
+            candles = []
+            volumes = []
+
+            for _, row in df.iterrows():
+                # timestamp 컬럼 확인 (datetime vs int)
+                ts = row["timestamp"]
+                if hasattr(ts, "timestamp"):
+                    time_val = ts.timestamp()
+                else:
+                    # milliseconds → seconds 변환
+                    time_val = ts / 1000 if ts > 1e12 else ts
+
+                open_val = float(row["open"])
+                close_val = float(row["close"])
+                high_val = float(row["high"])
+                low_val = float(row["low"])
+                vol_val = int(row["volume"])
+
+                candles.append({
+                    "time": time_val,
+                    "open": open_val,
+                    "high": high_val,
+                    "low": low_val,
+                    "close": close_val,
+                    "volume": vol_val,
+                })
+                volumes.append({
+                    "time": time_val,
+                    "volume": vol_val,
+                    "is_up": close_val >= open_val,
+                })
+
+            result = {
+                "ticker": ticker,
+                "timeframe": timeframe,
+                "candles": candles,
+                "volume": volumes,
+            }
+
+            # 지표 계산
+            if candles and len(candles) > 20:
+                closes = [c["close"] for c in candles]
+                highs = [c["high"] for c in candles]
+                lows = [c["low"] for c in candles]
+                bar_volumes = [c["volume"] for c in candles]
+                times = [c["time"] for c in candles]
+
+                # Rolling VWAP
+                vwap_data = []
+                cumulative_tp_vol = 0
+                cumulative_vol = 0
+                for i in range(len(candles)):
+                    tp = (highs[i] + lows[i] + closes[i]) / 3
+                    cumulative_tp_vol += tp * bar_volumes[i]
+                    cumulative_vol += bar_volumes[i]
+                    vwap = cumulative_tp_vol / cumulative_vol if cumulative_vol > 0 else closes[i]
+                    vwap_data.append({"time": times[i], "value": vwap})
+                result["vwap"] = vwap_data
+
+                # SMA 20
+                sma_data = []
+                for i in range(19, len(candles)):
+                    sma = sum(closes[i - 19 : i + 1]) / 20
+                    sma_data.append({"time": times[i], "value": sma})
+                result["sma_20"] = sma_data
+
+                # EMA 9
+                ema_data = []
+                if len(closes) >= 9:
+                    ema = sum(closes[:9]) / 9
+                    mult = 2 / 10
+                    for i in range(8, len(candles)):
+                        if i == 8:
+                            ema = sum(closes[:9]) / 9
+                        else:
+                            ema = (closes[i] - ema) * mult + ema
+                        ema_data.append({"time": times[i], "value": ema})
+                result["ema_9"] = ema_data
+
+            return result
+
         except Exception as e:
-            print(f"⚠️ Intraday API 호출 실패: {e}")
+            print(f"⚠️ Intraday 조회 실패: {ticker} {timeframe} - {e}")
+            import traceback
+            traceback.print_exc()
             return {
                 "ticker": ticker,
                 "timeframe": timeframe,
@@ -143,74 +240,19 @@ class ChartDataService:
                 "volume": [],
             }
 
-        candles = data.get("candles", [])
-
-        # Volume 데이터 생성
-        volumes = []
-        for i, candle in enumerate(candles):
-            is_up = candle.get("close", 0) >= candle.get("open", 0)
-            volumes.append(
-                {
-                    "time": candle.get("time"),
-                    "volume": candle.get("volume", 0),
-                    "is_up": is_up,
-                }
-            )
-
-        result = {
-            "ticker": ticker,
-            "timeframe": timeframe,
-            "candles": candles,
-            "volume": volumes,
+    def _get_expected_interval_ms(self, timeframe: str) -> int:
+        """타임프레임에 대한 예상 간격 (밀리초)"""
+        intervals = {
+            "1m": 60 * 1000,
+            "3m": 3 * 60 * 1000,
+            "5m": 5 * 60 * 1000,
+            "15m": 15 * 60 * 1000,
+            "1h": 60 * 60 * 1000,
+            "4h": 4 * 60 * 60 * 1000,
+            "1D": 24 * 60 * 60 * 1000,
+            "1W": 7 * 24 * 60 * 60 * 1000,
         }
-
-        # ═══════════════════════════════════════════════════════════════
-        # 지표 계산 (Intraday도 동일하게 적용)
-        # ═══════════════════════════════════════════════════════════════
-        if candles and len(candles) > 20:
-            closes = [c.get("close", 0) for c in candles]
-            highs = [c.get("high", 0) for c in candles]
-            lows = [c.get("low", 0) for c in candles]
-            bar_volumes = [c.get("volume", 0) for c in candles]
-            times = [c.get("time", 0) for c in candles]
-
-            # Rolling VWAP
-            vwap_data = []
-            cumulative_tp_vol = 0
-            cumulative_vol = 0
-            for i, candle in enumerate(candles):
-                tp = (highs[i] + lows[i] + closes[i]) / 3
-                cumulative_tp_vol += tp * bar_volumes[i]
-                cumulative_vol += bar_volumes[i]
-                vwap = (
-                    cumulative_tp_vol / cumulative_vol
-                    if cumulative_vol > 0
-                    else closes[i]
-                )
-                vwap_data.append({"time": times[i], "value": vwap})
-            result["vwap"] = vwap_data
-
-            # SMA 20
-            sma_data = []
-            for i in range(19, len(candles)):
-                sma = sum(closes[i - 19 : i + 1]) / 20
-                sma_data.append({"time": times[i], "value": sma})
-            result["sma_20"] = sma_data
-
-            # EMA 9
-            ema_data = []
-            if len(closes) >= 9:
-                ema = sum(closes[:9]) / 9
-                multiplier = 2 / 10
-                for i in range(8, len(candles)):
-                    if i == 8:
-                        ema = sum(closes[:9]) / 9
-                    else:
-                        ema = (closes[i] - ema) * multiplier + ema
-                    ema_data.append({"time": times[i], "value": ema})
-            result["ema_9"] = ema_data
-
-        return result
+        return intervals.get(timeframe, 0)
 
     async def _get_daily_data(
         self, ticker: str, days: int = 100, calculate_indicators: bool = True

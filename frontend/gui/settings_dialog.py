@@ -6,6 +6,7 @@
 # 📌 탭 구조:
 #   - Connection: 서버 연결 설정
 #   - Backend: 스케줄러 설정
+#   - Resample: 파생 타임프레임 일괄 리샘플링 (09-003)
 #   - Theme: 외관 설정 (기존 항목)
 # ============================================================================
 try:
@@ -18,11 +19,9 @@ try:
         QSlider,
         QRadioButton,
         QPushButton,
-        QGroupBox,
         QFrame,
         QColorDialog,
         QSpinBox,
-        QDoubleSpinBox,
         QComboBox,
         QTabWidget,
         QWidget,
@@ -57,6 +56,7 @@ except ModuleNotFoundError:
 
 from .theme import theme
 from .window_effects import WindowsEffects
+from .panels.resample_panel import ResamplePanel  # [09-003] Resample 탭
 
 
 class SettingsDialog(QDialog):
@@ -66,6 +66,7 @@ class SettingsDialog(QDialog):
     📌 탭:
         - Connection: 서버 Host/Port, Auto-connect, Reconnect, Timeout
         - Backend: Market Open Scan, Scan Offset, Daily Data Update, Update Time
+        - Resample: 파생 타임프레임 일괄 리샘플링 (09-003)
         - Theme: Opacity, Acrylic Alpha, Particle Opacity, Tint Color, Background Effect
     """
 
@@ -77,6 +78,9 @@ class SettingsDialog(QDialog):
         self.setWindowTitle("Settings")
         self.setFixedSize(450, 500)
         self.settings = current_settings or {}
+        
+        # [09-004] Frameless 창 드래그 지원용 위치 저장
+        self._drag_pos = None
 
         # 섹션별 기본값 로드
         self.gui_settings = self.settings.get("gui", {})
@@ -110,28 +114,57 @@ class SettingsDialog(QDialog):
         # Frameless + Acrylic
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Dialog)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        
+        # [09-004] Non-Modal 설정 - 메인 창 조작 가능
+        self.setModal(False)
 
         self._init_ui()
         self._apply_theme()
 
         # Apply Acrylic
+        # [09-004] 중립 어두운 회색 틴트 (파란/남색 틴트 제거)
         self.window_effects = WindowsEffects()
-        tint_hex = self.initial_tint_color.lstrip("#")
-        self.window_effects.add_acrylic_effect(self.winId(), f"{tint_hex}CC")
+        neutral_tint = "181818CC"  # Dark gray + alpha
+        self.window_effects.add_acrylic_effect(self.winId(), neutral_tint)
+        
+        # [09-004] 테마 중앙화 - opacity 등 자동 적용
+        theme.apply_to_widget(self)
 
     def _init_ui(self):
         """UI 초기화 (탭 구조)"""
-        layout = QVBoxLayout(self)
+        # [09-004] 메인 컨테이너 - 반투명 배경으로 마우스 이벤트 캡처
+        # WA_TranslucentBackground로 인해 빈 공간은 클릭이 뒤로 통과함
+        # 컨테이너에 배경색을 주어 이벤트 캡처 가능하게 함
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        
+        self.container = QFrame()
+        self.container.setObjectName("settingsContainer")
+        self.container.setStyleSheet("""
+            #settingsContainer {
+                background-color: rgba(0, 0, 0, 0.01);
+                border-radius: 12px;
+            }
+        """)
+        main_layout.addWidget(self.container)
+        
+        # 컨테이너 내부 레이아웃
+        layout = QVBoxLayout(self.container)
         layout.setSpacing(10)
         layout.setContentsMargins(15, 15, 15, 15)
 
-        # 타이틀 바 (Frameless이므로 커스텀)
-        title_layout = QHBoxLayout()
+        # 타이틀 바 (Frameless이므로 커스텀) - 드래그 영역
+        self.title_bar = QFrame()
+        self.title_bar.setFixedHeight(40)
+        self.title_bar.setStyleSheet("background: transparent;")
+        title_layout = QHBoxLayout(self.title_bar)
+        title_layout.setContentsMargins(0, 0, 0, 0)
         title_label = QLabel("⚙️ Settings")
         title_label.setStyleSheet("font-size: 16px; font-weight: bold; color: white;")
         title_layout.addWidget(title_label)
         title_layout.addStretch()
-        layout.addLayout(title_layout)
+        
+        layout.addWidget(self.title_bar)
 
         # ═══════════════════════════════════════════════════════════
         # QTabWidget (메인 탭)
@@ -161,6 +194,7 @@ class SettingsDialog(QDialog):
         # 탭 추가
         self.tab_widget.addTab(self._create_connection_tab(), "Connection")
         self.tab_widget.addTab(self._create_backend_tab(), "Backend")
+        self.tab_widget.addTab(self._create_resample_tab(), "Resample")  # [09-003]
         self.tab_widget.addTab(self._create_theme_tab(), "Theme")
 
         layout.addWidget(self.tab_widget)
@@ -567,7 +601,7 @@ class SettingsDialog(QDialog):
             try:
                 self._server_process.terminate()
                 self._server_process.wait(timeout=5)
-            except:
+            except Exception:
                 self._server_process.kill()
 
             self._server_process = None
@@ -577,6 +611,21 @@ class SettingsDialog(QDialog):
 
         self.start_server_btn.setEnabled(True)
         self.stop_server_btn.setEnabled(False)
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # Resample Tab (09-003)
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    def _create_resample_tab(self) -> QWidget:
+        """Resample 탭: 파생 타임프레임 일괄 리샘플링"""
+        # ResamplePanel 위젯 직접 사용
+        self._resample_panel = ResamplePanel()
+        return self._resample_panel
+
+    def set_parquet_manager(self, pm: "ParquetManager") -> None:  # noqa: F821
+        """ParquetManager 주입 (DI) - 외부에서 호출"""
+        if hasattr(self, "_resample_panel"):
+            self._resample_panel.set_parquet_manager(pm)
 
     # ═══════════════════════════════════════════════════════════════════════════
     # Theme Tab (Step 4.2.3.2 - 기존 항목 마이그레이션)
@@ -753,12 +802,11 @@ class SettingsDialog(QDialog):
         return slider, spin
 
     def _apply_theme(self):
-        """다이얼로그 스타일링"""
+        """다이얼로그 스타일링 - [09-004] 배경 투명화"""
         c = theme.colors
         self.setStyleSheet(f"""
             QDialog {{
-                background-color: {c["background"]};
-                color: {c["text"]};
+                background-color: transparent;
             }}
             QLabel {{
                 color: {c["text"]};
@@ -800,6 +848,8 @@ class SettingsDialog(QDialog):
             self.opacity_spin.blockSignals(True)
             self.opacity_spin.setValue(value)
             self.opacity_spin.blockSignals(False)
+        # [09-004] Settings Dialog 자체 opacity도 실시간 적용
+        self.setWindowOpacity(value / 100.0)
         self.sig_settings_changed.emit({"opacity": value / 100.0})
 
     def _on_alpha_changed(self, value):
@@ -863,6 +913,66 @@ class SettingsDialog(QDialog):
 
     def _on_effect_changed(self, text):
         self.sig_settings_changed.emit({"background_effect": text.lower()})
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # [09-004] Frameless 창 드래그 이동 지원 (전체 배경 드래그 가능)
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    def _install_drag_filter_recursive(self, widget):
+        """모든 자식 위젯에 이벤트 필터 재귀 설치"""
+        widget.installEventFilter(self)
+        for child in widget.findChildren(QWidget):
+            child.installEventFilter(self)
+
+    def showEvent(self, event):
+        """창 표시 시 모든 자식에 이벤트 필터 설치"""
+        super().showEvent(event)
+        # 첫 표시 시에만 설치
+        if not hasattr(self, '_drag_filter_installed'):
+            self._install_drag_filter_recursive(self)
+            self._drag_filter_installed = True
+
+    def _is_interactive_widget(self, widget) -> bool:
+        """인터랙티브 위젯 여부 확인 (드래그 제외 대상)"""
+        from PyQt6.QtWidgets import (
+            QPushButton, QComboBox, QSpinBox, QLineEdit, 
+            QCheckBox, QRadioButton, QSlider, QTabBar, QTimeEdit,
+            QScrollBar, QProgressBar
+        )
+        interactive_types = (
+            QPushButton, QComboBox, QSpinBox, QLineEdit,
+            QCheckBox, QRadioButton, QSlider, QTabBar, QTimeEdit,
+            QScrollBar, QProgressBar
+        )
+        # 위젯 자체 또는 부모 중 인터랙티브 위젯이 있는지 확인
+        check_widget = widget
+        while check_widget is not None:
+            if isinstance(check_widget, interactive_types):
+                return True
+            if check_widget == self:
+                break
+            check_widget = check_widget.parent()
+        return False
+
+    def eventFilter(self, watched, event):
+        """전체 배경에서 드래그 가능 (인터랙티브 위젯 제외)"""
+        from PyQt6.QtCore import QEvent
+        
+        if event.type() == QEvent.Type.MouseButtonPress:
+            if event.button() == Qt.MouseButton.LeftButton:
+                if not self._is_interactive_widget(watched):
+                    self._drag_pos = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
+                    return False  # 이벤트 계속 전파 (클릭 동작 유지)
+        
+        elif event.type() == QEvent.Type.MouseMove:
+            if self._drag_pos is not None and event.buttons() == Qt.MouseButton.LeftButton:
+                self.move(event.globalPosition().toPoint() - self._drag_pos)
+                return True  # 이벤트 소비 (드래그 중에는 다른 동작 방지)
+        
+        elif event.type() == QEvent.Type.MouseButtonRelease:
+            self._drag_pos = None
+        
+        return super().eventFilter(watched, event)
 
     # ═══════════════════════════════════════════════════════════════════════════
     # Get All Settings

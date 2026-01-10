@@ -134,7 +134,7 @@ class Sigma9Dashboard(CustomWindow):
         self.resize(1400, 900)
         self.setWindowTitle("Sigma9 Trading Dashboard")
         self.setMinimumSize(1000, 700)
-        self.setWindowOpacity(theme.opacity)
+        theme.apply_to_widget(self)  # [09-004] 테마 중앙화
 
         # 5-Panel 레이아웃 구성
         self._init_dashboard()
@@ -612,9 +612,12 @@ class Sigma9Dashboard(CustomWindow):
         """
         특정 종목의 차트 데이터 로드 (공통 메서드)
 
+        [09-003] 티커+타임프레임 동시 전송으로 상태 동기화
         Tier 1, Tier 2 모두에서 사용됩니다.
         """
-        self.log(f"[INFO] Loading chart for {ticker}...")
+        # 현재 타임프레임 사용 (없으면 1D 기본)
+        timeframe = getattr(self, "_current_timeframe", "1D")
+        self.log(f"[INFO] Loading chart for {ticker} ({timeframe})...")
 
         # 비동기 데이터 로드 (별도 스레드에서 실행)
         import threading
@@ -624,10 +627,9 @@ class Sigma9Dashboard(CustomWindow):
             try:
                 from frontend.services.chart_data_service import get_chart_data_sync
 
-                # 현재 타임프레임 사용 (없으면 1D 기본)
-                timeframe = getattr(self, "_current_timeframe", "1D")
                 days = 100 if timeframe == "1D" else 5
-                data = get_chart_data_sync(ticker, days=days)
+                # [09-003] 타임프레임 명시적 전달
+                data = get_chart_data_sync(ticker, timeframe=timeframe, days=days)
 
                 # 결과를 인스턴스 변수에 저장 후 메인 스레드에서 업데이트
                 self._pending_chart_data = (ticker, data)
@@ -1353,11 +1355,11 @@ class Sigma9Dashboard(CustomWindow):
                             )
 
                     QTimer.singleShot(0, update_zscore)
-            except Exception:
+            except Exception as e:
                 from PyQt6.QtCore import QTimer
 
                 QTimer.singleShot(
-                    0, lambda: self.log(f"[WARN] Z-Score fetch failed: {e}")
+                    0, lambda err=e: self.log(f"[WARN] Z-Score fetch failed: {err}")
                 )
 
         import threading
@@ -1370,12 +1372,12 @@ class Sigma9Dashboard(CustomWindow):
                 import asyncio
 
                 asyncio.run(self.backend_client.rest.promote_to_tier2([ticker]))
-            except Exception:
+            except Exception as e:
                 # GUI 스레드에서 로그 출력
                 from PyQt6.QtCore import QTimer
 
                 QTimer.singleShot(
-                    0, lambda: self.log(f"[WARN] Tier 2 API call failed: {e}")
+                    0, lambda err=e: self.log(f"[WARN] Tier 2 API call failed: {err}")
                 )
 
         try:
@@ -1503,16 +1505,18 @@ class Sigma9Dashboard(CustomWindow):
         # 현재 타임프레임 저장
         self._current_timeframe = timeframe
 
-        # 현재 선택된 종목 가져오기 (QTableWidget)
-        selected_row = self.watchlist_table.currentRow()
-        if selected_row < 0:
+        # 현재 선택된 종목 가져오기 (QTableView)
+        current_index = self.watchlist_table.currentIndex()
+        if not current_index.isValid():
             self.log("[WARN] No stock selected")
             return
 
-        ticker_item = self.watchlist_table.item(selected_row, 0)
-        if not ticker_item:
+        # ProxyModel → SourceModel 변환 후 ticker 조회
+        source_index = self.watchlist_proxy.mapToSource(current_index)
+        ticker_index = self.watchlist_model.index(source_index.row(), 0)
+        ticker = self.watchlist_model.data(ticker_index)
+        if not ticker:
             return
-        ticker = ticker_item.text()
         self.log(f"[INFO] Reloading {ticker} data for {timeframe}...")
 
         # 비동기 데이터 로드
@@ -1595,6 +1599,9 @@ class Sigma9Dashboard(CustomWindow):
 
         # 차트 초기화
         self.chart_widget.clear()
+
+        # [09-003] 티커 설정 (historical data loading에 필요)
+        self.chart_widget.set_ticker(ticker)
 
         # 캔들스틱
         self.chart_widget.set_candlestick_data(data["candles"])
@@ -1791,6 +1798,15 @@ class Sigma9Dashboard(CustomWindow):
             dlg = SettingsDialog(None, current_settings)
             dlg.sig_settings_changed.connect(self._on_settings_preview)
 
+            # [09-003] ParquetManager 주입 (Resample 탭용)
+            try:
+                from backend.data.parquet_manager import ParquetManager
+
+                pm = ParquetManager()
+                dlg.set_parquet_manager(pm)
+            except Exception as e:
+                self.log(f"[WARN] ParquetManager injection failed: {e}")
+
             print("[DEBUG] Executing Settings Dialog...")
             if dlg.exec():
                 # Save Setting
@@ -1819,7 +1835,7 @@ class Sigma9Dashboard(CustomWindow):
                 self.particle_system.global_alpha = theme.particle_alpha
                 self.particle_system.set_background_effect(theme.background_effect)
 
-                self.setWindowOpacity(theme.opacity)
+                theme.apply_to_widget(self)  # [09-004] 테마 중앙화
                 self.update_acrylic_color(self._get_color_string())
 
                 # Theme reload notice
@@ -1831,7 +1847,7 @@ class Sigma9Dashboard(CustomWindow):
             else:
                 # Revert preview
                 print("[DEBUG] Dialog Cancelled")
-                self.setWindowOpacity(theme.opacity)
+                theme.apply_to_widget(self)  # [09-004] 테마 중앙화
                 self.alpha = theme.acrylic_map_alpha
                 self.particle_system.global_alpha = theme.particle_alpha  # [NEW] Revert
 
@@ -1894,20 +1910,21 @@ class Sigma9Dashboard(CustomWindow):
         # 중복 요청 방지 / 차트 업데이트 중 시그널 무시
         if self._viewport_loading or getattr(self, "_updating_chart", False):
             return
-
         # 1D(Daily)는 이미 전체 로드됨, Intraday만 동적 로딩
         if not hasattr(self, "_current_timeframe") or self._current_timeframe == "1D":
             return
 
-        # 현재 선택된 종목 확인 (QTableWidget)
-        selected_row = self.watchlist_table.currentRow()
-        if selected_row < 0:
+        # 현재 선택된 종목 확인 (QTableView)
+        current_index = self.watchlist_table.currentIndex()
+        if not current_index.isValid():
             return
 
-        ticker_item = self.watchlist_table.item(selected_row, 0)
-        if not ticker_item:
+        # ProxyModel → SourceModel 변환 후 ticker 조회
+        source_index = self.watchlist_proxy.mapToSource(current_index)
+        ticker_index = self.watchlist_model.index(source_index.row(), 0)
+        ticker = self.watchlist_model.data(ticker_index)
+        if not ticker:
             return
-        ticker = ticker_item.text()
         timeframe = self._current_timeframe
 
         # 차트의 현재 첫 번째 타임스탬프 가져오기
@@ -1965,7 +1982,7 @@ class Sigma9Dashboard(CustomWindow):
                 params["before"] = before_timestamp
 
             response = requests.get(
-                f"{self.backend_client.base_url}/api/chart/bars",
+                f"{self.backend_client._base_url or 'http://localhost:8000'}/api/chart/bars",
                 params=params,
                 timeout=30,
             )

@@ -12,7 +12,8 @@
 #    ├── chart_panel.py      # 차트 영역 패널
 #    ├── position_panel.py   # Positions & P&L 패널
 #    ├── oracle_panel.py     # Oracle (LLM 분석) 패널
-#    └── log_panel.py        # 로그 콘솔
+#    ├── log_panel.py        # 로그 콘솔
+#    └── resample_panel.py   # 리샘플링 제어 패널 (09-002)
 # =============================================================================
 
 from .watchlist_panel import WatchlistPanel
@@ -21,6 +22,7 @@ from .log_panel import LogPanel
 from .chart_panel import ChartPanel
 from .position_panel import PositionPanel
 from .oracle_panel import OraclePanel
+from .resample_panel import ResamplePanel
 
 __all__ = [
     "WatchlistPanel",
@@ -31,4 +33,6 @@ __all__ = [
     "ChartPanel",
     "PositionPanel",
     "OraclePanel",
+    "ResamplePanel",
 ]
+

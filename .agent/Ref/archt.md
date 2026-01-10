@@ -49,7 +49,7 @@
 | Component | Library | Purpose |
 |-----------|---------|---------|
 | GUI | `PyQt6` + `qfluentwidgets` | Glassmorphism 대시보드 |
-| Charts | `pyqtgraph` | 고성능 네이티브 차트 |
+| Charts | `finplot` | 금융 차트 특화 (pyqtgraph 기반) |
 | HTTP | `httpx` | REST 클라이언트 |
 | WebSocket | `websockets` | 실시간 데이터 수신 |
 | Async | `qasync` | PyQt + asyncio 통합 |

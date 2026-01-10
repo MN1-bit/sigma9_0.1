@@ -20,7 +20,7 @@ import pandas as pd
 os.environ["QT_API"] = "pyqt6"
 import finplot as fplt
 
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import Qt, pyqtSignal, QTimer
 from PyQt6.QtWidgets import QHBoxLayout, QPushButton, QVBoxLayout, QWidget
 
 from ..theme import theme
@@ -52,7 +52,7 @@ class FinplotChartWidget(QWidget):
     viewport_data_needed = pyqtSignal(int, int)
 
     # 지원하는 타임프레임
-    TIMEFRAMES = ["1m", "5m", "15m", "1h", "1D"]
+    TIMEFRAMES = ["1m", "3m", "5m", "15m", "1h", "4h", "1D", "1W"]
 
     def __init__(self, parent: Optional[QWidget] = None):
         super().__init__(parent)
@@ -78,6 +78,14 @@ class FinplotChartWidget(QWidget):
 
         # UI 초기화
         self._setup_ui()
+
+        # [09-003] Viewport 데이터 로딩을 위한 디바운스 타이머
+        self._viewport_debounce = QTimer()
+        self._viewport_debounce.setSingleShot(True)
+        self._viewport_debounce.setInterval(150)  # 150ms 디바운스
+        self._viewport_debounce.timeout.connect(self._emit_viewport_data_needed)
+        self._pending_viewport_range: tuple = (0, 0)
+        self._data_start_ts: int = 0  # 현재 로드된 데이터의 최소 타임스탬프
 
     def _setup_finplot_theme(self) -> None:
         """finplot 테마 색상 설정"""
@@ -143,18 +151,28 @@ class FinplotChartWidget(QWidget):
 
         # 메인 차트 (캔들스틱)
         self.ax = fplt.create_plot(init_zoom_periods=100)
-        
+
         # 볼륨 차트 (오버레이)
         self.ax_volume = self.ax.overlay()
-        
+
         # finplot 요구사항: 위젯에 axs 속성 설정
         self.axs = [self.ax, self.ax_volume]
-        
+
         # ax.vb.win (ViewBox의 윈도우)을 레이아웃에 추가
         layout.addWidget(self.ax.vb.win, stretch=1)
 
         # Qt 이벤트 루프와 분리 (부모 앱이 이벤트 루프 관리)
         fplt.show(qt_exec=False)
+
+        # [09-003] finplot autoviewrestore 비활성화 (스크롤 후 자동 리셋 방지)
+        fplt.autoviewrestore()  # 현재 뷰 저장
+
+        # [09-003] Viewport 경계 제한 해제 (데이터 범위 밖으로 스크롤 허용)
+        # NOTE: 데이터 로드 후에도 _disable_viewport_limits() 재호출 필요
+        self._disable_viewport_limits()
+
+        # [09-003] Viewport 변경 감지 (pyqtgraph sigXRangeChanged)
+        self.ax.vb.sigXRangeChanged.connect(self._on_viewport_changed)
 
     def _on_tf_button_clicked(self, timeframe: str) -> None:
         """타임프레임 버튼 클릭 핸들러"""
@@ -204,18 +222,37 @@ class FinplotChartWidget(QWidget):
     # 데이터 설정 메서드 (기존 인터페이스 호환)
     # ═══════════════════════════════════════════════════════════════════════════
 
-    def set_candlestick_data(self, candles: List[Dict]) -> None:
+    def set_ticker(self, ticker: str) -> None:
+        """
+        현재 티커 설정
+
+        [09-003] Historical data loading에 필요.
+
+        Args:
+            ticker: 종목 심볼 (예: "AAPL", "SMX")
+        """
+        self._current_ticker = ticker
+
+    def set_candlestick_data(self, candles: List[Dict], ticker: str = None) -> None:
         """
         캔들스틱 데이터 설정
 
         Args:
             candles: [{"time": timestamp, "open": float, "high": float,
                       "low": float, "close": float}, ...]
+            ticker: 종목 심볼 (선택적, 설정 시 _current_ticker 갱신)
         """
         if not candles:
             return
 
         self._candle_data = candles
+
+        # [09-003] 티커 저장 (historical data loading에 필요)
+        if ticker:
+            self._current_ticker = ticker
+
+        # [09-003] 데이터 시작 타임스탬프 저장 (viewport 스크롤 감지용)
+        self._data_start_ts = min(c.get("time", 0) for c in candles)
 
         # Dict 리스트를 DataFrame으로 변환
         df = self._convert_to_dataframe(candles)
@@ -230,6 +267,9 @@ class FinplotChartWidget(QWidget):
 
         # 자동 스케일링
         fplt.refresh()
+
+        # [09-003] 데이터 로드 후 ViewBox 제한 다시 해제 (스크롤 허용)
+        self._disable_viewport_limits()
 
     def set_volume_data(self, volume_data: List[Dict]) -> None:
         """
@@ -316,9 +356,7 @@ class FinplotChartWidget(QWidget):
             legend=f"MA{period}",
         )
 
-    def set_atr_bands(
-        self, upper_data: List[Dict], lower_data: List[Dict]
-    ) -> None:
+    def set_atr_bands(self, upper_data: List[Dict], lower_data: List[Dict]) -> None:
         """ATR 밴드 설정 (상단/하단)"""
         if upper_data:
             df_upper = pd.DataFrame(upper_data)
@@ -443,4 +481,303 @@ class FinplotChartWidget(QWidget):
         self._candle_data = []
         self._volume_data = []
         self._ma_lines.clear()
+        self._data_start_ts = 0
+        fplt.refresh()
+
+    def _disable_viewport_limits(self) -> None:
+        """
+        ViewBox 제한 해제 (데이터 범위 밖으로 스크롤 허용)
+
+        [09-003] finplot/pyqtgraph는 기본적으로 데이터 범위 내로 스크롤을 제한합니다.
+        이 메서드는 그 제한을 해제하여 과거 데이터 영역으로 스크롤할 수 있게 합니다.
+
+        NOTE: fplt.refresh() 후에 호출해야 합니다 (refresh가 제한을 다시 설정할 수 있음).
+        """
+        try:
+            # AutoRange 비활성화 (자동 확대/축소 방지)
+            self.ax.vb.disableAutoRange()
+
+            # X/Y축 경계 제한 해제 (None = 무제한)
+            self.ax.vb.setLimits(xMin=None, xMax=None, yMin=None, yMax=None)
+
+            # 자동 가시성 조정 비활성화
+            self.ax.vb.setAutoVisible(x=False, y=False)
+
+            # Volume 차트도 동일하게 적용
+            if hasattr(self, "ax_volume") and self.ax_volume:
+                self.ax_volume.vb.disableAutoRange()
+                self.ax_volume.vb.setLimits(xMin=None, xMax=None, yMin=None, yMax=None)
+        except Exception as e:
+            print(f"[CHART] ViewBox limit disable failed: {e}")
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # [09-003] Viewport 스크롤 감지 및 데이터 로딩
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    def _on_viewport_changed(self, vb, range_) -> None:
+        """
+        Viewport 변경 시 호출 (pyqtgraph sigXRangeChanged)
+
+        [09-003] Edge Trigger: 첫 번째 캔들이 뷰포트에 보이면 과거 데이터 로드
+        NOTE: finplot/pyqtgraph의 range_는 **캔들 인덱스 기반** (0, 1, 2, ...)
+        """
+        if not range_ or len(range_) < 2:
+            return
+
+        # range_ = [x_min, x_max] (캔들 인덱스 기반, 0 = 첫 번째 캔들)
+        x_min, x_max = range_[0], range_[1]
+
+        # 로딩 중이거나 데이터가 없으면 무시
+        if getattr(self, "_is_loading_historical", False):
+            return
+        if not self._candle_data:
+            return
+
+        # Edge Trigger: x_min이 5 이하면 첫 번째 캔들이 뷰포트에 가까이 있음
+        # (약간의 여유를 두어 미리 로드 시작)
+        TRIGGER_THRESHOLD = 5  # 5개 캔들 이하로 스크롤하면 트리거
+
+        if x_min <= TRIGGER_THRESHOLD:
+            print(f"[CHART] 🎯 Edge trigger fired! x_min={x_min:.1f}")
+            self._pending_viewport_range = (int(self._data_start_ts), int(x_max))
+            self._viewport_debounce.start()
+
+    def _emit_viewport_data_needed(self) -> None:
+        """
+        디바운스 타이머 만료 시 과거 데이터 로드
+
+        [09-003] 100 bars 통일 정책 (타임프레임별 조정):
+        - m 단위 (1m/3m/5m/15m): 80 bars
+        - h 단위 (1h/4h): 50 bars
+        - D 단위 (1D/1W): 30 bars
+        """
+        # 중복 로드 방지
+        if getattr(self, "_is_loading_historical", False):
+            return
+
+        start_ts, end_ts = self._pending_viewport_range
+        if start_ts <= 0:
+            return
+
+        # 현재 티커와 타임프레임 확인
+        ticker = getattr(self, "_current_ticker", None)
+        timeframe = self._current_timeframe
+        if not ticker:
+            return
+
+        # 타임프레임별 로드 수량 결정
+        load_bars = self._get_load_bars_for_timeframe(timeframe)
+
+        print(
+            f"[CHART] 📊 Loading {load_bars} historical bars: {ticker} {timeframe} before {start_ts}"
+        )
+
+        # 로딩 플래그 설정
+        self._is_loading_historical = True
+
+        # 별도 스레드에서 데이터 로드
+        import threading
+        from PyQt6.QtCore import QMetaObject, Qt
+
+        def load_in_thread():
+            try:
+                from backend.data.parquet_manager import ParquetManager
+
+                pm = ParquetManager()
+
+                # 소스 타임프레임과 소스 요청량 계산
+                source_tf, source_bars = self._get_source_request(timeframe, load_bars)
+
+                # Daily vs Intraday 분기
+                if source_tf in ("1D", "1W"):
+                    # Daily 데이터는 read_daily 사용
+                    df = pm.read_daily(ticker=ticker, days=365)  # 1년치
+                    ts_col = "date"  # read_daily는 date 컬럼 사용
+                else:
+                    # Intraday 데이터는 get_intraday_bars 사용
+                    df = pm.get_intraday_bars(ticker=ticker, tf=source_tf, days=60)
+                    ts_col = "timestamp"
+
+                if df.empty:
+                    print(f"[CHART] ⚠️ No historical data for {ticker}/{source_tf}")
+                    return
+
+                # 현재 데이터보다 이전 데이터만 필터링
+                if ts_col == "date":
+                    # date 컬럼은 string "YYYY-MM-DD" 또는 datetime
+                    import pandas as pd
+                    from datetime import datetime
+
+                    cutoff_date = datetime.fromtimestamp(start_ts).strftime("%Y-%m-%d")
+                    df = df[df["date"] < cutoff_date]
+                else:
+                    # timestamp 컬럼은 ms 단위
+                    df = df[df["timestamp"] < start_ts * 1000]
+
+                if df.empty:
+                    print(f"[CHART] ⚠️ No older data for {ticker}/{source_tf}")
+                    return
+
+                # 소스와 타겟이 다르면 리샘플링 필요
+                if source_tf != timeframe:
+                    df = self._resample_df(df, timeframe)
+
+                # 최신 N개만 사용
+                if len(df) > load_bars:
+                    df = df.tail(load_bars)
+
+                # DataFrame → candles 변환
+                candles = []
+                for _, row in df.iterrows():
+                    if ts_col == "date":
+                        # date 컬럼을 epoch seconds로 변환
+                        import pandas as pd
+
+                        date_val = row["date"]
+                        if isinstance(date_val, str):
+                            time_val = pd.Timestamp(date_val).timestamp()
+                        else:
+                            time_val = date_val.timestamp()
+                    else:
+                        ts = row["timestamp"]
+                        time_val = ts / 1000 if ts > 1e12 else ts
+
+                    candles.append(
+                        {
+                            "time": time_val,
+                            "open": float(row["open"]),
+                            "high": float(row["high"]),
+                            "low": float(row["low"]),
+                            "close": float(row["close"]),
+                            "volume": int(row.get("volume", 0)),
+                        }
+                    )
+
+                if candles:
+                    self._pending_prepend_candles = candles
+                    QMetaObject.invokeMethod(
+                        self,
+                        "_apply_prepend_candles",
+                        Qt.ConnectionType.QueuedConnection,
+                    )
+                    print(f"[CHART] ✅ Loaded {len(candles)} historical bars")
+
+            except Exception as e:
+                print(f"[CHART] ❌ Historical load error: {e}")
+                import traceback
+
+                traceback.print_exc()
+            finally:
+                self._is_loading_historical = False
+
+        thread = threading.Thread(target=load_in_thread, daemon=True)
+        thread.start()
+
+    def _get_load_bars_for_timeframe(self, tf: str) -> int:
+        """타임프레임별 로드할 바 수량 반환"""
+        if tf.endswith("m"):
+            return 80  # 분 단위: 80 bars
+        elif tf.endswith("h"):
+            return 50  # 시간 단위: 50 bars
+        else:  # D, W
+            return 30  # 일 단위: 30 bars
+
+    def _get_source_request(self, target_tf: str, target_bars: int) -> tuple[str, int]:
+        """
+        타겟 타임프레임에 맞는 소스 타임프레임과 요청량 계산
+
+        Returns:
+            (source_tf, source_bars)
+        """
+        # 소스 타임프레임과 배수 정의
+        resample_map = {
+            "1m": ("1m", 1),
+            "3m": ("1m", 3),
+            "5m": ("1m", 5),
+            "15m": ("1m", 15),
+            "1h": ("1h", 1),
+            "4h": ("1h", 4),
+            "1D": ("1D", 1),
+            "1W": ("1D", 7),
+        }
+
+        source_tf, multiplier = resample_map.get(target_tf, (target_tf, 1))
+        source_bars = target_bars * multiplier
+        return source_tf, source_bars
+
+    def _resample_df(self, df, target_tf: str):
+        """DataFrame을 타겟 타임프레임으로 리샘플링"""
+        import pandas as pd
+
+        # pandas resample 규칙
+        resample_rules = {
+            "3m": "3min",
+            "5m": "5min",
+            "15m": "15min",
+            "4h": "4h",
+            "1W": "W-MON",
+        }
+
+        rule = resample_rules.get(target_tf)
+        if not rule:
+            return df
+
+        # timestamp를 datetime으로 변환
+        df = df.copy()
+        df["datetime"] = pd.to_datetime(df["timestamp"], unit="ms")
+        df = df.set_index("datetime")
+
+        # OHLCV 리샘플링
+        resampled = (
+            df.resample(rule)
+            .agg(
+                {
+                    "open": "first",
+                    "high": "max",
+                    "low": "min",
+                    "close": "last",
+                    "volume": "sum",
+                    "timestamp": "first",
+                }
+            )
+            .dropna()
+        )
+
+        return resampled.reset_index(drop=True)
+
+    from PyQt6.QtCore import pyqtSlot
+
+    @pyqtSlot()
+    def _apply_prepend_candles(self) -> None:
+        """메인 스레드에서 과거 데이터 prepend"""
+        candles = getattr(self, "_pending_prepend_candles", None)
+        if candles:
+            self.prepend_candlestick_data(candles)
+            self._pending_prepend_candles = None
+
+    def prepend_candlestick_data(self, candles: List[Dict]) -> None:
+        """
+        기존 캔들 데이터 앞에 과거 데이터 추가
+
+        [09-003] 좌측 스크롤 시 호출되어 과거 데이터를 병합합니다.
+
+        Args:
+            candles: 과거 캔들 데이터 [{time, open, high, low, close}, ...]
+        """
+        if not candles:
+            return
+
+        # 기존 데이터 앞에 추가
+        self._candle_data = candles + self._candle_data
+
+        # 시작 타임스탬프 업데이트
+        if candles:
+            self._data_start_ts = min(c.get("time", 0) for c in candles)
+
+        # 전체 데이터로 차트 다시 그리기
+        df = self._convert_to_dataframe(self._candle_data)
+        self.ax.reset()
+        self._candlestick_plot = fplt.candlestick_ochl(
+            df[["Open", "Close", "High", "Low"]], ax=self.ax
+        )
         fplt.refresh()

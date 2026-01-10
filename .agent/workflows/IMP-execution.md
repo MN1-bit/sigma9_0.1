@@ -21,7 +21,7 @@ description: 기능 구현 실행 (매 Step devlog 필수)
 
 ### 스파게티 방지 체크 (매 Step)
 ```
-✓ 신규 파일 ≤ 500줄?
+✓ 신규 파일 ≤ 1000줄?
 ✓ 신규 클래스 ≤ 30 메서드?
 ✓ Singleton get_*_instance() 미사용?
 ✓ DI Container 사용?
@@ -65,6 +65,36 @@ description: 기능 구현 실행 (매 Step devlog 필수)
 ruff check .
 lint-imports
 ```
+
+### 4.1 기존 에러 분석 (Sub-Phase)
+
+> ⚠️ **기존 에러를 무시하고 넘어가지 않는다**
+
+수정 대상 파일에 기존 lint 에러가 발견될 경우:
+
+1. **에러 분석**
+   - 에러 목록 전체 출력
+   - 각 에러의 수정 가능 여부 판단
+
+2. **계획서 업데이트**
+   - 발견된 기존 에러를 계획서에 추가
+   - 수정 범위: 현재 작업과 관련된 에러 + 자동 수정 가능 에러
+
+3. **수정 실행**
+   | 에러 유형 | 조치 |
+   |----------|------|
+   | F401 (unused import) | 즉시 제거 |
+   | E722 (bare except) | `Exception`으로 변경 |
+   | E501 (line too long) | 가능시 분할 |
+   | 복잡한 리팩터링 | 별도 이슈로 분리 |
+
+4. **검증**
+   ```bash
+   ruff check {파일} --fix  # 자동 수정 가능 항목
+   ruff check {파일}        # 최종 확인 (All checks passed!)
+   ```
+
+> **BLOCKED**: lint 에러 0건 확인 후 다음 Step 진행
 
 ## 5. 완료 후
 

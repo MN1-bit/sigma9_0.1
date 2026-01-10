@@ -15,12 +15,26 @@
 # ============================================================================
 
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
 import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
 from loguru import logger
 from datetime import datetime, timedelta
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 리샘플링 규칙 상수
+# ═══════════════════════════════════════════════════════════════════════════
+# ELI5: 파생 타임프레임을 어떤 소스에서 생성할지 정의합니다.
+#       예: 5분봉 = 1분봉 5개의 OHLCV를 집계
+RESAMPLE_RULES: dict[str, tuple[str, str]] = {
+    "3m": ("1m", "3min"),   # 1분봉 3개 → 3분봉
+    "5m": ("1m", "5min"),   # 1분봉 5개 → 5분봉
+    "15m": ("1m", "15min"), # 1분봉 15개 → 15분봉
+    "4h": ("1h", "4h"),     # 1시간봉 4개 → 4시간봉
+    "1W": ("1D", "W-FRI"),  # 일봉 5개 → 주봉 (금요일 기준)
+}
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -332,6 +346,178 @@ class ParquetManager:
             df = df[df["timestamp"] >= cutoff_ts]
 
         return df.sort_values("timestamp").reset_index(drop=True)
+
+    # ═══════════════════════════════════════════════════════════════════════
+    # On-demand 리샘플링 (09-002)
+    # ═══════════════════════════════════════════════════════════════════════
+
+    def get_intraday_bars(
+        self,
+        ticker: str,
+        tf: str,
+        auto_fill: bool = True,
+        days: int = 14,
+    ) -> pd.DataFrame:
+        """
+        Intraday 데이터 조회 (On-demand 리샘플링 지원)
+
+        ELI5: 요청한 타임프레임 파일이 없으면 소스에서 자동으로 리샘플링합니다.
+              예) 5m 파일이 없으면 → 1m 파일에서 5분봉 생성 → 저장 → 반환
+
+        Args:
+            ticker: 종목 심볼 (예: "AAPL")
+            tf: 타임프레임 ("1m", "3m", "5m", "15m", "1h", "4h", "1W")
+            auto_fill: True면 파일 없을 때 자동 리샘플링 시도
+            days: 조회할 일수 (기본 14일)
+
+        Returns:
+            pd.DataFrame: OHLCV 데이터 (빈 경우 빈 DataFrame)
+        """
+        path = self._get_intraday_path(ticker, tf)
+
+        if not path.exists():
+            if auto_fill and tf in RESAMPLE_RULES:
+                logger.warning(f"[GAP-FILL] {ticker}/{tf} 파일 없음, 리샘플링 시도")
+                return self._try_resample(ticker, tf)
+            return pd.DataFrame()
+
+        return self.read_intraday(ticker, tf, days=days)
+
+    def _try_resample(self, ticker: str, tf: str) -> pd.DataFrame:
+        """
+        소스 타임프레임에서 타겟 타임프레임으로 리샘플링 시도
+
+        ELI5: 1분봉이 있으면 5분봉을 만들어줍니다 (1분봉 5개를 합쳐서).
+
+        Args:
+            ticker: 종목 심볼
+            tf: 타겟 타임프레임 (예: "5m")
+
+        Returns:
+            pd.DataFrame: 리샘플링된 데이터 (실패 시 빈 DataFrame)
+        """
+        rule = RESAMPLE_RULES.get(tf)
+        if not rule:
+            logger.error(f"[GAP-FILL] {tf}에 대한 리샘플 규칙 없음")
+            return pd.DataFrame()
+
+        source_tf, pandas_rule = rule
+
+        # 소스 데이터 로드 (auto_fill=False로 재귀 방지)
+        source_df = self.read_intraday(ticker, source_tf, days=30)
+        if source_df.empty:
+            logger.error(f"[GAP-FILL] {ticker}/{source_tf} 소스 데이터 없음")
+            return pd.DataFrame()
+
+        logger.info(f"[RESAMPLE] {ticker} {source_tf}→{tf} 시작 ({len(source_df)} bars)")
+
+        # 리샘플링 수행
+        resampled = self._resample_df(source_df, pandas_rule)
+        if resampled.empty:
+            logger.error(f"[RESAMPLE] {ticker}/{tf} 리샘플링 결과 비어있음")
+            return pd.DataFrame()
+
+        # 저장
+        self.write_intraday(ticker, tf, resampled)
+        logger.info(f"[RESAMPLE] {ticker} {tf} 저장 ({len(resampled)} bars)")
+
+        return resampled
+
+    def _resample_df(self, df: pd.DataFrame, rule: str) -> pd.DataFrame:
+        """
+        DataFrame을 pandas resample로 OHLCV 집계
+
+        ELI5: 1분봉 5개를 하나의 5분봉으로 만듭니다.
+              - Open: 첫 번째 봉의 시가
+              - High: 가장 높은 고가
+              - Low: 가장 낮은 저가
+              - Close: 마지막 봉의 종가
+              - Volume: 전체 거래량 합계
+
+        Args:
+            df: 소스 DataFrame (timestamp, open, high, low, close, volume 필수)
+            rule: pandas resample 규칙 (예: "5min", "4h", "W-FRI")
+
+        Returns:
+            pd.DataFrame: 리샘플링된 OHLCV 데이터
+        """
+        if df.empty:
+            return pd.DataFrame()
+
+        # timestamp 컬럼을 DatetimeIndex로 변환
+        # ELI5: timestamp를 날짜/시간 형태로 바꿔서 시간 기준으로 그룹화 가능하게
+        df = df.copy()
+        df["datetime"] = pd.to_datetime(df["timestamp"], unit="ms")
+        df = df.set_index("datetime")
+
+        # OHLCV 리샘플링 (ELI5: 시간 범위별로 데이터 집계)
+        resampled = df.resample(rule, closed="left", label="left").agg({
+            "open": "first",
+            "high": "max",
+            "low": "min",
+            "close": "last",
+            "volume": "sum",
+        }).dropna(subset=["open"])  # NaN 행 제거
+
+        # timestamp 컬럼 복원
+        resampled = resampled.reset_index()
+        resampled["timestamp"] = resampled["datetime"].astype("int64") // 10**6
+        resampled = resampled.drop(columns=["datetime"])
+
+        return resampled[["timestamp", "open", "high", "low", "close", "volume"]]
+
+    def resample_all_tickers(
+        self,
+        target_tf: str,
+        callback: Callable[[str, int, int], None] | None = None,
+        max_history: timedelta = timedelta(weeks=2),
+    ) -> int:
+        """
+        모든 티커에 대해 target_tf 리샘플링 수행
+
+        ELI5: 저장된 모든 1분봉 파일들을 5분봉으로 변환합니다.
+              진행 상황을 callback으로 알려줍니다.
+
+        Args:
+            target_tf: 타겟 타임프레임 (예: "5m", "15m")
+            callback: 진행상황 콜백 (ticker, current, total) - GUI 연동용
+            max_history: 최대 이력 기간 (기본 2주)
+
+        Returns:
+            int: 성공적으로 리샘플링된 티커 수
+        """
+        rule = RESAMPLE_RULES.get(target_tf)
+        if not rule:
+            logger.error(f"[RESAMPLE-ALL] {target_tf}에 대한 규칙 없음")
+            return 0
+
+        source_tf = rule[0]
+        tickers = self.get_intraday_tickers(source_tf)
+        total = len(tickers)
+
+        if total == 0:
+            logger.warning(f"[RESAMPLE-ALL] {source_tf} 티커 없음")
+            return 0
+
+        logger.info(f"[RESAMPLE-ALL] {target_tf} 일괄 리샘플 시작 ({total} tickers)")
+
+        success_count = 0
+        for i, ticker in enumerate(tickers, 1):
+            try:
+                # 콜백 호출 (GUI 진행 상태 업데이트용)
+                if callback:
+                    callback(ticker, i, total)
+
+                # 리샘플링 시도
+                result = self.get_intraday_bars(ticker, target_tf, auto_fill=True)
+                if not result.empty:
+                    success_count += 1
+
+            except Exception as e:
+                logger.error(f"[RESAMPLE-ALL] {ticker} 실패: {e}")
+
+        logger.info(f"[RESAMPLE-ALL] 완료: {success_count}/{total} 성공")
+        return success_count
 
     # ═══════════════════════════════════════════════════════════════════════
     # 유틸리티
