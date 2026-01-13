@@ -22,17 +22,18 @@ WebSocket 기반 실시간 스트리밍 클라이언트.
 
 import asyncio
 import json
+import threading
 from typing import Optional
 from enum import Enum
 from loguru import logger
 
 try:
-    from PyQt6.QtCore import QObject, pyqtSignal, QTimer
+    from PyQt6.QtCore import QObject, pyqtSignal, QTimer, Qt, pyqtSlot, QMetaObject, Q_ARG
 
     PYQT_AVAILABLE = True
 except ImportError:
     try:
-        from PySide6.QtCore import QObject, Signal as pyqtSignal, QTimer
+        from PySide6.QtCore import QObject, Signal as pyqtSignal, QTimer, Qt, Slot as pyqtSlot, QMetaObject
 
         PYQT_AVAILABLE = True
     except ImportError:
@@ -130,9 +131,12 @@ class WsAdapter(QObject):
         self._should_reconnect = True
         self._receive_task: Optional[asyncio.Task] = None
         self._heartbeat_timer: Optional[QTimer] = None
+        # [14-003 FIX] asyncio 이벤트 루프 참조 저장 (cross-thread PING용)
+        self._event_loop: Optional[asyncio.AbstractEventLoop] = None
 
-        # [08-001 FIX] connected 시그널에 heartbeat 연결 (메인 스레드에서 실행)
-        self.connected.connect(self._start_heartbeat)
+        # [14-003 FIX] QueuedConnection으로 메인 스레드에서 실행 보장
+        # connect()가 백그라운드 스레드에서 emit해도 _start_heartbeat은 메인 스레드에서 실행됨
+        self.connected.connect(self._start_heartbeat, Qt.ConnectionType.QueuedConnection)
 
         logger.debug(f"WsAdapter initialized: {self.ws_url}")
 
@@ -166,14 +170,15 @@ class WsAdapter(QObject):
 
             self._is_connected = True
             self._should_reconnect = True
+            # [14-003 FIX] 이벤트 루프 참조 저장 (cross-thread PING용)
+            self._event_loop = asyncio.get_running_loop()
 
             # 수신 태스크 시작
             self._receive_task = asyncio.create_task(self._receive_loop())
 
-            # [08-001 FIX] QTimer.singleShot으로 메인 스레드 이벤트 루프에 예약
-            # connect()가 백그라운드 스레드에서 실행되어도 QTimer가 메인 스레드에서 작동함
-            QTimer.singleShot(0, self._start_heartbeat)
-            print("[DEBUG] QTimer.singleShot scheduled _start_heartbeat")
+            # [14-003 FIX] 이벤트 루프 저장 후, signal emit으로 메인 스레드에서 heartbeat 시작
+            # ELI5: connected.emit() → Line 139의 QueuedConnection → 메인 스레드에서 _start_heartbeat 실행
+            # (QTimer.singleShot는 백그라운드 스레드에서 호출되면 작동하지 않으므로 제거)
 
             logger.info("✅ WebSocket connected")
             self.connected.emit()
@@ -305,6 +310,7 @@ class WsAdapter(QObject):
                         # 이벤트 타임 (fallback)
                         elif "_event_time" in wl_data:
                             heartbeat_data["event_time"] = wl_data["_event_time"]
+                        print(f"[DEBUG] WATCHLIST→heartbeat_received.emit: {heartbeat_data}")
                         self.heartbeat_received.emit(heartbeat_data)
                 except json.JSONDecodeError:
                     logger.warning(f"Invalid WATCHLIST JSON: {data[:50]}")
@@ -347,8 +353,13 @@ class WsAdapter(QObject):
     # Heartbeat
     # ─────────────────────────────────────────────────────────────
 
+    @pyqtSlot()
     def _start_heartbeat(self):
-        """하트비트 타이머 시작"""
+        """하트비트 타이머 시작
+        
+        [14-003 FIX] @pyqtSlot 데코레이터로 QMetaObject.invokeMethod에서 호출 가능
+        """
+        print(f"[DEBUG] _start_heartbeat called in thread: {threading.current_thread().name}")
         if self._heartbeat_timer:
             self._heartbeat_timer.stop()
 
@@ -364,10 +375,16 @@ class WsAdapter(QObject):
             self._heartbeat_timer = None
 
     def _send_ping(self):
-        """PING 메시지 전송"""
+        """
+        PING 메시지 전송
+        
+        [14-003 FIX] PyQt 메인 스레드에서 QTimer로 호출되므로
+        asyncio.run_coroutine_threadsafe() 사용하여 별도 이벤트 루프에서 실행
+        """
         print(f"[DEBUG] _send_ping called, connected={self._is_connected}")
-        if self._ws and self._is_connected:
-            asyncio.create_task(self._async_send_ping())
+        if self._ws and self._is_connected and self._event_loop:
+            # [14-003 FIX] PyQt 스레드 → asyncio 스레드로 안전하게 코루틴 전달
+            asyncio.run_coroutine_threadsafe(self._async_send_ping(), self._event_loop)
 
     async def _async_send_ping(self):
         """비동기 PING 전송"""

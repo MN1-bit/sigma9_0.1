@@ -11,6 +11,7 @@ from PyQt6.QtCore import Qt, pyqtSignal
 import os
 from .theme import theme
 from .widgets.time_display_widget import TimeDisplayWidget  # [08-001] 시간 표시
+from .widgets.ticker_search_bar import TickerSearchBar  # 📌 [09-107] 티커 검색
 
 
 class StatusIndicator(QWidget):
@@ -91,6 +92,8 @@ class ControlPanel(QFrame):
     # strategy_selected = pyqtSignal(str) # Kept above
     strategy_reload_clicked = pyqtSignal()
     settings_clicked = pyqtSignal()
+    ticker_info_clicked = pyqtSignal()  # [15-001] Ticker Info 버튼
+    ticker_search_selected = pyqtSignal(str)  # 📌 [09-107] 티커 검색 선택
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -139,6 +142,11 @@ class ControlPanel(QFrame):
 
         layout.addWidget(logo_container)
 
+        # 📌 [09-107] Ticker Search Bar (로고 바로 옆)
+        self.ticker_search = TickerSearchBar()
+        self.ticker_search.ticker_selected.connect(self.ticker_search_selected.emit)
+        layout.addWidget(self.ticker_search)
+
         layout.addStretch(1)
 
         # 2. Connection Controls
@@ -171,7 +179,30 @@ class ControlPanel(QFrame):
 
         layout.addWidget(self._create_separator())
 
-        # 5. Emergency
+        # 5. [15-001] Ticker Info 버튼
+        self.ticker_info_btn = QPushButton("ℹ️ Info")
+        self.ticker_info_btn.setToolTip("Ticker Info (현재 선택된 종목)")
+        self.ticker_info_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.ticker_info_btn.setStyleSheet(f"""
+            QPushButton {{ 
+                color: {theme.get_color("text")}; 
+                background-color: {theme.get_color("surface")}; 
+                border: 1px solid {theme.get_color("border")};
+                border-radius: 4px;
+                padding: 4px 10px;
+                font-size: 12px;
+            }}
+            QPushButton:hover {{ 
+                border-color: {theme.get_color("primary")};
+                color: {theme.get_color("primary")};
+            }}
+        """)
+        self.ticker_info_btn.clicked.connect(self.ticker_info_clicked.emit)
+        layout.addWidget(self.ticker_info_btn)
+
+        layout.addWidget(self._create_separator())
+
+        # 6. Emergency
         self.kill_btn = self._create_button(
             "⚡ KILL SWITCH", "danger", self.kill_clicked.emit
         )
@@ -305,5 +336,6 @@ class ControlPanel(QFrame):
         Args:
             data: {"server_time_utc": str, "sent_at": int}
         """
+        print(f"[DEBUG] ControlPanel.update_time called: {data}")
         if hasattr(self, "time_display"):
             self.time_display.update_from_heartbeat(data)

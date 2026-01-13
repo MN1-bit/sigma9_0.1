@@ -235,6 +235,7 @@ class TimeDisplayWidget(QWidget):
             E⏱ = 서버 전송 시각 - 이벤트 발생 시각 (이벤트 처리 지연)
         """
         now_ms = int(time.time() * 1000)
+        print(f"[DEBUG] TimeDisplayWidget.update_from_heartbeat called: {data}")
 
         # 서버 시간 파싱
         server_time_str = data.get("server_time_utc")

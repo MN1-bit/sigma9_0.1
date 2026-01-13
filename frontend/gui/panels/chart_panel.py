@@ -49,12 +49,17 @@ class ChartPanel(QFrame):
     # [FIX 13-001] PyQtGraphChartWidget과 시그니처 일치 (int, int)
     viewport_data_needed = pyqtSignal(int, int)
 
-    def __init__(self, theme=None):
+    # 📌 [09-009] 차트 로드 요청 시그널 (ticker, source)
+    # Dashboard에서 이 시그널을 받아 실제 차트 데이터 로딩 수행
+    chart_load_requested = pyqtSignal(str, str)
+
+    def __init__(self, theme=None, state=None):
         """
         차트 패널 초기화
 
         Args:
             theme: 테마 매니저 (기본값: 전역 theme 사용)
+            state: DashboardState 인스턴스 (선택, Event Bus 연결용)
         """
         super().__init__()
 
@@ -62,8 +67,21 @@ class ChartPanel(QFrame):
 
         self._theme = theme or global_theme
         self._chart_widget: FinplotChartWidget | None = None
+        self._state = state
 
         self._setup_ui()
+
+        # 📌 [09-009] Event Bus 연결
+        if self._state:
+            self._state.ticker_changed.connect(self._on_ticker_changed)
+
+    def _on_ticker_changed(self, ticker: str, source: str) -> None:
+        """
+        [09-009] 티커 변경 시 차트 로드 요청
+
+        Dashboard에서 chart_load_requested 시그널을 받아 실제 로딩 수행
+        """
+        self.chart_load_requested.emit(ticker, source)
 
     def _setup_ui(self) -> None:
         """UI 구성"""

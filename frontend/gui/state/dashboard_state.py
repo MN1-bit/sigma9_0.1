@@ -66,8 +66,27 @@ class DashboardState(QObject):
     # 로그 메시지
     log_message = pyqtSignal(str)  # message
 
-    def __init__(self):
+    # =========================================================================
+    # 📌 [09-009] Ticker Selection Event Bus
+    # =========================================================================
+    # 활성 티커 변경 시그널: (ticker, source)
+    ticker_changed = pyqtSignal(str, str)
+
+    class TickerSource:
+        """티커 변경 출처 (디버깅/로깅용)"""
+
+        WATCHLIST = "watchlist"
+        TIER2 = "tier2"
+        SEARCH = "search"
+        CHART = "chart"
+        EXTERNAL = "external"
+        UNKNOWN = "unknown"
+
+    def __init__(self, ws_adapter=None):
         super().__init__()
+
+        # 📌 [09-009] WebSocket adapter for backend sync
+        self._ws = ws_adapter
 
         # =====================================================================
         # Tier 2 Hot Zone 캐시 (ticker -> Tier2Item)
@@ -92,6 +111,12 @@ class DashboardState(QObject):
         # 현재 표시 중인 종목과 타임프레임
         # =====================================================================
         self._current_chart_ticker: str | None = None
+
+        # =====================================================================
+        # 📌 [09-009] 활성 티커 상태 (차트 티커와 별개)
+        # =====================================================================
+        self._current_ticker: str | None = None
+        self._previous_ticker: str | None = None
         self._current_timeframe: str = "1D"
 
         # =====================================================================
@@ -201,3 +226,58 @@ class DashboardState(QObject):
     def log(self, message: str) -> None:
         """로그 메시지 발행"""
         self.log_message.emit(message)
+
+    # =========================================================================
+    # 📌 [09-009] Ticker Selection Methods
+    # =========================================================================
+    @property
+    def current_ticker(self) -> str | None:
+        """현재 선택된 활성 티커 (읽기 전용)"""
+        return self._current_ticker
+
+    @property
+    def previous_ticker(self) -> str | None:
+        """이전 활성 티커"""
+        return self._previous_ticker
+
+    def select_ticker(
+        self, ticker: str, source: str = "unknown"
+    ) -> None:
+        """
+        티커 선택 (Optimistic Update 패턴)
+
+        1. 즉시 로컬 상태 업데이트 → UI 즉각 반응
+        2. Backend에 비동기 전송 → 상태 동기화
+
+        Args:
+            ticker: 선택할 티커 심볼
+            source: 변경 출처 (TickerSource 참조)
+        """
+        if self._current_ticker == ticker:
+            return  # 동일 티커면 무시
+
+        self._previous_ticker = self._current_ticker
+        self._current_ticker = ticker
+
+        # 1. 📢 즉시 UI 업데이트 (Optimistic)
+        # ELI5: 서버 응답 기다리지 않고 일단 화면부터 바꿈
+        self.ticker_changed.emit(ticker, source)
+
+        # 2. 🌐 Backend 동기화 (비동기)
+        if self._ws and hasattr(self._ws, "send"):
+            self._ws.send({
+                "type": "SET_ACTIVE_TICKER",
+                "ticker": ticker,
+                "source": source,
+            })
+
+    def _handle_active_ticker_changed(self, ticker: str, source: str) -> None:
+        """
+        Backend에서 ACTIVE_TICKER_CHANGED 수신 시 처리
+
+        다른 클라이언트가 티커를 변경했을 때 동기화
+        """
+        if self._current_ticker != ticker:
+            self._previous_ticker = self._current_ticker
+            self._current_ticker = ticker
+            self.ticker_changed.emit(ticker, source)

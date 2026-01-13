@@ -195,6 +195,7 @@ async def websocket_endpoint(websocket: WebSocket):
         - TICK:xxx - 틱 데이터
         - TRADE:xxx - 거래 이벤트
         - STATUS:xxx - 상태 변경
+        - ACTIVE_TICKER_CHANGED:xxx - [09-009] 활성 티커 변경 알림
     """
     await ws_manager.connect(websocket)
     try:
@@ -212,6 +213,22 @@ async def websocket_endpoint(websocket: WebSocket):
                     "sent_at": int(time.time() * 1000),  # Unix ms
                 }
                 await websocket.send_text(f"PONG:{json.dumps(heartbeat)}")
+
+            # ─────────────────────────────────────────────────────────────
+            # [09-009] SET_ACTIVE_TICKER 핸들러
+            # ─────────────────────────────────────────────────────────────
+            elif data.startswith("{"):
+                # JSON 메시지 파싱 시도
+                try:
+                    msg = json.loads(data)
+                    msg_type = msg.get("type", "")
+
+                    if msg_type == "SET_ACTIVE_TICKER":
+                        await _handle_set_active_ticker(msg)
+                    else:
+                        logger.debug(f"[WS] Unknown message type: {msg_type}")
+                except json.JSONDecodeError as e:
+                    logger.warning(f"[WS] Invalid JSON: {e}")
             else:
                 # 다른 메시지는 현재 무시
                 pass
@@ -222,6 +239,39 @@ async def websocket_endpoint(websocket: WebSocket):
     except Exception as e:
         logger.error(f"WebSocket error: {e}")
         ws_manager.disconnect(websocket)
+
+
+async def _handle_set_active_ticker(data: dict) -> None:
+    """
+    [09-009] 활성 티커 변경 요청 처리
+
+    Frontend에서 티커 선택 → Backend TradingContext 업데이트 → 브로드캐스트
+
+    Args:
+        data: {"type": "SET_ACTIVE_TICKER", "ticker": "AAPL", "source": "watchlist"}
+    """
+    ticker = data.get("ticker")
+    source = data.get("source", "unknown")
+
+    if not ticker:
+        logger.warning("[WS] SET_ACTIVE_TICKER: missing ticker")
+        return
+
+    # TradingContext 업데이트 (DI Container에서 가져옴)
+    from backend.container import container
+
+    trading_context = container.trading_context()
+    changed = trading_context.set_active_ticker(ticker, source)
+
+    if changed:
+        # 모든 클라이언트에게 브로드캐스트
+        # ELI5: 누군가 티커를 바꾸면, 연결된 모든 클라이언트에게 알려줌
+        broadcast_msg = json.dumps({
+            "type": "ACTIVE_TICKER_CHANGED",
+            "ticker": ticker,
+            "source": source,
+        })
+        await ws_manager.broadcast(broadcast_msg)
 
 
 # ═══════════════════════════════════════════════════════════════════════════

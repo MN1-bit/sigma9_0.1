@@ -1,6 +1,6 @@
 # Sigma9 시스템 아키텍처
 
-> **버전**: v3.4 (2026-01-10)  
+> **버전**: v3.5 (2026-01-10)  
 > **철학**: "Detect the Accumulation, Strike the Ignition, Harvest the Surge."
 
 ---
@@ -22,7 +22,7 @@
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                        🇰🇷 Local Client (Windows)                       │
 │  ┌───────────────────────────────────────────────────────────────────┐  │
-│  │  PyQt6 GUI Dashboard + pyqtgraph Charts                           │  │
+│  │  PyQt6 GUI Dashboard + finplot Charts (Historical Scroll)        │  │
 │  └───────────────────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
@@ -49,7 +49,7 @@
 | Component | Library | Purpose |
 |-----------|---------|---------|
 | GUI | `PyQt6` + `qfluentwidgets` | Glassmorphism 대시보드 |
-| Charts | `finplot` | 금융 차트 특화 (pyqtgraph 기반) |
+| Charts | `finplot` | 금융 차트 (OHLCV + Historical Scroll) |
 | HTTP | `httpx` | REST 클라이언트 |
 | WebSocket | `websockets` | 실시간 데이터 수신 |
 | Async | `qasync` | PyQt + asyncio 통합 |
@@ -82,8 +82,8 @@ flowchart TB
 
     subgraph Frontend["🖥️ Frontend"]
         DASHBOARD["Dashboard"]
-        PANELS["Panels (6개)"]
-        CHART["PyQtGraphChart"]
+        PANELS["Panels (7개)"]
+        CHART["FinplotChartWidget"]
     end
 
     MASSIVE -->|"AM.*/T.*/A.*"| WS_CLIENT
@@ -285,33 +285,51 @@ Sigma9-0.1/
 │   │   ├── double_tap.py             # Double Tap 로직
 │   │   ├── backtest_engine.py        # 백테스트 엔진
 │   │   ├── backtest_report.py        # 백테스트 리포트
-│   │   └── mock_data.py              # 목 데이터
+│   │   ├── mock_data.py              # 목 데이터
+│   │   └── logging/                  # Rheograph 로깅
+│   │       └── trade_logger.py       # 상태 전이 로그
 │   │
 │   ├── models/                       # 중앙 모델 저장소
 │   │   ├── tick.py                   # TickData
+│   │   ├── quote.py                  # QuoteData + Lee-Ready (Rheograph)
 │   │   ├── watchlist.py              # WatchlistItem
 │   │   ├── order.py                  # OrderStatus, OrderRecord, Position
 │   │   ├── risk.py                   # RiskConfig
 │   │   ├── backtest.py               # BacktestConfig, Trade, BacktestReport
+│   │   ├── ticker_info.py            # [15-001] TickerInfo, SEC Filing 매핑
 │   │   └── technical.py              # IndicatorResult, ZScoreResult, DailyStats
 │   │
 │   ├── strategies/                   # 전략 플러그인
 │   │   ├── score_v3_config.py        # Score V3 설정
 │   │   ├── _template.py              # 전략 템플릿
-│   │   └── seismograph/              # 메인 전략 (패키지)
-│   │       ├── strategy.py           # SeismographStrategy (~400줄)
-│   │       ├── models.py             # 전략 전용 모델
-│   │       ├── signals/              # 시그널 모듈 (5개)
-│   │       │   ├── tight_range.py
-│   │       │   ├── obv_divergence.py
-│   │       │   ├── accumulation_bar.py
-│   │       │   └── volume_dryout.py
-│   │       └── scoring/              # 점수 계산
-│   │           ├── v1.py             # Stage-based
-│   │           ├── v2.py             # Weighted sum
-│   │           └── v3.py             # Pinpoint algorithm
+│   │   ├── seismograph/              # Phase 1-2 전략 (매집→폭발)
+│   │   │   ├── strategy.py           # SeismographStrategy (~400줄)
+│   │   │   ├── models.py             # 전략 전용 모델
+│   │   │   ├── signals/              # 시그널 모듈 (5개)
+│   │   │   │   ├── tight_range.py
+│   │   │   │   ├── obv_divergence.py
+│   │   │   │   ├── accumulation_bar.py
+│   │   │   │   └── volume_dryout.py
+│   │   │   └── scoring/              # 점수 계산
+│   │   │       ├── v1.py             # Stage-based
+│   │   │       ├── v2.py             # Weighted sum
+│   │   │       └── v3.py             # Pinpoint algorithm
+│   │   └── rheograph/                # Rheograph 전략 엔진 (신규)
+│   │       ├── __init__.py           # 패키지 초기화
+│   │       ├── models.py             # Layer 1-4 데이터 모델
+│   │       ├── raw_metrics.py        # Layer 1 계산기
+│   │       ├── derived_metrics.py    # Layer 2 계산기 (Tick Proxy)
+│   │       ├── micro_state.py        # Layer 3 FSM
+│   │       ├── macro_state.py        # Layer 4 합성
+│   │       ├── rotation_tracker.py   # Float Rotation 가속도
+│   │       ├── adversarial_gate.py   # 7조건 반박 게이트
+│   │       ├── collapse_warning.py   # 붕괴 예고 시스템
+│   │       ├── adaptive_stream.py    # 틱 폭발 시 1초봉 전환
+│   │       ├── dilution_checker.py   # SEC EDGAR 크롤링/ATM 감지
+│   │       ├── monitor.py            # RheographMonitor 통합
+│   │       └── setup_matcher.py      # 6대 플레이북 패턴 매칭
 │   │
-│   ├── data/                         # DB, API 클라이언트 (10개)
+│   ├── data/                         # DB, API 클라이언트 (11개)
 │   │   ├── data_repository.py        # [11-002] 통합 데이터 접근 레이어
 │   │   ├── flush_policy.py           # [11-002] 캐시 Flush 정책
 │   │   ├── parquet_manager.py        # [11-001] Parquet I/O
@@ -320,6 +338,7 @@ Sigma9-0.1/
 │   │   ├── massive_ws_client.py      # Massive WebSocket (AM/T/A 채널)
 │   │   ├── massive_loader.py         # Massive 데이터 로더
 │   │   ├── symbol_mapper.py          # 심볼 매핑
+│   │   ├── ticker_info_service.py    # [15-001] 티커 종합 정보 API + SQLite 캐싱
 │   │   └── watchlist_store.py        # Watchlist 저장소
 │   │
 │   ├── broker/                       # IBKR 연동
@@ -348,20 +367,24 @@ Sigma9-0.1/
 ├── frontend/                         # ← 로컬 Windows
 │   ├── gui/                          # 대시보드, 차트
 │   │   ├── dashboard.py              # 메인 대시보드 (~2,153줄)
-│   │   ├── panels/                   # 분리된 UI 패널 (6개)
+│   │   ├── panels/                   # 분리된 UI 패널 (7개)
 │   │   │   ├── watchlist_panel.py    # Tier1 Watchlist
 │   │   │   ├── tier2_panel.py        # Hot Zone
 │   │   │   ├── log_panel.py          # 로그 패널
 │   │   │   ├── chart_panel.py        # 차트 패널
+│   │   │   ├── resample_panel.py     # Intraday 리샘플 컨트롤 (09-002)
 │   │   │   ├── position_panel.py     # P&L/포지션
 │   │   │   └── oracle_panel.py       # LLM 분석
 │   │   ├── state/                    # 상태 관리
 │   │   │   └── dashboard_state.py    # DashboardState
 │   │   ├── chart/                    # 차트 관련
+│   │   │   └── finplot_chart.py      # FinplotChartWidget (Historical Scroll)
 │   │   ├── widgets/                  # 커스텀 위젯
+│   │   │   └── traffic_light.py      # Rheograph 신호등 UI (신규)
 │   │   ├── watchlist_model.py        # Watchlist 데이터 모델
 │   │   ├── particle_effects.py       # 파티클 효과
 │   │   ├── theme.py                  # 테마 관리
+│   │   ├── ticker_info_window.py     # [15-001] 티커 종합 정보 창
 │   │   └── settings_dialog.py        # 설정 다이얼로그
 │   └── services/                     # Backend 통신
 │       ├── backend_client.py         # REST/WS 클라이언트
@@ -414,6 +437,7 @@ flowchart LR
   - `SymbolMapper` (02-005)
   - `DataRepository` (11-002)
   - `SubscriptionManager` (02-006)
+  - `TickerInfoService` (15-001)
 
 ### 5.2 인터페이스 추출 (순환 의존성 해결)
 
@@ -511,6 +535,7 @@ WebSocket:
 
 | 버전 | 날짜 | 주요 변경 |
 |------|------|----------|
+| v3.5 | 2026-01-10 | finplot 차트 마이그레이션, Historical Scroll (09-003), Resample Panel 추가 |
 | v3.4 | 2026-01-10 | 전체 모듈 현황 반영, SubscriptionManager 추가, A 채널 추가, 파일 개수 정확화 |
 | v3.3 | 2026-01-10 | DataRepository 통합, Parquet 전면 전환 (11-002) |
 | v3.2 | 2026-01-08 | DI Container, startup/, models/, routes/ 분할, panels/ 반영 |

@@ -90,6 +90,12 @@ from ..services.backend_client import (
 # [REFAC Phase 4] Tier2Item, NumericTableWidgetItem → 정식 위치에서 import
 from .panels.tier2_panel import Tier2Item, NumericTableWidgetItem
 
+# [15-001] Ticker Info Window
+from .ticker_info_window import TickerInfoWindow
+
+# 📌 [09-009] State Management
+from .state.dashboard_state import DashboardState
+
 
 class Sigma9Dashboard(CustomWindow):
     """
@@ -158,6 +164,20 @@ class Sigma9Dashboard(CustomWindow):
 
         # Step 2.5: StrategyLoader 초기화 및 전략 목록 로드
         self._init_strategy_loader()
+
+        # [15-001] TickerInfoWindow 초기화 (lazy)
+        self._ticker_info_window: TickerInfoWindow | None = None
+
+        # 📌 [09-009] DashboardState 초기화
+        self._state = DashboardState(ws_adapter=None)  # TODO: ws_adapter 주입
+        self._state.ticker_changed.connect(self._on_state_ticker_changed)
+
+        # 📌 [09-107] TickerSearchBar 연결
+        self.control_panel.ticker_search_selected.connect(self._on_ticker_search_selected)
+        self._state.ticker_changed.connect(self.control_panel.ticker_search.on_ticker_changed)
+
+        # [DEPRECATED by 09-009] 아래 변수는 _state.current_ticker로 대체됨
+        self._current_selected_ticker: str = ""
 
         # Step 3.4.6: GUI 시작 시 자동 연결 (500ms 후)
         from PyQt6.QtCore import QTimer
@@ -237,13 +257,16 @@ class Sigma9Dashboard(CustomWindow):
                         current_strategy = self.control_panel.get_selected_strategy()
                         if current_strategy:
                             self._run_scanner_for_strategy(current_strategy)
+                        # [14-001] 티커 데이터 로드하여 검색 자동완성 설정
+                        self._load_ticker_data_for_search()
 
                     QTimer.singleShot(0, run_scanner)
-            except Exception:
+            except Exception as e:
                 from PyQt6.QtCore import QTimer
 
+                # NOTE: e=e captures the exception at definition time (avoids late binding)
                 QTimer.singleShot(
-                    0, lambda: self.log(f"[WARN] Auto-connect failed: {e}")
+                    0, lambda err=e: self.log(f"[WARN] Auto-connect failed: {err}")
                 )
 
         thread = threading.Thread(target=connect_in_background, daemon=True)
@@ -592,7 +615,8 @@ class Sigma9Dashboard(CustomWindow):
         if ticker_item:
             ticker = ticker_item.text()
             self.log(f"[ACTION] Hot Zone selected: {ticker}")
-            self._load_chart_for_ticker(ticker)
+            # 📌 [09-009] Event Bus로 통합
+            self._state.select_ticker(ticker, DashboardState.TickerSource.TIER2)
 
     def _on_watchlist_table_clicked(self, proxy_index):
         """
@@ -606,7 +630,72 @@ class Sigma9Dashboard(CustomWindow):
         ticker = self.watchlist_model.data(ticker_index)
         if ticker:
             self.log(f"[ACTION] Watchlist selected: {ticker}")
-            self._load_chart_for_ticker(ticker)
+            # 📌 [09-009] Event Bus로 통합 (자동으로 차트/Info 업데이트)
+            self._state.select_ticker(ticker, DashboardState.TickerSource.WATCHLIST)
+
+    # =========================================================================
+    # 📌 [09-009] Event Bus Handlers
+    # =========================================================================
+
+    def on_heartbeat_received(self, data: dict) -> None:
+        """
+        [14-003 FIX] Heartbeat 수신 핸들러
+
+        Backend에서 heartbeat 데이터를 수신하면 ControlPanel의 TimeDisplayWidget에 전달합니다.
+        이를 통해 US Eastern 시간이 GUI에 표시됩니다.
+
+        ELI5: 백엔드가 "심장박동" 메시지를 보내면, 그 안에 담긴 시간 정보를
+        화면 상단의 시계 위젯에 전달해서 미국 동부 시간을 표시합니다.
+
+        Args:
+            data: {"server_time_utc": str, "sent_at": int, "event_latency_ms": int (optional)}
+        """
+        self.control_panel.update_time(data)
+
+    def _on_state_ticker_changed(self, ticker: str, source: str) -> None:
+        """
+        [09-009] DashboardState.ticker_changed 시그널 핸들러
+
+        Event Bus를 통해 티커가 변경되면:
+        1. 차트 데이터 로드
+        2. _current_selected_ticker 동기화 (호환성)
+        """
+        self._current_selected_ticker = ticker  # 호환성 유지
+        self._load_chart_for_ticker(ticker)
+
+    def _on_ticker_search_selected(self, ticker: str) -> None:
+        """
+        📌 [09-107] TickerSearchBar에서 티커 선택
+
+        Event Bus로 전달하여 차트/Info 자동 업데이트
+        """
+        self._state.select_ticker(ticker, DashboardState.TickerSource.SEARCH)
+
+    def _load_ticker_data_for_search(self) -> None:
+        """
+        [14-001] 검색 자동완성용 티커 데이터 로드
+
+        DataRepository에서 전체 티커 목록을 가져와
+        TickerSearchBar에 설정합니다.
+        """
+        try:
+            from backend.container import get_container
+
+            container = get_container()
+            repo = container.data_repository()
+
+            # 티커 목록 가져오기 (Parquet 기반)
+            tickers = repo.get_all_tickers()
+
+            # {ticker: name} 형식으로 변환 (현재는 name이 없으므로 빈 문자열)
+            ticker_data = {t: "" for t in tickers}
+
+            # SearchBar에 설정
+            self.control_panel.ticker_search.set_ticker_data(ticker_data)
+            self.log(f"[14-001] SearchBar: {len(tickers)} tickers loaded")
+
+        except Exception as e:
+            self.log(f"[WARN] Failed to load ticker data for search: {e}")
 
     def _load_chart_for_ticker(self, ticker: str):
         """
@@ -875,6 +964,7 @@ class Sigma9Dashboard(CustomWindow):
         self.control_panel.strategy_selected.connect(self._on_strategy_changed)
         self.control_panel.strategy_reload_clicked.connect(self._on_reload_strategy)
         self.control_panel.settings_clicked.connect(self._on_settings)
+        self.control_panel.ticker_info_clicked.connect(self._show_ticker_info)  # [15-001]
 
     # ═══════════════════════════════════════════════════════════════════════
     # 로컬 서버 프로세스 관리
@@ -1012,6 +1102,12 @@ class Sigma9Dashboard(CustomWindow):
         """연결 후 자동으로 엔진 시작"""
         self.log("[INFO] 4️⃣ Auto-starting engine...")
         self.backend_client.start_engine_sync()
+
+        # [14-003 FIX] 메인 스레드에서 heartbeat 타이머 시작
+        # ELI5: 백그라운드 스레드에서 QTimer가 작동 안 해서 여기서 시작
+        if hasattr(self.backend_client, "ws") and self.backend_client.ws:
+            print("[DEBUG] Dashboard: Starting heartbeat from main thread")
+            self.backend_client.ws._start_heartbeat()
 
         # Scanner 자동 실행
         current_strategy = self.control_panel.get_selected_strategy()
@@ -2154,8 +2250,40 @@ class Sigma9Dashboard(CustomWindow):
 
         control_panel.update_time에 위임 (정책: dashboard는 연결만)
         """
+        print(f"[DEBUG] Dashboard.on_heartbeat_received called: {data}")
         if hasattr(self, "control_panel"):
             self.control_panel.update_time(data)
+
+    # =========================================================================
+    # [15-001] Ticker Info Window
+    # =========================================================================
+    def _show_ticker_info(self, ticker: str = None):
+        """
+        [15-001] Ticker Info 윈도우 표시
+
+        Args:
+            ticker: 조회할 티커 (없으면 현재 선택된 티커, 없으면 빈 상태로 표시)
+        """
+        target_ticker = ticker or self._current_selected_ticker
+
+        # Lazy initialization
+        if self._ticker_info_window is None:
+            self._ticker_info_window = TickerInfoWindow()
+            # 📌 [09-009] Event Bus 연결
+            if hasattr(self, "_state") and self._state:
+                self._ticker_info_window.connect_to_state(self._state)
+
+        # 윈도우 표시 (티커 없어도 빈 상태로 표시)
+        self._ticker_info_window.show()
+        
+        # 티커가 있으면 데이터 로드
+        if target_ticker:
+            self.log(f"[ACTION] Opening Ticker Info: {target_ticker}")
+            self._ticker_info_window.load_ticker(target_ticker)
+        else:
+            self.log("[INFO] Ticker Info opened (no ticker selected)")
+        self._ticker_info_window.raise_()
+        self._ticker_info_window.activateWindow()
 
 
 # ═══════════════════════════════════════════════════════════════════════════

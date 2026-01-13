@@ -848,6 +848,9 @@ class SettingsDialog(QDialog):
             self.opacity_spin.blockSignals(True)
             self.opacity_spin.setValue(value)
             self.opacity_spin.blockSignals(False)
+        # [14-002] 실시간 미리보기: theme.opacity 업데이트 + theme_changed emit
+        theme.opacity = value / 100.0
+        theme.theme_changed.emit()
         # [09-004] Settings Dialog 자체 opacity도 실시간 적용
         self.setWindowOpacity(value / 100.0)
         self.sig_settings_changed.emit({"opacity": value / 100.0})
