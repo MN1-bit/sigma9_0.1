@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sigma9 Data Flow Diagrams</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: #eee;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+            background: linear-gradient(90deg, #00d4ff, #7b2cbf);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        h2 {
+            color: #00d4ff;
+            margin: 30px 0 15px 0;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #7b2cbf;
+        }
+
+        .diagram-container {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 30px;
+            overflow-x: auto;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .mermaid {
+            display: flex;
+            justify-content: center;
+        }
+
+        nav {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: rgba(26, 26, 46, 0.95);
+            padding: 10px 20px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: center;
+            z-index: 100;
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        nav a {
+            color: #00d4ff;
+            text-decoration: none;
+            padding: 8px 16px;
+            border-radius: 20px;
+            background: rgba(0, 212, 255, 0.1);
+            transition: all 0.3s;
+            font-size: 0.9em;
+        }
+
+        nav a:hover {
+            background: rgba(0, 212, 255, 0.3);
+        }
+
+        .content {
+            margin-top: 80px;
+            max-width: 1400px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .legend {
+            background: rgba(123, 44, 191, 0.2);
+            border-radius: 8px;
+            padding: 15px 20px;
+            margin-top: 20px;
+        }
+
+        .legend table {
+            width: 100%;
+        }
+
+        .legend td {
+            padding: 5px 10px;
+        }
+    </style>
+</head>
+
+<body>
+    <nav>
+        <a href="#arch">전체 아키텍처</a>
+        <a href="#pipeline">데이터 파이프라인</a>
+        <a href="#trading">실시간 트레이딩</a>
+        <a href="#comm">Frontend↔Backend</a>
+        <a href="#scoring">전략 점수</a>
+        <a href="#research">리서치 파이프라인</a>
+        <a href="#di">DI 컨테이너</a>
+        <a href="#gui">GUI 구조</a>
+    </nav>
+
+    <div class="content">
+        <h1>🔷 Sigma9 Data Flow Diagrams</h1>
+
+        <section id="arch">
+            <h2>1. 전체 시스템 아키텍처</h2>
+            <div class="diagram-container">
+                <div class="mermaid">
+                    flowchart TB
+                    subgraph External["🌐 External Services"]
+                    IBKR["IB Gateway/TWS"]
+                    MASSIVE_API["Massive.com REST API"]
+                    MASSIVE_WS["Massive.com WebSocket"]
+                    LLM_API["LLM Providers"]
+                    end
+
+                    subgraph Backend["⚙️ Backend Server"]
+                    SERVER["server.py"]
+                    CONTAINER["container.py"]
+
+                    subgraph Core["📦 Core Engine"]
+                    SCANNER["Scanner"]
+                    RT_SCANNER["RealtimeScanner"]
+                    IGNITION["IgnitionMonitor"]
+                    end
+
+                    subgraph Strategy["🎯 Strategy"]
+                    SEISMO["SeismographStrategy"]
+                    end
+
+                    subgraph Trading["💰 Trading"]
+                    ORDER_MGR["OrderManager"]
+                    RISK_MGR["RiskManager"]
+                    end
+
+                    subgraph Data["💾 Data Layer"]
+                    DATA_REPO["DataRepository"]
+                    PARQUET["ParquetManager"]
+                    end
+
+                    subgraph Realtime["📡 Realtime"]
+                    WS_MGR["ConnectionManager"]
+                    TICK_BROAD["TickBroadcaster"]
+                    end
+                    end
+
+                    subgraph Frontend["🖥️ Frontend GUI"]
+                    DASHBOARD["Dashboard"]
+                    PANELS["Panels"]
+                    SERVICES["Services"]
+                    end
+
+                    MASSIVE_API --> Data
+                    MASSIVE_WS --> Realtime
+                    IBKR --> Trading
+
+                    Core --> Strategy
+                    Strategy --> Trading
+                    Realtime --> DASHBOARD
+                </div>
+            </div>
+        </section>
+
+        <section id="pipeline">
+            <h2>2. 데이터 파이프라인</h2>
+            <div class="diagram-container">
+                <div class="mermaid">
+                    flowchart LR
+                    subgraph Sources["📥 Data Sources"]
+                    API["Massive.com REST"]
+                    WS["Massive.com WS"]
+                    end
+
+                    subgraph Ingestion["⬇️ Ingestion"]
+                    MC["MassiveClient"]
+                    MWS["MassiveWSClient"]
+                    end
+
+                    subgraph Storage["💾 Storage"]
+                    PARQUET["Parquet Files"]
+                    SQLITE["SQLite DB"]
+                    end
+
+                    subgraph Processing["⚙️ Processing"]
+                    DR["DataRepository"]
+                    PM["ParquetManager"]
+                    end
+
+                    subgraph Consumers["📤 Consumers"]
+                    SCANNER["Scanner"]
+                    BACKTEST["BacktestEngine"]
+                    STRATEGY["Strategy"]
+                    CHART["ChartService"]
+                    end
+
+                    API -->|HTTP| MC
+                    WS -->|WSS| MWS
+                    MC --> DR
+                    DR --> PM
+                    PM --> PARQUET
+                    DR --> SQLITE
+                    DR --> Consumers
+                </div>
+            </div>
+        </section>
+
+        <section id="trading">
+            <h2>3. 실시간 트레이딩 흐름</h2>
+            <div class="diagram-container">
+                <div class="mermaid">
+                    flowchart TB
+                    subgraph Phase1["📋 Phase 1: Watchlist"]
+                    SCHED["Scheduler 09:15 ET"]
+                    SCAN["Scanner.scan()"]
+                    WL["Ranked Watchlist"]
+                    SCHED --> SCAN --> WL
+                    end
+
+                    subgraph Phase2["🔥 Phase 2: Trigger"]
+                    GAIN["Gainers API 1초"]
+                    RT["RealtimeScanner"]
+                    IGN["IgnitionMonitor"]
+                    TRIG["Ignition 80+"]
+                    GAIN --> RT --> IGN --> TRIG
+                    end
+
+                    subgraph Phase3["💰 Phase 3: Execution"]
+                    SIGNAL["Entry Signal"]
+                    ORDER["OrderManager"]
+                    IBKR["IBKRConnector"]
+                    SIGNAL --> ORDER --> IBKR
+                    end
+
+                    subgraph Phase4["🛡️ Phase 4: Exit"]
+                    TRAIL["TrailingStop"]
+                    EXIT["Exit Signal"]
+                    DT["DoubleTap"]
+                    TRAIL --> EXIT --> DT
+                    end
+
+                    WL --> Phase2
+                    TRIG --> SIGNAL
+                    DT -.->|재진입| SIGNAL
+                </div>
+            </div>
+        </section>
+
+        <section id="comm">
+            <h2>4. Frontend ↔ Backend 통신</h2>
+            <div class="diagram-container">
+                <div class="mermaid">
+                    flowchart LR
+                    subgraph Frontend["🖥️ Frontend"]
+                    DASH["Dashboard"]
+                    BC["BackendClient"]
+                    REST["RestAdapter"]
+                    WSA["WsAdapter"]
+                    end
+
+                    subgraph Backend["⚙️ Backend"]
+                    API["REST API"]
+                    WSFEED["WebSocket /ws/feed"]
+                    end
+
+                    subgraph Messages["📨 Messages"]
+                    LOG["LOG"]
+                    WATCHLIST["WATCHLIST"]
+                    IGNITION["IGNITION"]
+                    TICK["TICK/BAR"]
+                    end
+
+                    DASH --> BC
+                    BC --> REST -->|HTTP| API
+                    BC --> WSA <-->|WSS| WSFEED
+                        WSFEED --> Messages
+                        Messages --> WSA
+                </div>
+            </div>
+        </section>
+
+        <section id="scoring">
+            <h2>5. 전략 점수 계산 흐름</h2>
+            <div class="diagram-container">
+                <div class="mermaid">
+                    flowchart TB
+                    subgraph Input["📊 Input"]
+                    BARS["Daily OHLCV 60일"]
+                    TICK["Real-time Tick"]
+                    end
+
+                    subgraph Indicators["📐 Indicators"]
+                    VWAP["VWAP"]
+                    ATR["ATR"]
+                    SMA["SMA"]
+                    end
+
+                    subgraph ZScore["📈 Z-Score"]
+                    ZENV["zenV Volume"]
+                    ZENP["zenP Price"]
+                    DIV["Divergence"]
+                    end
+
+                    subgraph Signals["🎯 Signals"]
+                    TR["Tight Range 30%"]
+                    AB["Absorption 20%"]
+                    AC["Accumulation 20%"]
+                    end
+
+                    subgraph Score["💯 Score"]
+                    V3["score_v3 Pinpoint"]
+                    IGN["Ignition Score"]
+                    end
+
+                    BARS --> Indicators
+                    BARS --> ZScore
+                    Indicators --> Signals
+                    ZScore --> DIV --> Signals
+                    Signals --> V3
+                    TICK --> IGN
+                    V3 --> IGN
+                </div>
+            </div>
+        </section>
+
+        <section id="research">
+            <h2>6. 리서치 스크립트 파이프라인 (R-3/R-4)</h2>
+            <div class="diagram-container">
+                <div class="mermaid">
+                    flowchart LR
+                    A["all_daily.parquet"] --> B["analyze_daygainers"]
+                    B --> C["daygainers_75plus.csv"]
+                    C --> D["build_control_group"]
+                    D --> E["control_groups.csv"]
+                    E --> F["build_d1_features"]
+                    F --> G["d1_features.parquet"]
+                    E --> H["download_minutes"]
+                    H --> I["1m/*.parquet"]
+                    G --> J["build_m_n_features"]
+                    I --> J
+                    J --> K["m_n_features.parquet"]
+                    G --> L["train_xgboost"]
+                    K --> L
+                    L --> M["ml_report.json"]
+                </div>
+            </div>
+        </section>
+
+        <section id="di">
+            <h2>7. DI 컨테이너 의존성</h2>
+            <div class="diagram-container">
+                <div class="mermaid">
+                    flowchart TB
+                    subgraph External["🌐 External"]
+                    MASSIVE["Massive.com API"]
+                    IBKR_GW["IB Gateway/TWS"]
+                    end
+
+                    subgraph Container["📦 DI Container"]
+                    subgraph DataLayer["� Data Layer"]
+                    MC["massive_client"]
+                    PM["parquet_manager"]
+                    DB["database"]
+                    DR["data_repository"]
+                    end
+
+                    subgraph StrategyLayer["🎯 Strategy Layer"]
+                    WS["watchlist_store"]
+                    TI["ticker_info_service"]
+                    SM["symbol_mapper"]
+                    SS["scoring_strategy"]
+                    end
+
+                    subgraph CoreLayer["⚙️ Core Layer"]
+                    TC["trading_context"]
+                    RS["realtime_scanner"]
+                    IM["ignition_monitor"]
+                    AL["audit_logger"]
+                    end
+
+                    subgraph Broker["🏦 Broker"]
+                    IBKR["IBKRConnector"]
+                    OM["order_manager"]
+                    RM["risk_manager"]
+                    end
+                    end
+
+                    MASSIVE -->|HTTP| MC
+                    MC --> DR
+                    MC --> TI
+                    PM --> DR
+                    DB --> DR
+
+                    SM --> TI
+                    SM --> IBKR
+
+                    DR --> RS
+                    SS --> RS
+                    SS --> IM
+                    RS --> IM
+
+                    IBKR_GW <-->|ib_insync| IBKR
+                        IBKR --> OM
+                        IBKR --> RM
+                        OM --> RM
+                </div>
+            </div>
+        </section>
+
+        <section id="gui">
+            <h2>8. GUI 컴포넌트 계층 구조</h2>
+            <div class="diagram-container">
+                <div class="mermaid">
+                    flowchart TB
+                    MAIN["main.py"] --> QAPP["QApplication"]
+                    QAPP --> DASH["Sigma9Dashboard"]
+
+                    DASH --> CTRL["ControlPanel"]
+                    DASH --> THEME["ThemeManager"]
+
+                    subgraph Panels["📊 Panels"]
+                    WLP["WatchlistPanel"]
+                    CP["ChartPanel"]
+                    PP["PositionPanel"]
+                    OP["OraclePanel"]
+                    LP["LogPanel"]
+                    end
+
+                    DASH --> Panels
+
+                    subgraph State["📋 State"]
+                    DS["DashboardState"]
+                    end
+
+                    DASH --> DS
+                    DS -->|signals| Panels
+                </div>
+            </div>
+        </section>
+
+        <div class="legend">
+            <h3>📊 범례 (Legend)</h3>
+            <table>
+                <tr>
+                    <td>📥 데이터 입력</td>
+                    <td>📤 데이터 출력</td>
+                    <td>⚙️ 처리/엔진</td>
+                    <td>💾 스토리지</td>
+                </tr>
+                <tr>
+                    <td>📡 실시간/통신</td>
+                    <td>🎯 전략/분석</td>
+                    <td>💰 트레이딩</td>
+                    <td>🖥️ UI/Frontend</td>
+                </tr>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'dark',
+            flowchart: {
+                useMaxWidth: true,
+                htmlLabels: true,
+                curve: 'basis'
+            }
+        });
+    </script>
+</body>
+
+</html>

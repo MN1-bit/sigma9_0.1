@@ -240,9 +240,7 @@ class DashboardState(QObject):
         """이전 활성 티커"""
         return self._previous_ticker
 
-    def select_ticker(
-        self, ticker: str, source: str = "unknown"
-    ) -> None:
+    def select_ticker(self, ticker: str, source: str = "unknown") -> None:
         """
         티커 선택 (Optimistic Update 패턴)
 
@@ -265,11 +263,13 @@ class DashboardState(QObject):
 
         # 2. 🌐 Backend 동기화 (비동기)
         if self._ws and hasattr(self._ws, "send"):
-            self._ws.send({
-                "type": "SET_ACTIVE_TICKER",
-                "ticker": ticker,
-                "source": source,
-            })
+            self._ws.send(
+                {
+                    "type": "SET_ACTIVE_TICKER",
+                    "ticker": ticker,
+                    "source": source,
+                }
+            )
 
     def _handle_active_ticker_changed(self, ticker: str, source: str) -> None:
         """

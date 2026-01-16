@@ -36,6 +36,7 @@ from loguru import logger
 if TYPE_CHECKING:
     from backend.data.massive_ws_client import MassiveWebSocketClient
     from backend.api.websocket import ConnectionManager
+    from backend.core.tick_dispatcher import TickDispatcher
 
 
 class TickBroadcaster:

@@ -65,6 +65,7 @@ class ChartDataService:
             if DataRepository is None:
                 raise ImportError("DataRepository를 임포트할 수 없습니다")
             from backend.container import container
+
             self._repo = container.data_repository()
         return self._repo
 
@@ -120,6 +121,7 @@ class ChartDataService:
 
         try:
             from backend.data.parquet_manager import ParquetManager
+
             pm = ParquetManager()
 
             # ParquetManager의 get_intraday_bars 호출 (on-demand 리샘플링 지원)
@@ -143,8 +145,14 @@ class ChartDataService:
             if expected_interval_ms and len(df) >= 2:
                 actual_interval = df.iloc[1]["timestamp"] - df.iloc[0]["timestamp"]
                 # 허용 오차: 예상 간격의 50% ~ 150%
-                if not (expected_interval_ms * 0.5 <= actual_interval <= expected_interval_ms * 1.5):
-                    print(f"⚠️ TF 불일치 감지: {ticker} 요청={timeframe}, 실제 간격={actual_interval/60000:.1f}min")
+                if not (
+                    expected_interval_ms * 0.5
+                    <= actual_interval
+                    <= expected_interval_ms * 1.5
+                ):
+                    print(
+                        f"⚠️ TF 불일치 감지: {ticker} 요청={timeframe}, 실제 간격={actual_interval / 60000:.1f}min"
+                    )
                     # 리샘플링 강제 재시도는 하지 않음 (무한루프 방지)
 
             # DataFrame → candles/volume 변환
@@ -166,19 +174,23 @@ class ChartDataService:
                 low_val = float(row["low"])
                 vol_val = int(row["volume"])
 
-                candles.append({
-                    "time": time_val,
-                    "open": open_val,
-                    "high": high_val,
-                    "low": low_val,
-                    "close": close_val,
-                    "volume": vol_val,
-                })
-                volumes.append({
-                    "time": time_val,
-                    "volume": vol_val,
-                    "is_up": close_val >= open_val,
-                })
+                candles.append(
+                    {
+                        "time": time_val,
+                        "open": open_val,
+                        "high": high_val,
+                        "low": low_val,
+                        "close": close_val,
+                        "volume": vol_val,
+                    }
+                )
+                volumes.append(
+                    {
+                        "time": time_val,
+                        "volume": vol_val,
+                        "is_up": close_val >= open_val,
+                    }
+                )
 
             result = {
                 "ticker": ticker,
@@ -203,7 +215,11 @@ class ChartDataService:
                     tp = (highs[i] + lows[i] + closes[i]) / 3
                     cumulative_tp_vol += tp * bar_volumes[i]
                     cumulative_vol += bar_volumes[i]
-                    vwap = cumulative_tp_vol / cumulative_vol if cumulative_vol > 0 else closes[i]
+                    vwap = (
+                        cumulative_tp_vol / cumulative_vol
+                        if cumulative_vol > 0
+                        else closes[i]
+                    )
                     vwap_data.append({"time": times[i], "value": vwap})
                 result["vwap"] = vwap_data
 
@@ -232,6 +248,7 @@ class ChartDataService:
         except Exception as e:
             print(f"⚠️ Intraday 조회 실패: {ticker} {timeframe} - {e}")
             import traceback
+
             traceback.print_exc()
             return {
                 "ticker": ticker,
@@ -364,7 +381,7 @@ class ChartDataService:
 
     def _bars_to_volumes(self, bars: List) -> List[Dict]:
         """Bar 유사 객체 리스트를 Volume 딕셔너리로 변환
-        
+
         [09-007] close 값을 포함하여 Dollar Volume 계산 지원
         """
         volumes = []
@@ -403,9 +420,7 @@ class ChartDataService:
 
         return result
 
-    def _calculate_sma_series(
-        self, bars: List, period: int = 20
-    ) -> List[Dict]:
+    def _calculate_sma_series(self, bars: List, period: int = 20) -> List[Dict]:
         """SMA 시계열 계산"""
         result = []
         closes = [b.close for b in bars]
@@ -418,9 +433,7 @@ class ChartDataService:
 
         return result
 
-    def _calculate_ema_series(
-        self, bars: List, period: int = 9
-    ) -> List[Dict]:
+    def _calculate_ema_series(self, bars: List, period: int = 9) -> List[Dict]:
         """EMA 시계열 계산"""
         result = []
         closes = [b.close for b in bars]

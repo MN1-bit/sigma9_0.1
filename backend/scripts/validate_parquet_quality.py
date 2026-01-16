@@ -128,14 +128,16 @@ def validate_daily(daily_dir: Path, verbose: bool = False) -> dict:
             results["warnings"].append(f"Volume 음수: {len(vol_violations)}건")
 
         # [11-004] Volume 누락 (OHLC는 있는데 Volume이 0 또는 NULL)
-        vol_missing_mask = (
-            (df["volume"].isnull()) | (df["volume"] == 0)
-        ) & (df["close"] > 0)
+        vol_missing_mask = ((df["volume"].isnull()) | (df["volume"] == 0)) & (
+            df["close"] > 0
+        )
         vol_missing_count = vol_missing_mask.sum()
         if vol_missing_count > 0:
             results["warnings"].append(f"Volume 누락(0/NULL): {vol_missing_count}건")
             # 샘플 5개 저장
-            sample_tickers = df[vol_missing_mask].head(5)[["ticker", "date"]].to_dict("records")
+            sample_tickers = (
+                df[vol_missing_mask].head(5)[["ticker", "date"]].to_dict("records")
+            )
             results["volume_missing_samples"] = sample_tickers
 
         # [11-004] 날짜 갭 검사 (티커별 거래일 누락)
@@ -145,9 +147,13 @@ def validate_daily(daily_dir: Path, verbose: bool = False) -> dict:
         date_gaps = detect_daily_gaps(df_sample)
         total_gap_days = sum(len(v) for v in date_gaps.values())
         if total_gap_days > 0:
-            results["warnings"].append(f"날짜 갭: {len(date_gaps)} 티커, {total_gap_days}일")
+            results["warnings"].append(
+                f"날짜 갭: {len(date_gaps)} 티커, {total_gap_days}일"
+            )
             # 상위 5개 티커 갭 저장
-            results["date_gaps_sample"] = {k: v[:5] for k, v in list(date_gaps.items())[:5]}
+            results["date_gaps_sample"] = {
+                k: v[:5] for k, v in list(date_gaps.items())[:5]
+            }
 
         # [11-004] 가격 이상치 (Z-score > 3)
         # 티커별로 그룹핑하여 검사
@@ -277,7 +283,9 @@ def validate_intraday(
         "errors": [],
         "warnings": [],
         "ohlc_violations_total": 0,
-        "by_tf": defaultdict(lambda: {"files": 0, "valid": 0, "errors": 0, "ohlc_violations": 0}),
+        "by_tf": defaultdict(
+            lambda: {"files": 0, "valid": 0, "errors": 0, "ohlc_violations": 0}
+        ),
         "mode": "full" if full_ohlc else "quick",
         "sample_ratio": sample_ratio,
     }
@@ -298,12 +306,16 @@ def validate_intraday(
     if sample_ratio < 1.0:
         sample_size = max(1, int(total_files * sample_ratio))
         all_files = random.sample(all_files, sample_size)
-        logger.info(f"🎲 샘플링: {total_files} → {len(all_files)}개 ({sample_ratio*100:.0f}%)")
+        logger.info(
+            f"🎲 샘플링: {total_files} → {len(all_files)}개 ({sample_ratio * 100:.0f}%)"
+        )
 
     results["files"] = len(all_files)
 
     # 병렬 검사
-    logger.info(f"🔍 {len(all_files)}개 파일 검사 시작 (workers={max_workers}, full_ohlc={full_ohlc})")
+    logger.info(
+        f"🔍 {len(all_files)}개 파일 검사 시작 (workers={max_workers}, full_ohlc={full_ohlc})"
+    )
 
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = {
@@ -325,14 +337,20 @@ def validate_intraday(
                 results["valid"] += 1
                 results["by_tf"][tf]["valid"] += 1
             if result["error"]:
-                results["errors"].append(f"{tf}/{Path(result['file']).name}: {result['error']}")
+                results["errors"].append(
+                    f"{tf}/{Path(result['file']).name}: {result['error']}"
+                )
                 results["by_tf"][tf]["errors"] += 1
             if result["warning"]:
-                results["warnings"].append(f"{tf}/{Path(result['file']).name}: {result['warning']}")
+                results["warnings"].append(
+                    f"{tf}/{Path(result['file']).name}: {result['warning']}"
+                )
             if result["ohlc_violations"] > 0:
                 results["ohlc_violations_total"] += result["ohlc_violations"]
-                results["by_tf"][tf]["ohlc_violations"] = \
-                    results["by_tf"][tf].get("ohlc_violations", 0) + result["ohlc_violations"]
+                results["by_tf"][tf]["ohlc_violations"] = (
+                    results["by_tf"][tf].get("ohlc_violations", 0)
+                    + result["ohlc_violations"]
+                )
 
     logger.info(f"✅ 검사 완료: {results['valid']}/{results['files']} 정상")
 
@@ -350,7 +368,8 @@ def main():
         help="Parquet 베이스 디렉터리 (기본: data/parquet)",
     )
     parser.add_argument(
-        "-v", "--verbose",
+        "-v",
+        "--verbose",
         action="store_true",
         help="상세 로그 출력",
     )
@@ -415,7 +434,7 @@ def main():
 
     # Intraday 검사
     mode_str = "심층(OHLC)" if args.full else "빠른"
-    sample_str = f" (샘플 {args.sample*100:.0f}%)" if args.sample < 1.0 else ""
+    sample_str = f" (샘플 {args.sample * 100:.0f}%)" if args.sample < 1.0 else ""
     print(f"\n📊 Intraday 데이터 검사 ({mode_str}{sample_str}):")
 
     intraday_results = validate_intraday(
@@ -436,7 +455,9 @@ def main():
         print("\n  타임프레임별:")
         for tf, stats in sorted(intraday_results["by_tf"].items()):
             if stats["files"] > 0:
-                valid_pct = (stats["valid"] / stats["files"] * 100) if stats["files"] else 0
+                valid_pct = (
+                    (stats["valid"] / stats["files"] * 100) if stats["files"] else 0
+                )
                 print(f"    {tf}: {stats['files']} 파일 ({valid_pct:.0f}% 정상)")
 
     for err in intraday_results["errors"][:5]:
@@ -458,7 +479,8 @@ def main():
             "base_dir": str(base_dir),
             "daily": daily_results,
             "intraday": {
-                k: v for k, v in intraday_results.items()
+                k: v
+                for k, v in intraday_results.items()
                 if k != "by_tf"  # defaultdict 직렬화 문제 회피
             },
             "intraday_by_tf": dict(intraday_results.get("by_tf", {})),

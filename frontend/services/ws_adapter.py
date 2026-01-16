@@ -28,12 +28,27 @@ from enum import Enum
 from loguru import logger
 
 try:
-    from PyQt6.QtCore import QObject, pyqtSignal, QTimer, Qt, pyqtSlot, QMetaObject, Q_ARG
+    from PyQt6.QtCore import (
+        QObject,
+        pyqtSignal,
+        QTimer,
+        Qt,
+        pyqtSlot,
+        QMetaObject,
+        Q_ARG,
+    )
 
     PYQT_AVAILABLE = True
 except ImportError:
     try:
-        from PySide6.QtCore import QObject, Signal as pyqtSignal, QTimer, Qt, Slot as pyqtSlot, QMetaObject
+        from PySide6.QtCore import (
+            QObject,
+            Signal as pyqtSignal,
+            QTimer,
+            Qt,
+            Slot as pyqtSlot,
+            QMetaObject,
+        )
 
         PYQT_AVAILABLE = True
     except ImportError:
@@ -136,7 +151,9 @@ class WsAdapter(QObject):
 
         # [14-003 FIX] QueuedConnection으로 메인 스레드에서 실행 보장
         # connect()가 백그라운드 스레드에서 emit해도 _start_heartbeat은 메인 스레드에서 실행됨
-        self.connected.connect(self._start_heartbeat, Qt.ConnectionType.QueuedConnection)
+        self.connected.connect(
+            self._start_heartbeat, Qt.ConnectionType.QueuedConnection
+        )
 
         logger.debug(f"WsAdapter initialized: {self.ws_url}")
 
@@ -310,7 +327,9 @@ class WsAdapter(QObject):
                         # 이벤트 타임 (fallback)
                         elif "_event_time" in wl_data:
                             heartbeat_data["event_time"] = wl_data["_event_time"]
-                        print(f"[DEBUG] WATCHLIST→heartbeat_received.emit: {heartbeat_data}")
+                        print(
+                            f"[DEBUG] WATCHLIST→heartbeat_received.emit: {heartbeat_data}"
+                        )
                         self.heartbeat_received.emit(heartbeat_data)
                 except json.JSONDecodeError:
                     logger.warning(f"Invalid WATCHLIST JSON: {data[:50]}")
@@ -356,10 +375,12 @@ class WsAdapter(QObject):
     @pyqtSlot()
     def _start_heartbeat(self):
         """하트비트 타이머 시작
-        
+
         [14-003 FIX] @pyqtSlot 데코레이터로 QMetaObject.invokeMethod에서 호출 가능
         """
-        print(f"[DEBUG] _start_heartbeat called in thread: {threading.current_thread().name}")
+        print(
+            f"[DEBUG] _start_heartbeat called in thread: {threading.current_thread().name}"
+        )
         if self._heartbeat_timer:
             self._heartbeat_timer.stop()
 
@@ -377,7 +398,7 @@ class WsAdapter(QObject):
     def _send_ping(self):
         """
         PING 메시지 전송
-        
+
         [14-003 FIX] PyQt 메인 스레드에서 QTimer로 호출되므로
         asyncio.run_coroutine_threadsafe() 사용하여 별도 이벤트 루프에서 실행
         """

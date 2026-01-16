@@ -43,9 +43,6 @@ try:
         QFrame,
         QPushButton,
         QSplitter,
-        QTextEdit,
-        QListWidget,
-        QSizePolicy,
         QComboBox,
     )
     from PyQt6.QtCore import Qt, QTimer, pyqtSlot
@@ -173,8 +170,12 @@ class Sigma9Dashboard(CustomWindow):
         self._state.ticker_changed.connect(self._on_state_ticker_changed)
 
         # 📌 [09-107] TickerSearchBar 연결
-        self.control_panel.ticker_search_selected.connect(self._on_ticker_search_selected)
-        self._state.ticker_changed.connect(self.control_panel.ticker_search.on_ticker_changed)
+        self.control_panel.ticker_search_selected.connect(
+            self._on_ticker_search_selected
+        )
+        self._state.ticker_changed.connect(
+            self.control_panel.ticker_search.on_ticker_changed
+        )
 
         # [DEPRECATED by 09-009] 아래 변수는 _state.current_ticker로 대체됨
         self._current_selected_ticker: str = ""
@@ -964,7 +965,9 @@ class Sigma9Dashboard(CustomWindow):
         self.control_panel.strategy_selected.connect(self._on_strategy_changed)
         self.control_panel.strategy_reload_clicked.connect(self._on_reload_strategy)
         self.control_panel.settings_clicked.connect(self._on_settings)
-        self.control_panel.ticker_info_clicked.connect(self._show_ticker_info)  # [15-001]
+        self.control_panel.ticker_info_clicked.connect(
+            self._show_ticker_info
+        )  # [15-001]
 
     # ═══════════════════════════════════════════════════════════════════════
     # 로컬 서버 프로세스 관리
@@ -1078,7 +1081,7 @@ class Sigma9Dashboard(CustomWindow):
                         if resp.status_code == 200:
                             log_safe("[INFO] ✅ Local server is now ready!")
                             break
-                    except:
+                    except Exception:
                         pass
                     if i % 4 == 0:
                         log_safe(f"[INFO] Waiting for server... ({i // 2}s)")
@@ -2243,16 +2246,7 @@ class Sigma9Dashboard(CustomWindow):
             self.log(f"[WARN] Bar update error: {e}")
 
     # [REFAC Cleanup] 중복 _on_tick_received 제거됨 → L1625 사용
-
-    def on_heartbeat_received(self, data: dict):
-        """
-        [08-001] Heartbeat 수신 핸들러
-
-        control_panel.update_time에 위임 (정책: dashboard는 연결만)
-        """
-        print(f"[DEBUG] Dashboard.on_heartbeat_received called: {data}")
-        if hasattr(self, "control_panel"):
-            self.control_panel.update_time(data)
+    # [02-003.1] 중복 on_heartbeat_received 제거됨 → L640 사용
 
     # =========================================================================
     # [15-001] Ticker Info Window
@@ -2275,7 +2269,7 @@ class Sigma9Dashboard(CustomWindow):
 
         # 윈도우 표시 (티커 없어도 빈 상태로 표시)
         self._ticker_info_window.show()
-        
+
         # 티커가 있으면 데이터 로드
         if target_ticker:
             self.log(f"[ACTION] Opening Ticker Info: {target_ticker}")

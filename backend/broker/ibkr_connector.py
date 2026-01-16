@@ -39,9 +39,23 @@ from dotenv import load_dotenv
 # 참고: https://ib-insync.readthedocs.io/
 from ib_insync import IB, util, Stock, MarketOrder, StopOrder, LimitOrder, Trade, Order
 import time
+import threading
+from typing import Callable
 
-# PyQt6 - GUI 스레드 분리 및 시그널
-from PyQt6.QtCore import QThread, pyqtSignal
+# ═══════════════════════════════════════════════════════════════════════════
+# [02-003] PyQt6 의존성 제거
+# ═══════════════════════════════════════════════════════════════════════════
+#
+# 📌 리팩터링 배경:
+#   - Backend Layer가 GUI 프레임워크에 의존 → Layer 경계 위반
+#   - 테스트 시 PyQt6 환경 필수 → 테스트 복잡도 증가
+#
+# 📌 변경 사항:
+#   - QThread → threading.Thread
+#   - pyqtSignal → Callback 패턴
+#   - Frontend에서 IBKREventAdapter가 callback을 Signal로 변환
+#
+# ═══════════════════════════════════════════════════════════════════════════
 
 # .env 파일에서 환경 변수 로드
 # 프로젝트 루트의 .env 파일을 자동으로 찾아서 로드합니다
@@ -49,16 +63,30 @@ load_dotenv()
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+# Callback Type Aliases (가독성용)
+# ═══════════════════════════════════════════════════════════════════════════
+OnConnectedCallback = Callable[[bool], None]
+OnAccountUpdateCallback = Callable[[dict], None]
+OnErrorCallback = Callable[[str], None]
+OnLogMessageCallback = Callable[[str], None]
+OnOrderPlacedCallback = Callable[[dict], None]
+OnOrderFilledCallback = Callable[[dict], None]
+OnOrderCancelledCallback = Callable[[dict], None]
+OnOrderErrorCallback = Callable[[str, str], None]
+OnPositionsUpdateCallback = Callable[[list], None]
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 # IBKRConnector 클래스
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-class IBKRConnector(QThread):
+class IBKRConnector:
     """
-    IBKR 연결 커넥터 (QThread 기반)
+    IBKR 연결 커넥터 (순수 Python)
 
     백그라운드 스레드에서 IB Gateway/TWS에 연결하고,
-    실시간 시장 데이터를 PyQt Signal로 GUI에 전달합니다.
+    Callback 패턴으로 이벤트를 외부에 전달합니다.
 
     ═══════════════════════════════════════════════════════════════════════
     쉬운 설명 (ELI5 - Explain Like I'm 5):
@@ -67,27 +95,24 @@ class IBKRConnector(QThread):
 
     1. 라디오를 켠다 (connect) → IB Gateway에 연결
     2. 채널을 맞춘다 (subscribe) → SPY, QQQ 등 원하는 종목 선택
-    3. 소리가 들린다 (signal) → 실시간 가격이 계속 들어옴
+    3. 소리가 들린다 (callback) → 실시간 가격이 계속 들어옴
     4. 라디오를 끈다 (stop) → 연결 종료
 
     ═══════════════════════════════════════════════════════════════════════
-    PyQt Signals:
+    Callbacks (이벤트 핸들러):
     ═══════════════════════════════════════════════════════════════════════
 
-    - connected(bool): 연결 상태가 변경될 때 발생
+    - on_connected(bool): 연결 상태가 변경될 때 호출
         - True: 연결 성공
         - False: 연결 해제 또는 실패
 
-    - price_update(dict): 실시간 가격이 업데이트될 때 발생
-        - {"symbol": "SPY", "last": 450.25, "bid": 450.20, "ask": 450.30, ...}
-
-    - account_update(dict): 계좌 정보가 업데이트될 때 발생
+    - on_account_update(dict): 계좌 정보가 업데이트될 때 호출
         - {"account": "DU...", "balance": 100000.0, "available": 95000.0}
 
-    - error(str): 에러가 발생했을 때
+    - on_error(str): 에러가 발생했을 때 호출
         - "❌ 연결 오류: ..."
 
-    - log_message(str): 로그 메시지 (디버깅/상태 표시용)
+    - on_log_message(str): 로그 메시지 (디버깅/상태 표시용)
         - "🔌 IBKR 연결 시도 중..."
 
     ═══════════════════════════════════════════════════════════════════════
@@ -98,44 +123,29 @@ class IBKRConnector(QThread):
     IB_PORT=4002           # 포트 (Paper: 4002, Live: 4001)
     IB_CLIENT_ID=1         # 클라이언트 ID (고유해야 함)
     IB_ACCOUNT=            # 계좌 ID (선택, 비워두면 자동 감지)
+
+    ═══════════════════════════════════════════════════════════════════════
+    사용 예시 (Frontend Adapter와 함께):
+    ═══════════════════════════════════════════════════════════════════════
+
+    # Backend에서 커넥터 생성
+    connector = IBKRConnector()
+
+    # Frontend Adapter에서 callback 등록
+    connector.set_on_connected(adapter._on_connected)
+    connector.set_on_account_update(adapter._on_account_update)
+
+    # 연결 시작
+    connector.start()
     """
 
-    # ═══════════════════════════════════════════════════════════════════
-    # PyQt Signals 정의
-    # ═══════════════════════════════════════════════════════════════════
-    # 스레드에서 GUI로 데이터를 전달하는 "통신 채널"입니다.
-    # emit()으로 신호를 보내면, connect()로 연결된 함수가 호출됩니다.
-    # ═══════════════════════════════════════════════════════════════════
-
-    connected = pyqtSignal(bool)  # 연결 상태 변경
-    # NOTE: price_update 제거 → Massive WebSocket 사용 (Phase 4.A.0)
-    account_update = pyqtSignal(dict)  # 계좌 정보 업데이트
-    error = pyqtSignal(str)  # 에러 메시지
-    log_message = pyqtSignal(str)  # 로그 메시지
-
-    # ═══════════════════════════════════════════════════════════════════
-    # 주문 관련 Signals (Step 3.1 OMS)
-    # ═══════════════════════════════════════════════════════════════════
-    order_placed = pyqtSignal(dict)  # 주문 접수됨 {order_id, symbol, action, qty, ...}
-    order_filled = pyqtSignal(dict)  # 주문 체결됨 {order_id, symbol, fill_price, ...}
-    order_cancelled = pyqtSignal(dict)  # 주문 취소됨 {order_id, symbol, ...}
-    order_error = pyqtSignal(str, str)  # 주문 오류 (order_id, message)
-    positions_update = pyqtSignal(
-        list
-    )  # 포지션 목록 변경 [{symbol, qty, avg_price, ...}]
-
-    def __init__(self, parent=None) -> None:
+    def __init__(self) -> None:
         """
         커넥터 초기화
 
         .env 파일에서 연결 설정을 로드하고, 내부 상태를 초기화합니다.
         이 시점에서는 아직 연결하지 않습니다 (start() 호출 시 연결).
-
-        Args:
-            parent: 부모 QObject (선택)
         """
-        super().__init__(parent)
-
         # --- IB 객체 (연결 후 생성됨) ---
         # ib_insync.IB 클래스의 인스턴스
         # 실제 IBKR API와 통신하는 핵심 객체
@@ -154,19 +164,130 @@ class IBKRConnector(QThread):
         self._is_running: bool = False
         self._is_connected: bool = False
 
+        # --- 스레드 관리 [02-003] ---
+        # threading.Thread로 백그라운드 실행
+        self._thread: Optional[threading.Thread] = None
+
         # --- 주문 추적 (Step 3.1 OMS) ---
         # 활성 주문 추적: order_id -> Trade 객체
         self._active_orders: Dict[int, Trade] = {}
         # OCA 그룹 추적: oca_group_id -> [order_ids]
         self._oca_groups: Dict[str, List[int]] = {}
 
+        # ═══════════════════════════════════════════════════════════════
+        # [02-003] Callback 속성 초기화
+        # ═══════════════════════════════════════════════════════════════
+        # Frontend의 IBKREventAdapter가 이 callback을 등록하여
+        # pyqtSignal로 변환합니다.
+        # ═══════════════════════════════════════════════════════════════
+        self._on_connected: Optional[OnConnectedCallback] = None
+        self._on_account_update: Optional[OnAccountUpdateCallback] = None
+        self._on_error: Optional[OnErrorCallback] = None
+        self._on_log_message: Optional[OnLogMessageCallback] = None
+        self._on_order_placed: Optional[OnOrderPlacedCallback] = None
+        self._on_order_filled: Optional[OnOrderFilledCallback] = None
+        self._on_order_cancelled: Optional[OnOrderCancelledCallback] = None
+        self._on_order_error: Optional[OnOrderErrorCallback] = None
+        self._on_positions_update: Optional[OnPositionsUpdateCallback] = None
+
+    # ═══════════════════════════════════════════════════════════════════
+    # [02-003] Callback Setter Methods
+    # ═══════════════════════════════════════════════════════════════════
+    # Frontend의 IBKREventAdapter가 callback을 등록합니다.
+    # ═══════════════════════════════════════════════════════════════════
+
+    def set_on_connected(self, callback: OnConnectedCallback) -> None:
+        """연결 상태 변경 callback 설정"""
+        self._on_connected = callback
+
+    def set_on_account_update(self, callback: OnAccountUpdateCallback) -> None:
+        """계좌 업데이트 callback 설정"""
+        self._on_account_update = callback
+
+    def set_on_error(self, callback: OnErrorCallback) -> None:
+        """에러 callback 설정"""
+        self._on_error = callback
+
+    def set_on_log_message(self, callback: OnLogMessageCallback) -> None:
+        """로그 메시지 callback 설정"""
+        self._on_log_message = callback
+
+    def set_on_order_placed(self, callback: OnOrderPlacedCallback) -> None:
+        """주문 접수 callback 설정"""
+        self._on_order_placed = callback
+
+    def set_on_order_filled(self, callback: OnOrderFilledCallback) -> None:
+        """주문 체결 callback 설정"""
+        self._on_order_filled = callback
+
+    def set_on_order_cancelled(self, callback: OnOrderCancelledCallback) -> None:
+        """주문 취소 callback 설정"""
+        self._on_order_cancelled = callback
+
+    def set_on_order_error(self, callback: OnOrderErrorCallback) -> None:
+        """주문 에러 callback 설정"""
+        self._on_order_error = callback
+
+    def set_on_positions_update(self, callback: OnPositionsUpdateCallback) -> None:
+        """포지션 업데이트 callback 설정"""
+        self._on_positions_update = callback
+
+    # ═══════════════════════════════════════════════════════════════════
+    # [02-003] Callback 호출 헬퍼 (emit 대체)
+    # ═══════════════════════════════════════════════════════════════════
+
+    def _emit_connected(self, is_connected: bool) -> None:
+        """연결 상태 변경 알림 (callback 호출)"""
+        if self._on_connected:
+            self._on_connected(is_connected)
+
+    def _emit_account_update(self, info: dict) -> None:
+        """계좌 업데이트 알림"""
+        if self._on_account_update:
+            self._on_account_update(info)
+
+    def _emit_error(self, message: str) -> None:
+        """에러 알림"""
+        if self._on_error:
+            self._on_error(message)
+
+    def _emit_log_message(self, message: str) -> None:
+        """로그 메시지 알림"""
+        if self._on_log_message:
+            self._on_log_message(message)
+
+    def _emit_order_placed(self, order_info: dict) -> None:
+        """주문 접수 알림"""
+        if self._on_order_placed:
+            self._on_order_placed(order_info)
+
+    def _emit_order_filled(self, fill_info: dict) -> None:
+        """주문 체결 알림"""
+        if self._on_order_filled:
+            self._on_order_filled(fill_info)
+
+    def _emit_order_cancelled(self, cancel_info: dict) -> None:
+        """주문 취소 알림"""
+        if self._on_order_cancelled:
+            self._on_order_cancelled(cancel_info)
+
+    def _emit_order_error(self, order_id: str, message: str) -> None:
+        """주문 에러 알림"""
+        if self._on_order_error:
+            self._on_order_error(order_id, message)
+
+    def _emit_positions_update(self, positions: list) -> None:
+        """포지션 업데이트 알림"""
+        if self._on_positions_update:
+            self._on_positions_update(positions)
+
     # ═══════════════════════════════════════════════════════════════════
     # 스레드 메인 루프
     # ═══════════════════════════════════════════════════════════════════
 
-    def run(self) -> None:
+    def _run(self) -> None:
         """
-        스레드 메인 루프 (QThread.start() 호출 시 자동 실행)
+        스레드 메인 루프 (start() 호출 시 백그라운드에서 실행)
 
         이 메서드는 다음 순서로 동작합니다:
         1. IB Gateway에 연결 시도 (최대 3회 재시도)
@@ -181,7 +302,7 @@ class IBKRConnector(QThread):
         - ib_insync의 이벤트 루프도 별도 스레드에서 돌려야 함
         """
         self._is_running = True
-        self.log_message.emit("🔌 IBKR 연결 시도 중...")
+        self._emit_log_message("🔌 IBKR 연결 시도 중...")
 
         try:
             # --- ib_insync용 이벤트 루프 시작 (필수!) ---
@@ -197,7 +318,7 @@ class IBKRConnector(QThread):
             max_retries = 3
             for attempt in range(1, max_retries + 1):
                 try:
-                    self.log_message.emit(f"📡 연결 시도 {attempt}/{max_retries}...")
+                    self._emit_log_message(f"📡 연결 시도 {attempt}/{max_retries}...")
 
                     # IB Gateway에 연결 (타임아웃 10초)
                     # host: IB Gateway 주소 (보통 127.0.0.1)
@@ -212,8 +333,8 @@ class IBKRConnector(QThread):
 
                     # 연결 성공!
                     self._is_connected = True
-                    self.connected.emit(True)
-                    self.log_message.emit(f"✅ IBKR 연결 성공! (포트: {self.port})")
+                    self._emit_connected(True)
+                    self._emit_log_message(f"✅ IBKR 연결 성공! (포트: {self.port})")
 
                     # 초기 계좌 정보 조회
                     self._fetch_account_info()
@@ -222,15 +343,15 @@ class IBKRConnector(QThread):
                     break
 
                 except Exception as e:
-                    self.log_message.emit(f"⚠️ 연결 실패: {str(e)}")
+                    self._emit_log_message(f"⚠️ 연결 실패: {str(e)}")
 
                     if attempt < max_retries:
                         # Exponential Backoff: 1초, 2초, 4초...
                         # 네트워크 문제는 잠시 후 해결될 수 있으므로
                         # 점점 길게 기다리면서 재시도
                         wait_time = 2 ** (attempt - 1)
-                        self.log_message.emit(f"⏳ {wait_time}초 후 재시도...")
-                        QThread.msleep(wait_time * 1000)  # 밀리초 단위
+                        self._emit_log_message(f"⏳ {wait_time}초 후 재시도...")
+                        time.sleep(wait_time)  # 초 단위
                     else:
                         # 마지막 시도도 실패
                         raise
@@ -243,9 +364,9 @@ class IBKRConnector(QThread):
 
         except Exception as e:
             # 연결 실패 또는 런타임 에러
-            self.error.emit(f"❌ 연결 오류: {str(e)}")
+            self._emit_error(f"❌ 연결 오류: {str(e)}")
             self._is_connected = False
-            self.connected.emit(False)
+            self._emit_connected(False)
 
         finally:
             # --- 정리 (항상 실행) ---
@@ -283,11 +404,11 @@ class IBKRConnector(QThread):
                     info["available"] = float(av.value)
 
             # GUI에 전달
-            self.account_update.emit(info)
-            self.log_message.emit(f"💰 계좌 정보: ${info['balance']:,.2f}")
+            self._emit_account_update(info)
+            self._emit_log_message(f"💰 계좌 정보: ${info['balance']:,.2f}")
 
         except Exception as e:
-            self.log_message.emit(f"⚠️ 계좌 정보 조회 실패: {str(e)}")
+            self._emit_log_message(f"⚠️ 계좌 정보 조회 실패: {str(e)}")
 
     def _disconnect(self) -> None:
         """
@@ -297,14 +418,33 @@ class IBKRConnector(QThread):
         """
         if self.ib and self.ib.isConnected():
             self.ib.disconnect()
-            self.log_message.emit("🔌 IBKR 연결 해제됨")
+            self._emit_log_message("🔌 IBKR 연결 해제됨")
 
         self._is_connected = False
-        self.connected.emit(False)
+        self._emit_connected(False)
 
     # ═══════════════════════════════════════════════════════════════════
     # 공개 메서드 (외부에서 호출)
     # ═══════════════════════════════════════════════════════════════════
+
+    def start(self) -> None:
+        """
+        연결 시작 (백그라운드 스레드에서 실행)
+
+        이 메서드를 호출하면 별도 스레드에서 run()이 실행됩니다.
+        GUI 메인 스레드가 멈추지 않도록 분리하여 실행합니다.
+
+        Example:
+            >>> connector = IBKRConnector()
+            >>> connector.set_on_connected(on_connected_callback)
+            >>> connector.start()
+        """
+        if self._thread and self._thread.is_alive():
+            self._emit_log_message("⚠️ 이미 실행 중입니다")
+            return
+
+        self._thread = threading.Thread(target=self._run, daemon=True)
+        self._thread.start()
 
     def stop(self) -> None:
         """
@@ -317,10 +457,11 @@ class IBKRConnector(QThread):
         4. 스레드가 종료됨
         """
         self._is_running = False
-        self.log_message.emit("⏹ 연결 중지 요청됨...")
+        self._emit_log_message("⏹ 연결 중지 요청됨...")
 
         # 스레드 종료 대기 (최대 5초)
-        self.wait(5000)
+        if self._thread and self._thread.is_alive():
+            self._thread.join(timeout=5.0)
 
     def is_connected(self) -> bool:
         """
@@ -377,7 +518,7 @@ class IBKRConnector(QThread):
             >>> order_id = connector.place_market_order("AAPL", 10, "BUY")
         """
         if not self.ib or not self.ib.isConnected():
-            self.log_message.emit("❌ 주문 실패: IBKR 연결 안됨")
+            self._emit_log_message("❌ 주문 실패: IBKR 연결 안됨")
             return None
 
         try:
@@ -399,7 +540,7 @@ class IBKRConnector(QThread):
             trade.cancelledEvent += lambda t: self._on_order_cancelled(t)
 
             # Signal 발생
-            self.order_placed.emit(
+            self._emit_order_placed(
                 {
                     "order_id": order_id,
                     "symbol": symbol,
@@ -410,14 +551,14 @@ class IBKRConnector(QThread):
                 }
             )
 
-            self.log_message.emit(
+            self._emit_log_message(
                 f"📤 주문 접수: {action} {qty} {symbol} @ MKT (ID: {order_id})"
             )
             return order_id
 
         except Exception as e:
-            self.log_message.emit(f"❌ 주문 실패: {str(e)}")
-            self.order_error.emit("", str(e))
+            self._emit_log_message(f"❌ 주문 실패: {str(e)}")
+            self._emit_order_error("", str(e))
             return None
 
     def place_stop_order(
@@ -442,7 +583,7 @@ class IBKRConnector(QThread):
             int: 주문 ID (실패 시 None)
         """
         if not self.ib or not self.ib.isConnected():
-            self.log_message.emit("❌ Stop 주문 실패: IBKR 연결 안됨")
+            self._emit_log_message("❌ Stop 주문 실패: IBKR 연결 안됨")
             return None
 
         try:
@@ -471,7 +612,7 @@ class IBKRConnector(QThread):
                     self._oca_groups[oca_group] = []
                 self._oca_groups[oca_group].append(order_id)
 
-            self.order_placed.emit(
+            self._emit_order_placed(
                 {
                     "order_id": order_id,
                     "symbol": symbol,
@@ -484,13 +625,13 @@ class IBKRConnector(QThread):
                 }
             )
 
-            self.log_message.emit(
+            self._emit_log_message(
                 f"📤 Stop 주문: {action} {qty} {symbol} @ ${stop_price:.2f} (ID: {order_id})"
             )
             return order_id
 
         except Exception as e:
-            self.log_message.emit(f"❌ Stop 주문 실패: {str(e)}")
+            self._emit_log_message(f"❌ Stop 주문 실패: {str(e)}")
             return None
 
     def place_oca_group(
@@ -523,7 +664,7 @@ class IBKRConnector(QThread):
             - Profit Target: +8.0%
         """
         if not self.ib or not self.ib.isConnected():
-            self.log_message.emit("❌ OCA 그룹 실패: IBKR 연결 안됨")
+            self._emit_log_message("❌ OCA 그룹 실패: IBKR 연결 안됨")
             return None
 
         try:
@@ -561,7 +702,7 @@ class IBKRConnector(QThread):
                 trade.filledEvent += lambda t: self._on_order_filled(t)
                 trade.cancelledEvent += lambda t: self._on_order_cancelled(t)
 
-            self.log_message.emit(
+            self._emit_log_message(
                 f"📦 OCA 그룹 배치: {symbol} | "
                 f"Stop ${stop_price:.2f} / Target ${limit_price:.2f}"
             )
@@ -569,7 +710,7 @@ class IBKRConnector(QThread):
             return oca_group
 
         except Exception as e:
-            self.log_message.emit(f"❌ OCA 그룹 실패: {str(e)}")
+            self._emit_log_message(f"❌ OCA 그룹 실패: {str(e)}")
             return None
 
     # ═══════════════════════════════════════════════════════════════════
@@ -603,7 +744,7 @@ class IBKRConnector(QThread):
             >>> order_id = connector.place_limit_order("AAPL", 10, 150.0)
         """
         if not self.ib or not self.ib.isConnected():
-            self.log_message.emit("❌ Limit 주문 실패: IBKR 연결 안됨")
+            self._emit_log_message("❌ Limit 주문 실패: IBKR 연결 안됨")
             return None
 
         try:
@@ -630,7 +771,7 @@ class IBKRConnector(QThread):
                     self._oca_groups[oca_group] = []
                 self._oca_groups[oca_group].append(order_id)
 
-            self.order_placed.emit(
+            self._emit_order_placed(
                 {
                     "order_id": order_id,
                     "symbol": symbol,
@@ -644,14 +785,14 @@ class IBKRConnector(QThread):
                 }
             )
 
-            self.log_message.emit(
+            self._emit_log_message(
                 f"📤 Limit 주문: {action} {qty} {symbol} @ ${limit_price:.2f} "
                 f"(TIF: {tif}, ID: {order_id})"
             )
             return order_id
 
         except Exception as e:
-            self.log_message.emit(f"❌ Limit 주문 실패: {str(e)}")
+            self._emit_log_message(f"❌ Limit 주문 실패: {str(e)}")
             return None
 
     def place_stop_limit_order(
@@ -685,7 +826,7 @@ class IBKRConnector(QThread):
             >>> order_id = connector.place_stop_limit_order("AAPL", 10, 95.0, 94.0)
         """
         if not self.ib or not self.ib.isConnected():
-            self.log_message.emit("❌ Stop Limit 주문 실패: IBKR 연결 안됨")
+            self._emit_log_message("❌ Stop Limit 주문 실패: IBKR 연결 안됨")
             return None
 
         try:
@@ -716,7 +857,7 @@ class IBKRConnector(QThread):
                     self._oca_groups[oca_group] = []
                 self._oca_groups[oca_group].append(order_id)
 
-            self.order_placed.emit(
+            self._emit_order_placed(
                 {
                     "order_id": order_id,
                     "symbol": symbol,
@@ -730,14 +871,14 @@ class IBKRConnector(QThread):
                 }
             )
 
-            self.log_message.emit(
+            self._emit_log_message(
                 f"📤 Stop Limit: {action} {qty} {symbol} @ "
                 f"Stop ${stop_price:.2f} → Limit ${limit_price:.2f} (ID: {order_id})"
             )
             return order_id
 
         except Exception as e:
-            self.log_message.emit(f"❌ Stop Limit 실패: {str(e)}")
+            self._emit_log_message(f"❌ Stop Limit 실패: {str(e)}")
             return None
 
     def place_trailing_stop_order(
@@ -769,7 +910,7 @@ class IBKRConnector(QThread):
             >>> order_id = connector.place_trailing_stop_order("AAPL", 10, 2.25)
         """
         if not self.ib or not self.ib.isConnected():
-            self.log_message.emit("❌ Trailing Stop 주문 실패: IBKR 연결 안됨")
+            self._emit_log_message("❌ Trailing Stop 주문 실패: IBKR 연결 안됨")
             return None
 
         try:
@@ -799,7 +940,7 @@ class IBKRConnector(QThread):
                     self._oca_groups[oca_group] = []
                 self._oca_groups[oca_group].append(order_id)
 
-            self.order_placed.emit(
+            self._emit_order_placed(
                 {
                     "order_id": order_id,
                     "symbol": symbol,
@@ -812,14 +953,14 @@ class IBKRConnector(QThread):
                 }
             )
 
-            self.log_message.emit(
+            self._emit_log_message(
                 f"📤 Trailing Stop: {action} {qty} {symbol} | "
                 f"Trail ${trail_amount:.2f} (ID: {order_id})"
             )
             return order_id
 
         except Exception as e:
-            self.log_message.emit(f"❌ Trailing Stop 실패: {str(e)}")
+            self._emit_log_message(f"❌ Trailing Stop 실패: {str(e)}")
             return None
 
     def place_trailing_stop_limit_order(
@@ -853,7 +994,7 @@ class IBKRConnector(QThread):
             ... )
         """
         if not self.ib or not self.ib.isConnected():
-            self.log_message.emit("❌ Trailing Stop Limit 실패: IBKR 연결 안됨")
+            self._emit_log_message("❌ Trailing Stop Limit 실패: IBKR 연결 안됨")
             return None
 
         try:
@@ -875,7 +1016,7 @@ class IBKRConnector(QThread):
             trade.filledEvent += lambda t: self._on_order_filled(t)
             trade.cancelledEvent += lambda t: self._on_order_cancelled(t)
 
-            self.order_placed.emit(
+            self._emit_order_placed(
                 {
                     "order_id": order_id,
                     "symbol": symbol,
@@ -888,14 +1029,14 @@ class IBKRConnector(QThread):
                 }
             )
 
-            self.log_message.emit(
+            self._emit_log_message(
                 f"📤 Trailing Stop Limit: {action} {qty} {symbol} | "
                 f"Trail ${trail_amount:.2f}, Offset ${limit_offset:.2f} (ID: {order_id})"
             )
             return order_id
 
         except Exception as e:
-            self.log_message.emit(f"❌ Trailing Stop Limit 실패: {str(e)}")
+            self._emit_log_message(f"❌ Trailing Stop Limit 실패: {str(e)}")
             return None
 
     def place_moc_order(
@@ -922,7 +1063,7 @@ class IBKRConnector(QThread):
             MOC 주문은 보통 장 마감 15분 전까지만 제출 가능
         """
         if not self.ib or not self.ib.isConnected():
-            self.log_message.emit("❌ MOC 주문 실패: IBKR 연결 안됨")
+            self._emit_log_message("❌ MOC 주문 실패: IBKR 연결 안됨")
             return None
 
         try:
@@ -941,7 +1082,7 @@ class IBKRConnector(QThread):
             trade.filledEvent += lambda t: self._on_order_filled(t)
             trade.cancelledEvent += lambda t: self._on_order_cancelled(t)
 
-            self.order_placed.emit(
+            self._emit_order_placed(
                 {
                     "order_id": order_id,
                     "symbol": symbol,
@@ -952,13 +1093,13 @@ class IBKRConnector(QThread):
                 }
             )
 
-            self.log_message.emit(
+            self._emit_log_message(
                 f"📤 MOC 주문: {action} {qty} {symbol} @ 장 마감 (ID: {order_id})"
             )
             return order_id
 
         except Exception as e:
-            self.log_message.emit(f"❌ MOC 주문 실패: {str(e)}")
+            self._emit_log_message(f"❌ MOC 주문 실패: {str(e)}")
             return None
 
     def place_loc_order(
@@ -984,7 +1125,7 @@ class IBKRConnector(QThread):
             int: 주문 ID (실패 시 None)
         """
         if not self.ib or not self.ib.isConnected():
-            self.log_message.emit("❌ LOC 주문 실패: IBKR 연결 안됨")
+            self._emit_log_message("❌ LOC 주문 실패: IBKR 연결 안됨")
             return None
 
         try:
@@ -1004,7 +1145,7 @@ class IBKRConnector(QThread):
             trade.filledEvent += lambda t: self._on_order_filled(t)
             trade.cancelledEvent += lambda t: self._on_order_cancelled(t)
 
-            self.order_placed.emit(
+            self._emit_order_placed(
                 {
                     "order_id": order_id,
                     "symbol": symbol,
@@ -1016,14 +1157,14 @@ class IBKRConnector(QThread):
                 }
             )
 
-            self.log_message.emit(
+            self._emit_log_message(
                 f"📤 LOC 주문: {action} {qty} {symbol} @ ${limit_price:.2f} "
                 f"장 마감 (ID: {order_id})"
             )
             return order_id
 
         except Exception as e:
-            self.log_message.emit(f"❌ LOC 주문 실패: {str(e)}")
+            self._emit_log_message(f"❌ LOC 주문 실패: {str(e)}")
             return None
 
     def place_bracket_order(
@@ -1061,7 +1202,7 @@ class IBKRConnector(QThread):
             >>> parent_id, tp_id, sl_id = ids
         """
         if not self.ib or not self.ib.isConnected():
-            self.log_message.emit("❌ Bracket 주문 실패: IBKR 연결 안됨")
+            self._emit_log_message("❌ Bracket 주문 실패: IBKR 연결 안됨")
             return None
 
         try:
@@ -1089,7 +1230,7 @@ class IBKRConnector(QThread):
 
             parent_id, tp_id, sl_id = order_ids
 
-            self.order_placed.emit(
+            self._emit_order_placed(
                 {
                     "order_id": parent_id,
                     "symbol": symbol,
@@ -1104,7 +1245,7 @@ class IBKRConnector(QThread):
                 }
             )
 
-            self.log_message.emit(
+            self._emit_log_message(
                 f"📦 Bracket 주문: {action} {qty} {symbol} @ ${entry_price:.2f} | "
                 f"TP ${take_profit_price:.2f} / SL ${stop_loss_price:.2f} "
                 f"(Parent: {parent_id})"
@@ -1112,7 +1253,7 @@ class IBKRConnector(QThread):
             return (parent_id, tp_id, sl_id)
 
         except Exception as e:
-            self.log_message.emit(f"❌ Bracket 주문 실패: {str(e)}")
+            self._emit_log_message(f"❌ Bracket 주문 실패: {str(e)}")
             return None
 
     def cancel_order(self, order_id: int) -> bool:
@@ -1126,16 +1267,16 @@ class IBKRConnector(QThread):
             bool: 성공 여부
         """
         if order_id not in self._active_orders:
-            self.log_message.emit(f"⚠️ 주문 ID {order_id}를 찾을 수 없음")
+            self._emit_log_message(f"⚠️ 주문 ID {order_id}를 찾을 수 없음")
             return False
 
         try:
             trade = self._active_orders[order_id]
             self.ib.cancelOrder(trade.order)
-            self.log_message.emit(f"🚫 주문 취소 요청: ID {order_id}")
+            self._emit_log_message(f"🚫 주문 취소 요청: ID {order_id}")
             return True
         except Exception as e:
-            self.log_message.emit(f"❌ 주문 취소 실패: {str(e)}")
+            self._emit_log_message(f"❌ 주문 취소 실패: {str(e)}")
             return False
 
     def cancel_all_orders(self) -> int:
@@ -1151,10 +1292,10 @@ class IBKRConnector(QThread):
         try:
             self.ib.reqGlobalCancel()
             count = len(self._active_orders)
-            self.log_message.emit(f"🚫 전체 주문 취소 요청: {count}개")
+            self._emit_log_message(f"🚫 전체 주문 취소 요청: {count}개")
             return count
         except Exception as e:
-            self.log_message.emit(f"❌ 전체 취소 실패: {str(e)}")
+            self._emit_log_message(f"❌ 전체 취소 실패: {str(e)}")
             return 0
 
     def get_positions(self) -> List[dict]:
@@ -1182,11 +1323,11 @@ class IBKRConnector(QThread):
                 )
 
             # Signal 발생
-            self.positions_update.emit(result)
+            self._emit_positions_update(result)
             return result
 
         except Exception as e:
-            self.log_message.emit(f"⚠️ 포지션 조회 실패: {str(e)}")
+            self._emit_log_message(f"⚠️ 포지션 조회 실패: {str(e)}")
             return []
 
     def get_open_orders(self) -> List[dict]:
@@ -1218,7 +1359,7 @@ class IBKRConnector(QThread):
             return result
 
         except Exception as e:
-            self.log_message.emit(f"⚠️ 미체결 조회 실패: {str(e)}")
+            self._emit_log_message(f"⚠️ 미체결 조회 실패: {str(e)}")
             return []
 
     # ═══════════════════════════════════════════════════════════════════
@@ -1238,7 +1379,7 @@ class IBKRConnector(QThread):
             # 체결 정보
             fill_price = trade.orderStatus.avgFillPrice
 
-            self.order_filled.emit(
+            self._emit_order_filled(
                 {
                     "order_id": order_id,
                     "symbol": symbol,
@@ -1249,7 +1390,7 @@ class IBKRConnector(QThread):
                 }
             )
 
-            self.log_message.emit(
+            self._emit_log_message(
                 f"✅ 체결: {symbol} @ ${fill_price:.2f} (ID: {order_id})"
             )
 
@@ -1257,7 +1398,7 @@ class IBKRConnector(QThread):
             self.get_positions()
 
         except Exception as e:
-            self.log_message.emit(f"⚠️ 체결 콜백 오류: {str(e)}")
+            self._emit_log_message(f"⚠️ 체결 콜백 오류: {str(e)}")
 
     def _on_order_cancelled(self, trade: Trade) -> None:
         """주문 취소 콜백"""
@@ -1269,7 +1410,7 @@ class IBKRConnector(QThread):
             if order_id in self._active_orders:
                 del self._active_orders[order_id]
 
-            self.order_cancelled.emit(
+            self._emit_order_cancelled(
                 {
                     "order_id": order_id,
                     "symbol": symbol,
@@ -1277,10 +1418,10 @@ class IBKRConnector(QThread):
                 }
             )
 
-            self.log_message.emit(f"🚫 취소됨: {symbol} (ID: {order_id})")
+            self._emit_log_message(f"🚫 취소됨: {symbol} (ID: {order_id})")
 
         except Exception as e:
-            self.log_message.emit(f"⚠️ 취소 콜백 오류: {str(e)}")
+            self._emit_log_message(f"⚠️ 취소 콜백 오류: {str(e)}")
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -1298,46 +1439,43 @@ if __name__ == "__main__":
     실행:
         python backend/broker/ibkr_connector.py
     """
-    import sys
-    from PyQt6.QtCore import QCoreApplication, QTimer
+    import time
 
-    # Qt 애플리케이션 생성 (GUI 없이 이벤트 루프만)
-    app = QCoreApplication(sys.argv)
+    # 테스트용 callback 함수들
+    def on_connected(is_connected: bool) -> None:
+        status = "🟢 연결됨" if is_connected else "🔴 연결 안됨"
+        print(f"[연결 상태] {status}")
+
+    def on_account_update(info: dict) -> None:
+        print(f"[계좌 정보] {info}")
+
+    def on_error(message: str) -> None:
+        print(f"[에러] {message}")
+
+    def on_log_message(message: str) -> None:
+        print(f"[로그] {message}")
 
     # 커넥터 생성
     connector = IBKRConnector()
 
-    # 시그널 연결 (콘솔 출력)
-    connector.connected.connect(
-        lambda x: print(f"[연결 상태] {'🟢 연결됨' if x else '🔴 연결 안됨'}")
-    )
-    connector.account_update.connect(lambda x: print(f"[계좌 정보] {x}"))
-    connector.price_update.connect(
-        lambda x: print(f"[시세] {x['symbol']}: ${x['last']:.2f}")
-    )
-    connector.error.connect(lambda x: print(f"[에러] {x}"))
-    connector.log_message.connect(lambda x: print(f"[로그] {x}"))
-
-    # 연결 성공 시 SPY 구독
-    def on_connected(is_connected: bool):
-        if is_connected:
-            connector.subscribe_ticker(["SPY"])
-
-    connector.connected.connect(on_connected)
-
-    # 연결 시작
-    connector.start()
-
-    # 15초 후 종료
-    def shutdown():
-        print("\n--- 테스트 종료 ---")
-        connector.stop()
-        app.quit()
-
-    QTimer.singleShot(15000, shutdown)
+    # Callback 등록
+    connector.set_on_connected(on_connected)
+    connector.set_on_account_update(on_account_update)
+    connector.set_on_error(on_error)
+    connector.set_on_log_message(on_log_message)
 
     print("=== IBKR Connector 테스트 시작 ===")
     print("IB Gateway가 실행 중이어야 합니다. (Paper Trading, 포트 4002)")
     print("15초 후 자동 종료됩니다.\n")
 
-    sys.exit(app.exec())
+    # 연결 시작
+    connector.start()
+
+    # 15초 대기 후 종료
+    try:
+        time.sleep(15)
+    except KeyboardInterrupt:
+        print("\n[Ctrl+C 감지]")
+    finally:
+        print("\n--- 테스트 종료 ---")
+        connector.stop()

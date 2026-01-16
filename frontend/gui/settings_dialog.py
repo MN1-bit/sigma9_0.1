@@ -78,7 +78,7 @@ class SettingsDialog(QDialog):
         self.setWindowTitle("Settings")
         self.setFixedSize(450, 500)
         self.settings = current_settings or {}
-        
+
         # [09-004] Frameless 창 드래그 지원용 위치 저장
         self._drag_pos = None
 
@@ -114,7 +114,7 @@ class SettingsDialog(QDialog):
         # Frameless + Acrylic
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Dialog)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
-        
+
         # [09-004] Non-Modal 설정 - 메인 창 조작 가능
         self.setModal(False)
 
@@ -126,7 +126,7 @@ class SettingsDialog(QDialog):
         self.window_effects = WindowsEffects()
         neutral_tint = "181818CC"  # Dark gray + alpha
         self.window_effects.add_acrylic_effect(self.winId(), neutral_tint)
-        
+
         # [09-004] 테마 중앙화 - opacity 등 자동 적용
         theme.apply_to_widget(self)
 
@@ -137,7 +137,7 @@ class SettingsDialog(QDialog):
         # 컨테이너에 배경색을 주어 이벤트 캡처 가능하게 함
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
-        
+
         self.container = QFrame()
         self.container.setObjectName("settingsContainer")
         self.container.setStyleSheet("""
@@ -147,7 +147,7 @@ class SettingsDialog(QDialog):
             }
         """)
         main_layout.addWidget(self.container)
-        
+
         # 컨테이너 내부 레이아웃
         layout = QVBoxLayout(self.container)
         layout.setSpacing(10)
@@ -163,7 +163,7 @@ class SettingsDialog(QDialog):
         title_label.setStyleSheet("font-size: 16px; font-weight: bold; color: white;")
         title_layout.addWidget(title_label)
         title_layout.addStretch()
-        
+
         layout.addWidget(self.title_bar)
 
         # ═══════════════════════════════════════════════════════════
@@ -341,6 +341,44 @@ class SettingsDialog(QDialog):
         """)
         self.test_btn.clicked.connect(self._on_test_connection)
         layout.addRow("", self.test_btn)
+
+        # 구분선
+        separator2 = QFrame()
+        separator2.setFrameShape(QFrame.Shape.HLine)
+        separator2.setStyleSheet("background-color: rgba(255,255,255,0.1);")
+        layout.addRow(separator2)
+
+        # ═══════════════════════════════════════════════════════════
+        # API Settings 섹션
+        # ═══════════════════════════════════════════════════════════
+        api_label = QLabel("📡 Massive API")
+        api_label.setStyleSheet(
+            "color: #2196F3; font-weight: bold; font-size: 12px;"
+        )
+        layout.addRow(api_label)
+
+        # Rate Limit (0 = 무제한)
+        self.rate_limit_spin = QSpinBox()
+        self.rate_limit_spin.setRange(0, 10000)
+        import os
+        env_rate = os.getenv("MASSIVE_RATE_LIMIT", "0")
+        self.rate_limit_spin.setValue(int(env_rate) if env_rate.isdigit() else 0)
+        self.rate_limit_spin.setSpecialValueText("Unlimited")
+        self.rate_limit_spin.setSuffix(" req/min")
+        self.rate_limit_spin.setToolTip(
+            "Massive API Rate Limit\n"
+            "• 0 = Unlimited (유료 플랜)\n"
+            "• 5 = Free Tier\n"
+            "• 100+ = 유료 플랜\n\n"
+            "변경 시 환경변수 MASSIVE_RATE_LIMIT에 저장됩니다."
+        )
+        self._style_input(self.rate_limit_spin)
+        layout.addRow("Rate Limit:", self.rate_limit_spin)
+
+        # Info Label
+        api_info_label = QLabel("💡 0 = Unlimited (유료 플랜용)")
+        api_info_label.setStyleSheet("color: #888; font-size: 10px;")
+        layout.addRow("", api_info_label)
 
         return widget
 
@@ -931,21 +969,38 @@ class SettingsDialog(QDialog):
         """창 표시 시 모든 자식에 이벤트 필터 설치"""
         super().showEvent(event)
         # 첫 표시 시에만 설치
-        if not hasattr(self, '_drag_filter_installed'):
+        if not hasattr(self, "_drag_filter_installed"):
             self._install_drag_filter_recursive(self)
             self._drag_filter_installed = True
 
     def _is_interactive_widget(self, widget) -> bool:
         """인터랙티브 위젯 여부 확인 (드래그 제외 대상)"""
         from PyQt6.QtWidgets import (
-            QPushButton, QComboBox, QSpinBox, QLineEdit, 
-            QCheckBox, QRadioButton, QSlider, QTabBar, QTimeEdit,
-            QScrollBar, QProgressBar
+            QPushButton,
+            QComboBox,
+            QSpinBox,
+            QLineEdit,
+            QCheckBox,
+            QRadioButton,
+            QSlider,
+            QTabBar,
+            QTimeEdit,
+            QScrollBar,
+            QProgressBar,
         )
+
         interactive_types = (
-            QPushButton, QComboBox, QSpinBox, QLineEdit,
-            QCheckBox, QRadioButton, QSlider, QTabBar, QTimeEdit,
-            QScrollBar, QProgressBar
+            QPushButton,
+            QComboBox,
+            QSpinBox,
+            QLineEdit,
+            QCheckBox,
+            QRadioButton,
+            QSlider,
+            QTabBar,
+            QTimeEdit,
+            QScrollBar,
+            QProgressBar,
         )
         # 위젯 자체 또는 부모 중 인터랙티브 위젯이 있는지 확인
         check_widget = widget
@@ -960,21 +1015,27 @@ class SettingsDialog(QDialog):
     def eventFilter(self, watched, event):
         """전체 배경에서 드래그 가능 (인터랙티브 위젯 제외)"""
         from PyQt6.QtCore import QEvent
-        
+
         if event.type() == QEvent.Type.MouseButtonPress:
             if event.button() == Qt.MouseButton.LeftButton:
                 if not self._is_interactive_widget(watched):
-                    self._drag_pos = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
+                    self._drag_pos = (
+                        event.globalPosition().toPoint()
+                        - self.frameGeometry().topLeft()
+                    )
                     return False  # 이벤트 계속 전파 (클릭 동작 유지)
-        
+
         elif event.type() == QEvent.Type.MouseMove:
-            if self._drag_pos is not None and event.buttons() == Qt.MouseButton.LeftButton:
+            if (
+                self._drag_pos is not None
+                and event.buttons() == Qt.MouseButton.LeftButton
+            ):
                 self.move(event.globalPosition().toPoint() - self._drag_pos)
                 return True  # 이벤트 소비 (드래그 중에는 다른 동작 방지)
-        
+
         elif event.type() == QEvent.Type.MouseButtonRelease:
             self._drag_pos = None
-        
+
         return super().eventFilter(watched, event)
 
     # ═══════════════════════════════════════════════════════════════════════════
@@ -990,6 +1051,8 @@ class SettingsDialog(QDialog):
             "auto_connect": self.auto_connect_check.isChecked(),
             "reconnect_interval": self.reconnect_spin.value(),
             "timeout": self.timeout_spin.value(),
+            # API Settings
+            "massive_rate_limit": self.rate_limit_spin.value(),
             # Backend (Scheduler)
             "market_open_scan": self.market_scan_check.isChecked(),
             "scan_offset_minutes": self.scan_offset_spin.value(),

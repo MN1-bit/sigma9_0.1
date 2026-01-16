@@ -158,12 +158,14 @@ class BacktestEngine:
             # 하위 호환성: db_path가 주어진 경우 MarketDB 사용
             if self._legacy_db_path:
                 from data.database import MarketDB
+
                 self._legacy_db = MarketDB(self._legacy_db_path)
                 await self._legacy_db.initialize()
                 logger.debug("⚠️ Legacy MarketDB 사용 (Deprecated)")
             else:
                 # Container에서 DataRepository 가져오기
                 from backend.container import container
+
                 self._repo = container.data_repository()
 
         logger.info("✅ BacktestEngine 초기화 완료")
@@ -302,17 +304,19 @@ class BacktestEngine:
                 bars = await self._legacy_db.get_daily_bars(ticker, days=500)
                 if not bars:
                     continue
-                df = pd.DataFrame([
-                    {
-                        "date": bar.date,
-                        "open": bar.open,
-                        "high": bar.high,
-                        "low": bar.low,
-                        "close": bar.close,
-                        "volume": bar.volume,
-                    }
-                    for bar in bars
-                ])
+                df = pd.DataFrame(
+                    [
+                        {
+                            "date": bar.date,
+                            "open": bar.open,
+                            "high": bar.high,
+                            "low": bar.low,
+                            "close": bar.close,
+                            "volume": bar.volume,
+                        }
+                        for bar in bars
+                    ]
+                )
 
             if df.empty:
                 continue
@@ -496,7 +500,7 @@ class BacktestEngine:
                 if holding_days >= self.config.time_stop_days:
                     to_close.append((ticker, current_close, "time_stop", current_date))
                     continue
-            except:
+            except Exception:
                 pass
 
         # ─────────────────────────────────────────────────────────────────

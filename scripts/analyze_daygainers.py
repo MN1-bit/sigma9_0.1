@@ -18,12 +18,12 @@ def analyze_daygainers():
     print(f"\n[Loading] {DAILY_PARQUET}")
     df = pd.read_parquet(DAILY_PARQUET)
     
-    print(f"\n[Data Overview]")
+    print("\n[Data Overview]")
     print(f"   - Total rows: {len(df):,}")
     print(f"   - Columns: {list(df.columns)}")
     
     # 컬럼명 확인 (대소문자 다를 수 있음)
-    print(f"\n   - Sample data:")
+    print("\n   - Sample data:")
     print(df.head(3).to_string())
     
     # 컬럼명 정규화 (소문자로)
@@ -69,7 +69,7 @@ def analyze_daygainers():
     # 거래대금 계산
     df['dollar_volume'] = df['close'] * df['volume']
     
-    print(f"\n[Filters Applied]")
+    print("\n[Filters Applied]")
     print(f"   - Min Dollar Volume: ${MIN_DOLLAR_VOLUME:,}")
     print(f"   - Min Price: ${MIN_PRICE}")
     
@@ -147,7 +147,7 @@ def analyze_daygainers():
         print(f"   Saved {len(gainers_50_save):,} records to {output_path}")
         
         # 콘솔에 일부 출력
-        print(f"\n   Preview (first 30):")
+        print("\n   Preview (first 30):")
         preview = gainers_50_save.head(30).copy()
         preview['change_pct'] = preview['change_pct'].round(2).astype(str) + '%'
         print(preview.to_string(index=False))

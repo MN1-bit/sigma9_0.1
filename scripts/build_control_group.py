@@ -8,7 +8,6 @@ Daygainer(75%+ 급등주)에 대응하는 대조군 자동 매칭.
 """
 
 import pandas as pd
-import numpy as np
 from pathlib import Path
 from typing import Optional
 import logging

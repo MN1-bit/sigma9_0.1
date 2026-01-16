@@ -315,7 +315,7 @@ class RiskManager:
                 d = datetime.strptime(date_str, "%Y-%m-%d").date()
                 if d >= monday:
                     weekly_pnl += daily.realized_pnl
-            except:
+            except Exception:
                 pass
 
         if self._starting_balance > 0:
@@ -372,7 +372,7 @@ class RiskManager:
         try:
             positions = self.connector.get_positions()
             return len([p for p in positions if p.get("qty", 0) != 0])
-        except:
+        except Exception:
             return 0
 
     def can_open_position(self) -> bool:

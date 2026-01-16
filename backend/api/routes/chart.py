@@ -212,14 +212,16 @@ async def get_historical_bars(
             if ts > 1e12:  # ms → seconds
                 ts = ts // 1000
 
-            candles.append({
-                "time": ts,
-                "open": row["open"],
-                "high": row["high"],
-                "low": row["low"],
-                "close": row["close"],
-                "volume": row.get("volume", 0),
-            })
+            candles.append(
+                {
+                    "time": ts,
+                    "open": row["open"],
+                    "high": row["high"],
+                    "low": row["low"],
+                    "close": row["close"],
+                    "volume": row.get("volume", 0),
+                }
+            )
 
         # limit 개수로 제한
         if len(candles) > limit:

@@ -276,7 +276,7 @@ class BacktestReport:
             start = datetime.strptime(self.start_date, "%Y-%m-%d")
             end = datetime.strptime(self.end_date, "%Y-%m-%d")
             years = (end - start).days / 365.25
-        except:
+        except Exception:
             years = 1.0  # 기본값
 
         if years <= 0:
@@ -356,7 +356,7 @@ class BacktestReport:
                 exit = datetime.strptime(trade.exit_date, "%Y-%m-%d")
                 total_days += (exit - entry).days
                 count += 1
-            except:
+            except Exception:
                 continue
 
         return total_days / count if count > 0 else 0.0

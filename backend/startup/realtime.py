@@ -48,8 +48,7 @@ async def initialize_ignition_monitor(
     """
     IgnitionMonitor 초기화 [Step 4.A.4]
 
-    📌 [02-003] 직접 클래스 생성 방식으로 변경
-    📌 기존 ignition_monitor.py의 initialize_ignition_monitor() 함수 삭제 예정
+    📌 [02-004] Container 기반으로 변경
 
     Args:
         db: MarketDB 인스턴스
@@ -58,15 +57,11 @@ async def initialize_ignition_monitor(
         IgnitionMonitor 인스턴스 또는 None
     """
     try:
-        # [02-003] 직접 IgnitionMonitor 클래스 import (싱글톤 함수 삭제 예정)
-        from backend.core.ignition_monitor import IgnitionMonitor
-        from backend.api.websocket import manager as ws_manager
-        from backend.strategies.seismograph import SeismographStrategy
+        # [02-004] Container에서 IgnitionMonitor 획득
+        from backend.container import container
 
-        strategy = SeismographStrategy()
-        # [02-003] 직접 IgnitionMonitor 인스턴스 생성
-        monitor = IgnitionMonitor(strategy, ws_manager, poll_interval=1.0)
-        logger.info("✅ IgnitionMonitor initialized")
+        monitor = container.ignition_monitor()
+        logger.info("✅ IgnitionMonitor initialized (via Container)")
         return monitor
     except Exception as e:
         logger.warning(f"⚠️ IgnitionMonitor init skipped: {e}")
@@ -135,6 +130,8 @@ async def initialize_massive_websocket(
     """
     Massive WebSocket 및 관련 서비스 초기화 (Phase 4.A.0)
 
+    📌 [02-004] Container 기반으로 변경
+
     Args:
         strategy_loader: StrategyLoader 인스턴스
         ibkr: IBKR 커넥터 인스턴스
@@ -149,17 +146,17 @@ async def initialize_massive_websocket(
         return result
 
     try:
-        from backend.data.massive_ws_client import MassiveWebSocketClient
-        from backend.core.tick_broadcaster import TickBroadcaster
-        from backend.core.tick_dispatcher import TickDispatcher
-        from backend.core.subscription_manager import SubscriptionManager
+        # [02-004] Container에서 서비스 획득
+        from backend.container import container
         from backend.api.websocket import manager as ws_manager
 
-        # TickDispatcher 생성 (중앙 틱 배포자)
-        result.tick_dispatcher = TickDispatcher()
+        # [02-004] ws_manager를 Container에 주입 (tick_broadcaster가 필요로 함)
+        container.ws_manager.override(ws_manager)
+
+        # [02-004] Container에서 TickDispatcher 획득 (Singleton)
+        result.tick_dispatcher = container.tick_dispatcher()
 
         # 활성 전략이 있으면 TickDispatcher에 등록
-        # [FIX 13-001] get_active_strategy() → get_strategy() 또는 load_strategy() 사용
         if strategy_loader:
             active_strategy = strategy_loader.get_strategy(
                 "seismograph"
@@ -177,28 +174,27 @@ async def initialize_massive_websocket(
                 result.tick_dispatcher.register("strategy", strategy_tick_handler)
                 logger.info("✅ Strategy connected to TickDispatcher")
 
-        # [Step 4.A.0.b.4] TrailingStopManager 초기화
-        # 📌 [10-001] IBKR 네이티브 Trailing Stop 사용
-        # 서버 사이드 고점 추적이므로 틱 핸들러 등록 불필요
+        # [Step 4.A.0.b.4] TrailingStopManager는 Container에서 획득
         try:
-            from backend.core.trailing_stop import TrailingStopManager
-
-            result.trailing_stop = TrailingStopManager(connector=ibkr)
-            # NOTE: 틱 핸들러 등록 제거 (10-001 리팩터링)
-            # IBKR 네이티브 Trailing Stop은 서버에서 자동으로 고점 추적
-            # result.tick_dispatcher.register("trailing_stop", ...) 삭제
-            logger.info("✅ TrailingStop initialized (IBKR Native)")
+            result.trailing_stop = container.trailing_stop_manager()
+            logger.info("✅ TrailingStop initialized (via Container)")
         except Exception as e:
             logger.warning(f"⚠️ TrailingStop init skipped: {e}")
 
-        result.massive_ws = MassiveWebSocketClient()
-        result.tick_broadcaster = TickBroadcaster(
-            result.massive_ws,
-            ws_manager,
-            asyncio.get_event_loop(),
-            tick_dispatcher=result.tick_dispatcher,
-        )
-        result.sub_manager = SubscriptionManager(result.massive_ws)
+        # [02-004] Container에서 MassiveWebSocketClient 획득 (Singleton)
+        result.massive_ws = container.massive_ws()
+        if result.massive_ws is None:
+            logger.warning("⚠️ MassiveWebSocketClient not available (API key missing?)")
+            return result
+
+        # [02-004] Container에서 SubscriptionManager 획득 (Singleton)
+        result.sub_manager = container.subscription_manager()
+
+        # [02-004] Container에서 TickBroadcaster 획득 (Callable - 호출 시 생성)
+        result.tick_broadcaster = container.tick_broadcaster()
+
+        # 이벤트 루프 설정
+        result.tick_broadcaster.set_event_loop(asyncio.get_event_loop())
 
         # 백그라운드에서 Massive 연결 시작
         async def start_massive_streaming():
@@ -228,7 +224,7 @@ async def initialize_massive_websocket(
                 logger.warning("⚠️ Massive WebSocket connection failed")
 
         asyncio.create_task(start_massive_streaming())
-        logger.info("📡 Massive WebSocket initializing...")
+        logger.info("📡 Massive WebSocket initializing (via Container)...")
 
     except Exception as e:
         logger.warning(f"⚠️ Massive WebSocket init skipped: {e}")
@@ -243,8 +239,8 @@ async def initialize_realtime_scanner(
     """
     RealtimeScanner 초기화 [Step 4.A.5]
 
-    📌 [02-002] Container 또는 직접 클래스 생성 방식으로 변경
-    📌 기존 realtime_scanner.py의 initialize_realtime_scanner() 함수 삭제됨
+    📌 [02-004] Container 기반으로 변경 (일부 의존성)
+    📌 ignition_monitor는 런타임에 주입 (순서 의존성 때문)
 
     Args:
         db: MarketDB 인스턴스
@@ -257,48 +253,38 @@ async def initialize_realtime_scanner(
         return None
 
     try:
-        # [02-002] 직접 RealtimeScanner 클래스 import (싱글톤 함수 삭제됨)
+        # [02-004] Container에서 의존성 획득
+        from backend.container import container
         from backend.core.realtime_scanner import RealtimeScanner
-        from backend.data.massive_client import MassiveClient
         from backend.data.watchlist_store import load_watchlist
         from backend.api.websocket import manager as ws_manager
 
-        # MassiveClient 인스턴스 생성 (API Key 필요)
-        api_key = os.getenv("MASSIVE_API_KEY", "")
-        if not api_key:
-            logger.warning("⚠️ RealtimeScanner skipped: MASSIVE_API_KEY not set")
+        # [02-004] Container에서 서비스 획득
+        massive_client = container.massive_client()
+        if not massive_client:
+            logger.warning("⚠️ RealtimeScanner skipped: MassiveClient not available")
             return None
 
-        massive_client = MassiveClient(api_key)
         await massive_client.__aenter__()  # HTTP Client 초기화
 
-        # [01-001] ScoringStrategy DI 주입 (순환 의존성 해소)
-        from backend.strategies.seismograph import SeismographStrategy
+        # [02-004] Container에서 의존성 획득
+        data_repository = container.data_repository()
+        scoring_strategy = container.scoring_strategy()
 
-        scoring_strategy = SeismographStrategy() if db else None
-
-        # [13-002 FIX] DataRepository 인스턴스 생성
-        # RealtimeScanner는 db 대신 data_repository를 사용
-        from backend.data.data_repository import DataRepository
-        from backend.data.parquet_manager import ParquetManager
-
-        parquet_manager = ParquetManager()
-        repo = DataRepository(parquet_manager, massive_client)
-
-        # [02-002] 직접 RealtimeScanner 인스턴스 생성
+        # [02-004] RealtimeScanner 생성 - ignition_monitor는 런타임 주입
         scanner = RealtimeScanner(
             massive_client=massive_client,
             ws_manager=ws_manager,
-            data_repository=repo,  # [13-002 FIX] db → data_repository
-            ignition_monitor=ignition_monitor,
-            poll_interval=1.0,  # 1초 폴링
-            scoring_strategy=scoring_strategy,  # [01-001] DI 주입
+            data_repository=data_repository,
+            ignition_monitor=ignition_monitor,  # 런타임 주입
+            poll_interval=1.0,
+            scoring_strategy=scoring_strategy,
         )
 
         # 기존 Watchlist 로드 후 시작
         existing_watchlist = load_watchlist()
         await scanner.start(initial_watchlist=existing_watchlist)
-        logger.info("🔥 RealtimeScanner started (1s polling for gainers)")
+        logger.info("🔥 RealtimeScanner started (via Container)")
 
         return scanner
     except Exception as e:

@@ -98,7 +98,7 @@ class MassiveClient:
         self,
         api_key: str,
         base_url: str = "https://api.massive.com",  # Massive.com → massive.com (deprecated)
-        rate_limit: int = 100,  # requests per minute (유료 플랜 기준)
+        rate_limit: int | None = None,  # None = 환경변수에서 읽음
         retry_count: int = 3,
         retry_delay: float = 2.0,
     ):
@@ -108,20 +108,35 @@ class MassiveClient:
         Args:
             api_key: Massive.com API 키 (환경변수 MASSIVE_API_KEY 권장)
             base_url: API 기본 URL
-            rate_limit: 분당 최대 요청 수 (Free: 5, 유료: 100+)
+            rate_limit: 분당 최대 요청 수 (0 = 무제한, None = 환경변수에서 읽음)
             retry_count: 실패 시 재시도 횟수
             retry_delay: 첫 번째 재시도 대기 시간 (Exponential Backoff)
         """
+        import os
+
         self.api_key = api_key
         self.base_url = base_url.rstrip("/")
         self.retry_count = retry_count
         self.retry_delay = retry_delay
 
         # ─────────────────────────────────────────────────────────────────
-        # Rate Limiter 설정
-        # - 60초 동안 rate_limit 회 호출 가능
+        # Rate Limit 설정 (환경변수 우선)
+        # - MASSIVE_RATE_LIMIT=0 : 무제한
+        # - MASSIVE_RATE_LIMIT=100 : 분당 100회
+        # - 미설정 시 기본값: 0 (무제한)
         # ─────────────────────────────────────────────────────────────────
-        if HAS_AIOLIMITER:
+        if rate_limit is None:
+            env_rate_limit = os.getenv("MASSIVE_RATE_LIMIT", "0")
+            rate_limit = int(env_rate_limit) if env_rate_limit.isdigit() else 0
+
+        self._rate_limit = rate_limit
+
+        # ─────────────────────────────────────────────────────────────────
+        # Rate Limiter 설정
+        # - rate_limit=0 이면 무제한 (limiter 비활성화)
+        # - rate_limit>0 이면 60초 동안 rate_limit 회 호출 가능
+        # ─────────────────────────────────────────────────────────────────
+        if HAS_AIOLIMITER and rate_limit > 0:
             self.rate_limiter = AsyncLimiter(rate_limit, 60)
         else:
             self.rate_limiter = None
@@ -131,7 +146,8 @@ class MassiveClient:
         # ─────────────────────────────────────────────────────────────────
         self._client: Optional[httpx.AsyncClient] = None
 
-        logger.debug(f"🔌 MassiveClient 초기화: rate_limit={rate_limit}/min")
+        rate_str = f"{rate_limit}/min" if rate_limit > 0 else "unlimited"
+        logger.debug(f"🔌 MassiveClient 초기화: rate_limit={rate_str}")
 
     # ═══════════════════════════════════════════════════════════════════════
     # Context Manager (async with 지원)

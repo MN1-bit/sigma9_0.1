@@ -83,39 +83,45 @@ COUNTRY_FLAGS: dict[str, str] = {
     # USA는 기본 (ADR 아닌 이상 표시 안 함)
 }
 
+
 def extract_country_from_description(description: str) -> tuple[str, str] | None:
     """
     Description에서 국가명 추출 후 (플래그, 국가명) 반환.
-    
+
     패턴:
     1. "South Korea's largest..." → South Korea
     2. "headquartered in ..., Israel." → Israel
     3. COUNTRY_FLAGS 키 직접 매칭
     """
     import re
+
     if not description:
         return None
-    
+
     # 패턴 1: "COUNTRY's ..." (소유격, 문장 시작)
     match = re.match(r"^([A-Z][\w\s]+?)'s\s", description)
     if match:
         country = match.group(1)
         if country in COUNTRY_FLAGS:
             return (COUNTRY_FLAGS[country], country)
-    
+
     # 패턴 2: "in/from CITY, COUNTRY." or "in COUNTRY."
-    match = re.search(r'(?:headquartered|based|located|operations?)\s+in\s+[^.]*?([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\.\s*$', description, re.IGNORECASE)
+    match = re.search(
+        r"(?:headquartered|based|located|operations?)\s+in\s+[^.]*?([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\.\s*$",
+        description,
+        re.IGNORECASE,
+    )
     if match:
         possible_country = match.group(1)
         for country, flag in COUNTRY_FLAGS.items():
             if country.lower() == possible_country.lower():
                 return (flag, country)
-    
+
     # 패턴 3: known countries 직접 검색 (전체 description에서)
     for country, flag in COUNTRY_FLAGS.items():
         if country in description:
             return (flag, country)
-    
+
     return None
 
 
@@ -144,17 +150,23 @@ class InfoCard(QFrame):
 
         # 타이틀
         self._title_label = QLabel(self._title)
-        self._title_label.setStyleSheet(f"color: {theme.get_color('text_secondary')}; font-size: 9px;")
+        self._title_label.setStyleSheet(
+            f"color: {theme.get_color('text_secondary')}; font-size: 9px;"
+        )
         layout.addWidget(self._title_label)
 
         # 메인 값
         self._value_label = QLabel("--")
-        self._value_label.setStyleSheet(f"color: {theme.get_color('text')}; font-size: 13px; font-weight: bold;")
+        self._value_label.setStyleSheet(
+            f"color: {theme.get_color('text')}; font-size: 13px; font-weight: bold;"
+        )
         layout.addWidget(self._value_label)
 
         # 서브 값
         self._sub_label = QLabel("")
-        self._sub_label.setStyleSheet(f"color: {theme.get_color('text_muted')}; font-size: 9px;")
+        self._sub_label.setStyleSheet(
+            f"color: {theme.get_color('text_muted')}; font-size: 9px;"
+        )
         layout.addWidget(self._sub_label)
 
         layout.addStretch()
@@ -164,8 +176,8 @@ class InfoCard(QFrame):
         c = theme.colors
         self.setStyleSheet(f"""
             QFrame {{
-                background-color: {c['surface_elevated']};
-                border: 1px solid {c['border']};
+                background-color: {c["surface_elevated"]};
+                border: 1px solid {c["border"]};
                 border-radius: 8px;
             }}
         """)
@@ -174,10 +186,14 @@ class InfoCard(QFrame):
         """값 업데이트. '--' 또는 빈 값이면 '정보 없음' 표시."""
         if value in ("--", "", None):
             self._value_label.setText("정보 없음")
-            self._value_label.setStyleSheet(f"color: {theme.get_color('text_muted')}; font-size: 11px;")
+            self._value_label.setStyleSheet(
+                f"color: {theme.get_color('text_muted')}; font-size: 11px;"
+            )
         else:
             self._value_label.setText(value)
-            self._value_label.setStyleSheet(f"color: {theme.get_color('text')}; font-size: 13px; font-weight: bold;")
+            self._value_label.setStyleSheet(
+                f"color: {theme.get_color('text')}; font-size: 13px; font-weight: bold;"
+            )
         self._sub_label.setText(sub_value)
 
 
@@ -205,7 +221,9 @@ class DetailTable(QFrame):
 
         # 타이틀
         self._title_label = QLabel(self._title)
-        self._title_label.setStyleSheet(f"color: {theme.get_color('primary')}; font-size: 11px; font-weight: bold;")
+        self._title_label.setStyleSheet(
+            f"color: {theme.get_color('primary')}; font-size: 11px; font-weight: bold;"
+        )
         layout.addWidget(self._title_label)
 
         # 테이블 레이아웃
@@ -220,8 +238,8 @@ class DetailTable(QFrame):
         c = theme.colors
         self.setStyleSheet(f"""
             QFrame {{
-                background-color: {c['surface']};
-                border: 1px solid {c['border']};
+                background-color: {c["surface"]};
+                border: 1px solid {c["border"]};
                 border-radius: 6px;
             }}
         """)
@@ -229,7 +247,7 @@ class DetailTable(QFrame):
     def set_data(self, data: list[tuple[str, str]]) -> None:
         """
         [14-004] 데이터 설정. data = [(key, value), ...]
-        
+
         [14-006] 모든 필드에서 동적 높이 작동:
         - wordWrap + 고정 너비 → Qt height-for-width 계산 활성화
         """
@@ -246,22 +264,28 @@ class DetailTable(QFrame):
         # 새 아이템 추가
         for row, (key, value) in enumerate(data):
             key_label = QLabel(key)
-            key_label.setStyleSheet(f"color: {theme.get_color('text_muted')}; font-size: 10px;")
+            key_label.setStyleSheet(
+                f"color: {theme.get_color('text_muted')}; font-size: 10px;"
+            )
             key_label.setWordWrap(True)  # [14-006] 긴 키 이름 대응
             key_label.setFixedWidth(50)  # [14-006] 키 라벨 고정 너비
-            
+
             val_label = QLabel(str(value) if value else "--")
-            val_label.setStyleSheet(f"color: {theme.get_color('text')}; font-size: 10px;")
+            val_label.setStyleSheet(
+                f"color: {theme.get_color('text')}; font-size: 10px;"
+            )
             val_label.setWordWrap(True)
             # [14-006] 고정 최대 너비 → wordWrap 시 height-for-width 계산 작동
             val_label.setMaximumWidth(val_max_width)
-            val_label.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Minimum)
-            
+            val_label.setSizePolicy(
+                QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Minimum
+            )
+
             # [14-006] 상단 정렬 (멀티라인 시 키와 값 상단 맞춤)
             self._grid.addWidget(key_label, row, 0, Qt.AlignmentFlag.AlignTop)
             self._grid.addWidget(val_label, row, 1, Qt.AlignmentFlag.AlignTop)
             self._grid.setRowStretch(row, 0)
-        
+
         # [14-006] 레이아웃 재계산 강제 호출
         self.updateGeometry()
         if self.parent():
@@ -291,7 +315,9 @@ class ListSection(QFrame):
 
         # 타이틀
         self._title_label = QLabel(self._title)
-        self._title_label.setStyleSheet(f"color: {theme.get_color('text_secondary')}; font-size: 11px;")
+        self._title_label.setStyleSheet(
+            f"color: {theme.get_color('text_secondary')}; font-size: 11px;"
+        )
         layout.addWidget(self._title_label)
 
         # 콘텐츠 영역
@@ -306,8 +332,8 @@ class ListSection(QFrame):
         c = theme.colors
         self.setStyleSheet(f"""
             QFrame {{
-                background-color: {c['surface_elevated']};
-                border: 1px solid {c['border']};
+                background-color: {c["surface_elevated"]};
+                border: 1px solid {c["border"]};
                 border-radius: 8px;
             }}
         """)
@@ -329,7 +355,9 @@ class ListSection(QFrame):
 
         if not items:
             no_data = QLabel("정보 없음")
-            no_data.setStyleSheet(f"color: {theme.get_color('text_muted')}; font-size: 11px;")
+            no_data.setStyleSheet(
+                f"color: {theme.get_color('text_muted')}; font-size: 11px;"
+            )
             self._content_layout.addWidget(no_data)
 
 
@@ -373,8 +401,8 @@ class RelatedTickersGrid(QFrame):
         c = theme.colors
         self.setStyleSheet(f"""
             QFrame {{
-                background-color: {c['surface_elevated']};
-                border: 1px solid {c['border']};
+                background-color: {c["surface_elevated"]};
+                border: 1px solid {c["border"]};
                 border-radius: 8px;
             }}
         """)
@@ -408,11 +436,11 @@ class RelatedTickersGrid(QFrame):
             label = QLabel(ticker)
             label.setAlignment(Qt.AlignmentFlag.AlignCenter)
             label.setStyleSheet(f"""
-                color: {theme.get_color('primary')};
+                color: {theme.get_color("primary")};
                 font-size: 10px;
                 padding: 2px 4px;
-                background-color: {theme.get_color('surface')};
-                border: 1px solid {theme.get_color('border')};
+                background-color: {theme.get_color("surface")};
+                border: 1px solid {theme.get_color("border")};
                 border-radius: 4px;
             """)
             label.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -463,19 +491,19 @@ class TickerInfoWindow(QDialog):
         self.setWindowTitle("Ticker Info")
         self.setMinimumSize(700, 600)
         self.resize(800, 700)
-        
+
         # Frameless + TranslucentBackground (Settings Dialog와 동일)
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Window)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
-        
+
         # [14-004] 마우스 트래킹 활성화 (리사이즈 커서 변경에 필요)
         self.setMouseTracking(True)
-        
+
         # Acrylic 효과 적용
         self._window_effects = WindowsEffects()
         neutral_tint = "181818CC"  # Dark gray + alpha
         self._window_effects.add_acrylic_effect(self.winId(), neutral_tint)
-        
+
         # 드래그/리사이즈 상태
         self._drag_pos = None
         self._resizing = False
@@ -539,7 +567,7 @@ class TickerInfoWindow(QDialog):
         # 티커
         self._ticker_label = QLabel("--")
         self._ticker_label.setStyleSheet(f"""
-            color: {theme.get_color('primary')};
+            color: {theme.get_color("primary")};
             font-size: 20px;
             font-weight: bold;
         """)
@@ -548,7 +576,7 @@ class TickerInfoWindow(QDialog):
         # 거래소
         self._exchange_label = QLabel("")
         self._exchange_label.setStyleSheet(f"""
-            color: {theme.get_color('text_muted')};
+            color: {theme.get_color("text_muted")};
             font-size: 11px;
         """)
         header.addWidget(self._exchange_label)
@@ -572,7 +600,7 @@ class TickerInfoWindow(QDialog):
         # 가격 + 등락
         self._price_label = QLabel("--")
         self._price_label.setStyleSheet(f"""
-            color: {theme.get_color('text')};
+            color: {theme.get_color("text")};
             font-size: 16px;
             font-weight: bold;
         """)
@@ -580,7 +608,7 @@ class TickerInfoWindow(QDialog):
 
         self._change_label = QLabel("")
         self._change_label.setStyleSheet(f"""
-            color: {theme.get_color('text_secondary')};
+            color: {theme.get_color("text_secondary")};
             font-size: 12px;
         """)
         header.addWidget(self._change_label)
@@ -588,7 +616,7 @@ class TickerInfoWindow(QDialog):
         # 시가총액
         self._mcap_label = QLabel("")
         self._mcap_label.setStyleSheet(f"""
-            color: {theme.get_color('text_muted')};
+            color: {theme.get_color("text_muted")};
             font-size: 11px;
         """)
         header.addWidget(self._mcap_label)
@@ -669,8 +697,8 @@ class TickerInfoWindow(QDialog):
         frame = QFrame()
         frame.setStyleSheet(f"""
             QFrame {{
-                background-color: {theme.get_color('surface')};
-                border: 1px solid {theme.get_color('border')};
+                background-color: {theme.get_color("surface")};
+                border: 1px solid {theme.get_color("border")};
                 border-radius: 8px;
             }}
         """)
@@ -692,7 +720,9 @@ class TickerInfoWindow(QDialog):
         # 회사 설명 (아래)
         self._desc_label = QLabel("회사 설명")
         self._desc_label.setWordWrap(True)
-        self._desc_label.setStyleSheet(f"color: {theme.get_color('text')}; font-size: 11px;")
+        self._desc_label.setStyleSheet(
+            f"color: {theme.get_color('text')}; font-size: 11px;"
+        )
         layout.addWidget(self._desc_label)
 
         # [14-004] addStretch 제거하여 콘텐츠 높이에 맞게 조절
@@ -703,8 +733,8 @@ class TickerInfoWindow(QDialog):
         frame = QFrame()
         frame.setStyleSheet(f"""
             QFrame {{
-                background-color: {theme.get_color('surface')};
-                border: 1px solid {theme.get_color('border')};
+                background-color: {theme.get_color("surface")};
+                border: 1px solid {theme.get_color("border")};
                 border-radius: 8px;
             }}
         """)
@@ -746,8 +776,8 @@ class TickerInfoWindow(QDialog):
         frame = QFrame()
         frame.setStyleSheet(f"""
             QFrame {{
-                background-color: {theme.get_color('surface')};
-                border: 1px solid {theme.get_color('border')};
+                background-color: {theme.get_color("surface")};
+                border: 1px solid {theme.get_color("border")};
                 border-radius: 8px;
             }}
         """)
@@ -843,15 +873,15 @@ class TickerInfoWindow(QDialog):
     def showEvent(self, event) -> None:
         """창 표시 시 타이머 시작 및 pending 티커 로드."""
         super().showEvent(event)
-        
+
         # [14-006] Opacity 버그 수정: re-open 시 theme.opacity로 재설정
         logger.debug(f"[showEvent] Reapplying opacity: theme.opacity={theme.opacity}")
         self.setWindowOpacity(theme.opacity)
-        
+
         # [14-006] Acrylic 효과 재적용 (재오픈 시 손실될 수 있음)
-        if hasattr(self, '_window_effects'):
+        if hasattr(self, "_window_effects"):
             self._window_effects.add_acrylic_effect(self.winId(), "181818CC")
-        
+
         # [14-001] Pending ticker 로드 (창 닫혀있을 때 변경된 티커)
         if self._pending_ticker:
             self.load_ticker(self._pending_ticker)
@@ -872,6 +902,7 @@ class TickerInfoWindow(QDialog):
     def _run_in_thread(self, func) -> None:
         """백그라운드 스레드에서 함수 실행."""
         import threading
+
         thread = threading.Thread(target=func, daemon=True)
         thread.start()
 
@@ -879,6 +910,7 @@ class TickerInfoWindow(QDialog):
         """동기적 티커 정보 로드 (스레드에서 실행)."""
         try:
             import asyncio
+
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             try:
@@ -926,7 +958,11 @@ class TickerInfoWindow(QDialog):
         if price:
             self._price_label.setText(f"${price:,.2f}")
             if change:
-                color = theme.get_color('success') if change >= 0 else theme.get_color('danger')
+                color = (
+                    theme.get_color("success")
+                    if change >= 0
+                    else theme.get_color("danger")
+                )
                 self._change_label.setText(f"({change:+.2f}%)")
                 self._change_label.setStyleSheet(f"color: {color}; font-size: 12px;")
             else:
@@ -938,9 +974,13 @@ class TickerInfoWindow(QDialog):
         # 시가총액
         market_cap = profile.get("market_cap")
         if market_cap:
-            mc_str = f"${market_cap/1e12:.2f}T" if market_cap >= 1e12 else \
-                     f"${market_cap/1e9:.1f}B" if market_cap >= 1e9 else \
-                     f"${market_cap/1e6:.0f}M"
+            mc_str = (
+                f"${market_cap / 1e12:.2f}T"
+                if market_cap >= 1e12
+                else f"${market_cap / 1e9:.1f}B"
+                if market_cap >= 1e9
+                else f"${market_cap / 1e6:.0f}M"
+            )
             self._mcap_label.setText(f"시총 {mc_str}")
         else:
             self._mcap_label.setText("")
@@ -957,16 +997,18 @@ class TickerInfoWindow(QDialog):
             if v is None:
                 return "--"
             if v >= 1e12:
-                return f"${v/1e12:.2f}T"
+                return f"${v / 1e12:.2f}T"
             if v >= 1e9:
-                return f"${v/1e9:.2f}B"
+                return f"${v / 1e9:.2f}B"
             if v >= 1e6:
-                return f"${v/1e6:.2f}M"
+                return f"${v / 1e6:.2f}M"
             return f"{v:,.0f}"
 
         # 발행주: share_class_shares_outstanding 없으면 weighted_shares_outstanding 사용
-        shares = profile.get("share_class_shares_outstanding") or profile.get("weighted_shares_outstanding")
-        
+        shares = profile.get("share_class_shares_outstanding") or profile.get(
+            "weighted_shares_outstanding"
+        )
+
         # 본사 위치: API address 필드 우선, 없으면 description에서 파싱
         address = profile.get("address", {})
         if address and isinstance(address, dict):
@@ -984,24 +1026,33 @@ class TickerInfoWindow(QDialog):
             desc_text = profile.get("description", "") or ""
             hq_location = "--"
             import re
+
             patterns = [
-                r'(?:headquartered|based|located)\s+in\s+([^.]+?)(?:\.|$)',
-                r'headquarters?\s+in\s+([^.]+?)(?:\.|$)',
+                r"(?:headquartered|based|located)\s+in\s+([^.]+?)(?:\.|$)",
+                r"headquarters?\s+in\s+([^.]+?)(?:\.|$)",
             ]
             for pattern in patterns:
                 match = re.search(pattern, desc_text, re.IGNORECASE)
                 if match:
                     hq_location = match.group(1).strip()
                     break
-        
+
         profile_data = [
             ("이름", profile.get("name", "--")),
             ("본사", hq_location),
             ("거래소", profile.get("primary_exchange", "--")),
             ("시가총액", fmt_num(profile.get("market_cap"))),
             ("발행주", fmt_num(shares)),
-            ("직원수", f"{profile.get('total_employees', 0):,}" if profile.get("total_employees") else "--"),
-            ("업종 (SIC)", f"{profile.get('sic_code', '--')} - {profile.get('sic_description', '')}"),
+            (
+                "직원수",
+                f"{profile.get('total_employees', 0):,}"
+                if profile.get("total_employees")
+                else "--",
+            ),
+            (
+                "업종 (SIC)",
+                f"{profile.get('sic_code', '--')} - {profile.get('sic_description', '')}",
+            ),
             ("상장일", profile.get("list_date", "--")),
             ("CIK", profile.get("cik", "--")),
             ("홈페이지", profile.get("homepage_url", "--")),
@@ -1012,7 +1063,12 @@ class TickerInfoWindow(QDialog):
         float_data = info.float_data
         float_table_data = [
             ("Free Float", fmt_num(float_data.get("free_float"))),
-            ("Float 비율", f"{float_data.get('free_float_percent', 0):.2f}%" if float_data.get("free_float_percent") else "--"),
+            (
+                "Float 비율",
+                f"{float_data.get('free_float_percent', 0):.2f}%"
+                if float_data.get("free_float_percent")
+                else "--",
+            ),
             ("기준일", float_data.get("as_of_date", "--")),
         ]
         self._float_table.set_data(float_table_data)
@@ -1025,8 +1081,12 @@ class TickerInfoWindow(QDialog):
             income = fin.get("financials", {}).get("income_statement", {})
             rev = income.get("revenues", {}).get("value")
             net = income.get("net_income_loss", {}).get("value")
-            fin_table_data.append((f"{period} {year}", f"매출: {fmt_num(rev)}, 순이익: {fmt_num(net)}"))
-        self._financials_table.set_data(fin_table_data if fin_table_data else [("데이터 없음", "--")])
+            fin_table_data.append(
+                (f"{period} {year}", f"매출: {fmt_num(rev)}, 순이익: {fmt_num(net)}")
+            )
+        self._financials_table.set_data(
+            fin_table_data if fin_table_data else [("데이터 없음", "--")]
+        )
 
         # [14-002] Dividends → _dividends_table
         div_data = []
@@ -1041,7 +1101,7 @@ class TickerInfoWindow(QDialog):
 
         # [14-004] Splits → _splits_table
         splits_data = []
-        for s in getattr(info, 'splits', []):
+        for s in getattr(info, "splits", []):
             exec_date = s.get("execution_date", "")
             split_from = s.get("split_from", "")
             split_to = s.get("split_to", "")
@@ -1055,11 +1115,18 @@ class TickerInfoWindow(QDialog):
         # [14-002] Float & Short → _float_table (유동성 탭)
         float_short_data = [
             ("Free Float", fmt_num(info.float_data.get("free_float"))),
-            ("Float %", f"{info.float_data.get('free_float_percent', 0):.2f}%" if info.float_data.get("free_float_percent") else "--"),
+            (
+                "Float %",
+                f"{info.float_data.get('free_float_percent', 0):.2f}%"
+                if info.float_data.get("free_float_percent")
+                else "--",
+            ),
         ]
         if info.short_interest:
             si = info.short_interest[0]
-            float_short_data.append(("Short Interest", f"{si.get('short_percent_of_float', 0):.2f}%"))
+            float_short_data.append(
+                ("Short Interest", f"{si.get('short_percent_of_float', 0):.2f}%")
+            )
         if info.short_volume:
             sv = info.short_volume[0]
             vol = sv.get("short_volume", 0)
@@ -1108,11 +1175,14 @@ class TickerInfoWindow(QDialog):
         """강제 갱신 (스레드에서 실행)."""
         try:
             import asyncio
+
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             try:
                 info = loop.run_until_complete(
-                    self._service.get_ticker_info(self._current_ticker, force_refresh=True)
+                    self._service.get_ticker_info(
+                        self._current_ticker, force_refresh=True
+                    )
                 )
                 self._ticker_info_loaded.emit(info)
             finally:
@@ -1129,6 +1199,7 @@ class TickerInfoWindow(QDialog):
         """Dynamic 데이터만 업데이트 (스레드에서 실행)."""
         try:
             import asyncio
+
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             try:
@@ -1144,11 +1215,11 @@ class TickerInfoWindow(QDialog):
     def _apply_dynamic_data(self, data: dict) -> None:
         """
         [14-004] Dynamic 데이터 UI 적용 (메인 스레드에서 실행).
-        
+
         Header의 가격/등락 라벨을 업데이트합니다.
         """
         snap = data.get("snapshot", {})
-        
+
         if not snap:
             self._dynamic_fail_count += 1
             if self._dynamic_fail_count >= 3:
@@ -1157,14 +1228,18 @@ class TickerInfoWindow(QDialog):
             return
         else:
             self._dynamic_fail_count = 0
-        
+
         # Header 가격/등락 업데이트
         price = snap.get("price")
         change = snap.get("change_pct")
         if price:
             self._price_label.setText(f"${price:,.2f}")
             if change:
-                color = theme.get_color('success') if change >= 0 else theme.get_color('danger')
+                color = (
+                    theme.get_color("success")
+                    if change >= 0
+                    else theme.get_color("danger")
+                )
                 self._change_label.setText(f"({change:+.2f}%)")
                 self._change_label.setStyleSheet(f"color: {color}; font-size: 12px;")
 
@@ -1180,24 +1255,32 @@ class TickerInfoWindow(QDialog):
         if event.button() == Qt.MouseButton.LeftButton:
             pos = event.position().toPoint()
             # [14-004] 우하단 코너인지 확인 (리사이즈 영역)
-            if (self.width() - pos.x() < self.RESIZE_MARGIN and 
-                self.height() - pos.y() < self.RESIZE_MARGIN):
+            if (
+                self.width() - pos.x() < self.RESIZE_MARGIN
+                and self.height() - pos.y() < self.RESIZE_MARGIN
+            ):
                 self._resizing = True
                 self._resize_start = event.globalPosition().toPoint()
                 self._resize_start_size = self.size()
             else:
                 self._resizing = False
-                self._drag_pos = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
+                self._drag_pos = (
+                    event.globalPosition().toPoint() - self.frameGeometry().topLeft()
+                )
             event.accept()
 
     def mouseMoveEvent(self, event):
         """마우스 드래그/리사이즈 중."""
         if event.buttons() == Qt.MouseButton.LeftButton:
-            if getattr(self, '_resizing', False):
+            if getattr(self, "_resizing", False):
                 # [14-004] 리사이즈 모드
                 delta = event.globalPosition().toPoint() - self._resize_start
-                new_width = max(self.minimumWidth(), self._resize_start_size.width() + delta.x())
-                new_height = max(self.minimumHeight(), self._resize_start_size.height() + delta.y())
+                new_width = max(
+                    self.minimumWidth(), self._resize_start_size.width() + delta.x()
+                )
+                new_height = max(
+                    self.minimumHeight(), self._resize_start_size.height() + delta.y()
+                )
                 self.resize(new_width, new_height)
             elif self._drag_pos:
                 # 드래그 모드
@@ -1206,8 +1289,10 @@ class TickerInfoWindow(QDialog):
         else:
             # [14-004] 커서 변경: 우하단 코너에서만 리사이즈 커서
             pos = event.position().toPoint()
-            if (self.width() - pos.x() < self.RESIZE_MARGIN and 
-                self.height() - pos.y() < self.RESIZE_MARGIN):
+            if (
+                self.width() - pos.x() < self.RESIZE_MARGIN
+                and self.height() - pos.y() < self.RESIZE_MARGIN
+            ):
                 self.setCursor(Qt.CursorShape.SizeFDiagCursor)
             else:
                 self.unsetCursor()

@@ -126,6 +126,129 @@ class Container(containers.DeclarativeContainer):
     massive_client = providers.Singleton(_create_massive_client)
 
     # ───────────────────────────────────────────────────────────────────────
+    # [02-001.5] MassiveWebSocketClient: 실시간 WebSocket 클라이언트 (Singleton)
+    # ───────────────────────────────────────────────────────────────────────
+    @staticmethod
+    def _create_massive_ws(
+        delayed: bool = False,
+        reconnect_interval: int = 5,
+    ):
+        """
+        MassiveWebSocketClient 생성 팩토리
+
+        📌 [02-001.5] Realtime Layer 의존성의 루트
+        📌 지연 import로 순환 참조 방지
+        📌 API Key는 환경변수에서 자동 로드 (클래스 내부 처리)
+        📌 websockets 미설치 시 None 반환 (ImportError 방지)
+
+        Args:
+            delayed: True면 15분 지연 데이터 (무료), False면 실시간
+            reconnect_interval: 재연결 시도 간격 (초)
+
+        Returns:
+            MassiveWebSocketClient 인스턴스 또는 None
+        """
+        try:
+            from backend.data.massive_ws_client import MassiveWebSocketClient
+        except ImportError:
+            # websockets 라이브러리 미설치
+            return None
+
+        try:
+            return MassiveWebSocketClient(
+                delayed=delayed,
+                reconnect_interval=reconnect_interval,
+            )
+        except ValueError:
+            # MASSIVE_API_KEY 환경변수 미설정
+            return None
+
+    # MassiveWebSocketClient: 실시간 WebSocket 클라이언트 (Singleton)
+    massive_ws = providers.Singleton(_create_massive_ws)
+
+    # ═══════════════════════════════════════════════════════════════════════
+    # [02-002] Realtime Layer - Tick Distribution & Subscription
+    # ═══════════════════════════════════════════════════════════════════════
+    #
+    # 📌 Data Flow:
+    #   MassiveWebSocketClient
+    #       ↓ on_bar / on_tick
+    #   TickBroadcaster → ConnectionManager (GUI)
+    #       ↓
+    #   TickDispatcher → Strategy, TrailingStop, etc.
+    #
+    # ═══════════════════════════════════════════════════════════════════════
+
+    # ───────────────────────────────────────────────────────────────────────
+    # [02-002] TickDispatcher: 틱 데이터 중앙 배포자 (Singleton)
+    # ───────────────────────────────────────────────────────────────────────
+    @staticmethod
+    def _create_tick_dispatcher():
+        """
+        TickDispatcher 생성 팩토리
+
+        📌 [02-002] 의존성 없음 - 단순 Singleton
+        📌 전략, TrailingStop, GUI 등이 이 Dispatcher에 구독
+        """
+        from backend.core.tick_dispatcher import TickDispatcher
+
+        return TickDispatcher()
+
+    tick_dispatcher = providers.Singleton(_create_tick_dispatcher)
+
+    # ───────────────────────────────────────────────────────────────────────
+    # [02-002] SubscriptionManager: Watchlist ↔ Massive 구독 동기화 (Singleton)
+    # ───────────────────────────────────────────────────────────────────────
+    @staticmethod
+    def _create_subscription_manager(massive_ws: Any):
+        """
+        SubscriptionManager 생성 팩토리
+
+        📌 [02-002] massive_ws는 Optional (나중에 set_massive_ws로 설정 가능)
+        📌 Watchlist 변경 시 Massive 구독 자동 동기화
+        """
+        from backend.core.subscription_manager import SubscriptionManager
+
+        return SubscriptionManager(massive_ws=massive_ws)
+
+    subscription_manager = providers.Singleton(
+        _create_subscription_manager,
+        massive_ws=massive_ws,
+    )
+
+    # ───────────────────────────────────────────────────────────────────────
+    # [02-002] TickBroadcaster: Massive → GUI WebSocket Bridge (Callable)
+    # ───────────────────────────────────────────────────────────────────────
+    @staticmethod
+    def _create_tick_broadcaster(
+        massive_ws: Any,
+        ws_manager: Any,
+        tick_dispatcher: Any,
+    ):
+        """
+        TickBroadcaster 생성 팩토리
+
+        📌 [02-002] 서버 lifespan에서 1회 호출하여 생성
+        📌 Callable Provider: 호출 시마다 새 인스턴스 (서버당 1개)
+        📌 loop는 생성 시 None, set_event_loop()로 나중에 설정
+        """
+        from backend.core.tick_broadcaster import TickBroadcaster
+
+        return TickBroadcaster(
+            massive_ws=massive_ws,
+            ws_manager=ws_manager,
+            loop=None,  # 서버 시작 후 set_event_loop() 호출
+            tick_dispatcher=tick_dispatcher,
+        )
+
+    tick_broadcaster = providers.Callable(
+        _create_tick_broadcaster,
+        massive_ws=massive_ws,
+        ws_manager=ws_manager,
+        tick_dispatcher=tick_dispatcher,
+    )
+
+    # ───────────────────────────────────────────────────────────────────────
     # [11-002] ParquetManager: Parquet I/O 관리자 (Singleton)
     # ───────────────────────────────────────────────────────────────────────
     @staticmethod
@@ -166,7 +289,9 @@ class Container(containers.DeclarativeContainer):
         actual_policy_type = flush_policy_type or "interval"
         actual_interval = flush_interval if flush_interval is not None else 30.0
 
-        policy = create_flush_policy(actual_policy_type, interval_seconds=actual_interval)
+        policy = create_flush_policy(
+            actual_policy_type, interval_seconds=actual_interval
+        )
         return DataRepository(
             parquet_manager=parquet_manager,
             massive_client=massive_client,
@@ -397,6 +522,106 @@ class Container(containers.DeclarativeContainer):
 
     # EventSequencer: 이벤트 순서 보장 (Factory - 상태 있음)
     event_sequencer = providers.Factory(_create_event_sequencer)
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # Broker Layer
+    # ═══════════════════════════════════════════════════════════════════════════
+    #
+    # 📌 [02-001] Broker Layer DI 통합
+    # 📌 IBKRConnector를 루트로 하는 단방향 의존성 체인
+    #
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    @staticmethod
+    def _create_ibkr_connector():
+        """
+        IBKRConnector 생성 팩토리
+
+        📌 IB Gateway/TWS 연결 관리
+        📌 QThread 기반이지만 Container에서 생명주기 관리
+        """
+        from backend.broker.ibkr_connector import IBKRConnector
+
+        return IBKRConnector()
+
+    # IBKRConnector: IBKR 브로커 연결 (Singleton)
+    ibkr_connector = providers.Singleton(_create_ibkr_connector)
+
+    @staticmethod
+    def _create_order_manager(connector):
+        """
+        OrderManager 생성 팩토리
+
+        📌 IBKRConnector를 통해 주문 실행/추적
+        """
+        from backend.core.order_manager import OrderManager
+
+        return OrderManager(connector=connector)
+
+    # OrderManager: 주문 관리 (Singleton)
+    order_manager = providers.Singleton(
+        _create_order_manager,
+        connector=ibkr_connector,
+    )
+
+    @staticmethod
+    def _create_risk_manager(connector):
+        """
+        RiskManager 생성 팩토리
+
+        📌 Kelly Criterion 포지션 사이징
+        📌 Kill Switch 기능
+        """
+        from backend.core.risk_manager import RiskManager
+
+        return RiskManager(connector=connector)
+
+    # RiskManager: 리스크 관리 (Singleton)
+    risk_manager = providers.Singleton(
+        _create_risk_manager,
+        connector=ibkr_connector,
+    )
+
+    @staticmethod
+    def _create_trailing_stop_manager(connector):
+        """
+        TrailingStopManager 생성 팩토리
+
+        📌 IBKR 네이티브 Trailing Stop 주문 관리
+        """
+        from backend.core.trailing_stop import TrailingStopManager
+
+        return TrailingStopManager(connector=connector)
+
+    # TrailingStopManager: Trailing Stop 관리 (Singleton)
+    trailing_stop_manager = providers.Singleton(
+        _create_trailing_stop_manager,
+        connector=ibkr_connector,
+    )
+
+    @staticmethod
+    def _create_double_tap_manager(connector, order_manager, trailing_manager):
+        """
+        DoubleTapManager 생성 팩토리
+
+        📌 1차 청산 후 재진입 로직
+        📌 Cooldown + HOD 돌파 조건 모니터링
+        """
+        from backend.core.double_tap import DoubleTapManager
+
+        return DoubleTapManager(
+            connector=connector,
+            order_manager=order_manager,
+            trailing_manager=trailing_manager,
+        )
+
+    # DoubleTapManager: 재진입 관리 (Singleton)
+    double_tap_manager = providers.Singleton(
+        _create_double_tap_manager,
+        connector=ibkr_connector,
+        order_manager=order_manager,
+        trailing_manager=trailing_stop_manager,
+    )
 
 
 # ═══════════════════════════════════════════════════════════════════════════

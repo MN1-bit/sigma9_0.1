@@ -85,10 +85,7 @@ class DataRepairer:
             "errors": [],
         }
 
-        logger.info(
-            f"🔧 DataRepairer 초기화: base_dir={base_dir}, "
-            f"dry_run={dry_run}"
-        )
+        logger.info(f"🔧 DataRepairer 초기화: base_dir={base_dir}, dry_run={dry_run}")
 
     # ═══════════════════════════════════════════════════════════════════════
     # 백업
@@ -167,23 +164,27 @@ class DataRepairer:
             else:
                 logger.info(f"  [DRY-RUN] 중복 제거 예정: {dup_count}건")
 
-            self.report["actions"].append({
-                "type": "remove_duplicates",
-                "file": str(daily_path),
-                "removed": dup_count,
-                "original": original_count,
-                "final": len(df_dedup),
-            })
+            self.report["actions"].append(
+                {
+                    "type": "remove_duplicates",
+                    "file": str(daily_path),
+                    "removed": dup_count,
+                    "original": original_count,
+                    "final": len(df_dedup),
+                }
+            )
 
             return dup_count
 
         except Exception as e:
             logger.error(f"❌ Daily 중복 제거 실패: {e}")
-            self.report["errors"].append({
-                "type": "remove_duplicates",
-                "file": str(daily_path),
-                "error": str(e),
-            })
+            self.report["errors"].append(
+                {
+                    "type": "remove_duplicates",
+                    "file": str(daily_path),
+                    "error": str(e),
+                }
+            )
             return 0
 
     def remove_duplicates_intraday(self) -> int:
@@ -221,11 +222,13 @@ class DataRepairer:
 
                     total_removed += dup_count
 
-                    self.report["actions"].append({
-                        "type": "remove_duplicates",
-                        "file": str(f),
-                        "removed": dup_count,
-                    })
+                    self.report["actions"].append(
+                        {
+                            "type": "remove_duplicates",
+                            "file": str(f),
+                            "removed": dup_count,
+                        }
+                    )
 
                     logger.info(
                         f"  {'[DRY-RUN] ' if self.dry_run else ''}"
@@ -234,11 +237,13 @@ class DataRepairer:
 
                 except Exception as e:
                     logger.error(f"❌ {f}: 처리 실패 - {e}")
-                    self.report["errors"].append({
-                        "type": "remove_duplicates",
-                        "file": str(f),
-                        "error": str(e),
-                    })
+                    self.report["errors"].append(
+                        {
+                            "type": "remove_duplicates",
+                            "file": str(f),
+                            "error": str(e),
+                        }
+                    )
 
         return total_removed
 
@@ -298,22 +303,26 @@ class DataRepairer:
             else:
                 logger.info(f"  [DRY-RUN] NULL 처리 예정: {total_nulls}건")
 
-            self.report["actions"].append({
-                "type": "fill_nulls",
-                "file": str(daily_path),
-                "strategy": strategy,
-                "processed": int(total_nulls),
-            })
+            self.report["actions"].append(
+                {
+                    "type": "fill_nulls",
+                    "file": str(daily_path),
+                    "strategy": strategy,
+                    "processed": int(total_nulls),
+                }
+            )
 
             return int(total_nulls)
 
         except Exception as e:
             logger.error(f"❌ Daily NULL 처리 실패: {e}")
-            self.report["errors"].append({
-                "type": "fill_nulls",
-                "file": str(daily_path),
-                "error": str(e),
-            })
+            self.report["errors"].append(
+                {
+                    "type": "fill_nulls",
+                    "file": str(daily_path),
+                    "error": str(e),
+                }
+            )
             return 0
 
     # ═══════════════════════════════════════════════════════════════════════
@@ -377,9 +386,7 @@ class DataRepairer:
 
 def main():
     """CLI 진입점"""
-    parser = argparse.ArgumentParser(
-        description="Parquet 데이터 복구 (11-004)"
-    )
+    parser = argparse.ArgumentParser(description="Parquet 데이터 복구 (11-004)")
     parser.add_argument(
         "--base-dir",
         default="data/parquet",
@@ -413,7 +420,8 @@ def main():
         help="JSON 리포트 출력 경로",
     )
     parser.add_argument(
-        "-v", "--verbose",
+        "-v",
+        "--verbose",
         action="store_true",
         help="상세 로그 출력",
     )

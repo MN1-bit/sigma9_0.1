@@ -88,14 +88,42 @@ GUI 관련 리팩터링 시:
 
 | 문서 | 업데이트 대상 |
 |------|-------------|
-| `@PROJECT_DNA.md` | 디렉터리 구조, Tech Stack |
-| `.agent/Ref/archt.md` | 모듈 구조, 데이터 파이프라인 다이어그램 |
-| `.agent/Ref/MPlan.md` | Tech Stack, 완료 마일스톤 |
+| `docs/_architecture/_index.md` | 파일 추가/삭제/이동 |
+| `docs/_architecture/Full_DataFlow.md` | 데이터 흐름 변경 |
+| `docs/_architecture/{레이어}/{파일명}.md` | 코드 변경 시 해당 문서 |
 
 체크리스트:
-- [ ] `@PROJECT_DNA.md` - 해당 섹션 업데이트
-- [ ] `.agent/Ref/archt.md` - 해당 섹션 업데이트
-- [ ] `.agent/Ref/MPlan.md` - 해당 섹션 업데이트
+- [ ] `docs/_architecture/_index.md` - 구조 반영
+- [ ] `docs/_architecture/Full_DataFlow.md` - 흐름 동기화 (해당 시)
+- [ ] 관련 `docs/_architecture/` 개별 문서 업데이트
+
+---
+
+## 8. 문서 동기화 워크플로우 (필수)
+
+> **원칙**: 모든 작업 완료 시 문서 동기화 필수
+
+### Step 1: Devlog 작성
+작업 완료 후: `docs/devlog/{yy-mm-dd}/{hh-mm}_{작업명}.md`
+
+### Step 2: Full Log History 업데이트
+`docs/devlog/full_log_history.md`에 추가:
+```markdown
+| {YYYY-MM-DD HH:MM} | {작업 내용 요약} | `{yy-mm-dd}/{hh-mm}_{작업명}.md` |
+```
+
+### Step 3: Architecture 문서 반영
+| 변경 유형 | 업데이트 대상 |
+|-----------|--------------|
+| 파일 추가/삭제/이동 | `docs/_architecture/_index.md` |
+| 데이터 흐름 변경 | `docs/_architecture/Full_DataFlow.md` |
+| 코드 변경 | `docs/_architecture/{레이어}/{파일명}.md` |
+
+### 체크리스트
+- [ ] Devlog 작성
+- [ ] `full_log_history.md` 업데이트
+- [ ] `_index.md` 반영
+- [ ] 관련 Architecture 문서 동기화
 
 ---
 

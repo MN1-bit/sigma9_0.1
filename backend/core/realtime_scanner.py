@@ -101,7 +101,9 @@ class RealtimeScanner:
 
         # [12-001] TickerFilter 초기화 (Warrant/Preferred/Rights/Units 제외)
         self.ticker_filter = ticker_filter or get_ticker_filter()
-        logger.info(f"🔧 TickerFilter 활성화: {len(self.ticker_filter._patterns)}개 패턴")
+        logger.info(
+            f"🔧 TickerFilter 활성화: {len(self.ticker_filter._patterns)}개 패턴"
+        )
 
         # 내부 상태
         self._running = False
@@ -288,7 +290,7 @@ class RealtimeScanner:
                     if not self.ticker_filter.is_allowed(ticker):
                         logger.debug(f"🚫 {ticker}: TickerFilter에 의해 제외됨")
                         continue
-                    
+
                     self._known_tickers.add(ticker)
                     await self._handle_new_gainer(item)
 
@@ -357,7 +359,9 @@ class RealtimeScanner:
                     intensities = result.get(
                         "intensities_v3", {}
                     )  # [03-003 FIX] V3 intensities 사용
-                    logger.info(f"📊 {ticker}: score_v3={score_v3:.1f} (DataRepository)")
+                    logger.info(
+                        f"📊 {ticker}: score_v3={score_v3:.1f} (DataRepository)"
+                    )
                 else:
                     logger.warning(f"⚠️ {ticker}: 일봉 데이터 부족, score_v3=None")
             except Exception as e:
@@ -371,7 +375,8 @@ class RealtimeScanner:
             "volume": volume,
             "dollar_volume": dollar_volume,
             "source": "realtime_gainer",
-            "discovered_at": item.get("lastUpdated") or datetime.now().isoformat(),  # [08-001] 이벤트 타임 사용
+            "discovered_at": item.get("lastUpdated")
+            or datetime.now().isoformat(),  # [08-001] 이벤트 타임 사용
             # [03-001] 계산된 score 값 사용 (없으면 None → GUI에서 ⚠️ 표시)
             "score": score,
             "score_v3": score_v3,
@@ -431,7 +436,6 @@ class RealtimeScanner:
                     logger.debug(f"🎯 IgnitionMonitor에 {ticker} 등록")
             except Exception as e:
                 logger.warning(f"⚠️ IgnitionMonitor 등록 실패: {e}")
-
 
     # ═══════════════════════════════════════════════════════════════════════
     # [Issue 01-003] Periodic Watchlist Broadcast
@@ -500,7 +504,9 @@ class RealtimeScanner:
                         if self.repo and self.strategy:
                             try:
                                 # [11-002] DataRepository에서 일봉 조회
-                                df = await self.repo.get_daily_bars(ticker, days=20, auto_fill=True)
+                                df = await self.repo.get_daily_bars(
+                                    ticker, days=20, auto_fill=True
+                                )
                                 if not df.empty and len(df) >= 5:
                                     data = df.sort_values("date").to_dict("records")
                                     result = self.strategy.calculate_watchlist_score_detailed(

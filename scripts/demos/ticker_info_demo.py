@@ -18,8 +18,6 @@ import os
 import json
 import asyncio
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
-from typing import Any, Optional
 
 import httpx
 from dotenv import load_dotenv
@@ -344,7 +342,7 @@ def print_ticker_info(info: TickerInfo):
     
     # 1. 기본 정보
     if info.profile:
-        print(f"\n🏢 기본 정보")
+        print("\n🏢 기본 정보")
         print(f"   이름: {info.profile.get('name')}")
         print(f"   시가총액: ${info.profile.get('market_cap', 0):,.0f}")
         print(f"   직원수: {info.profile.get('total_employees', 'N/A'):,}")
@@ -353,14 +351,14 @@ def print_ticker_info(info: TickerInfo):
     
     # 2. 유동성
     if info.float_data:
-        print(f"\n💧 유동성 (Float)")
+        print("\n💧 유동성 (Float)")
         print(f"   Free Float: {info.float_data.get('free_float', 0):,}")
         print(f"   Float %: {info.float_data.get('free_float_percent', 0):.1f}%")
         print(f"   기준일: {info.float_data.get('effective_date')}")
     
     # 3. 스냅샷
     if info.snapshot:
-        print(f"\n📈 현재가")
+        print("\n📈 현재가")
         print(f"   가격: ${info.snapshot.get('price', 0):.2f}")
         print(f"   변동: {info.snapshot.get('change_pct', 0):.2f}%")
         print(f"   거래량: {info.snapshot.get('volume', 0):,}")
@@ -393,7 +391,7 @@ def print_ticker_info(info: TickerInfo):
     # 8. 관련 기업
     if info.related_companies:
         tickers = [r.get("ticker") for r in info.related_companies[:10]]
-        print(f"\n🔗 관련 기업")
+        print("\n🔗 관련 기업")
         print(f"   {', '.join(tickers)}")
     
     print("\n" + "=" * 60)

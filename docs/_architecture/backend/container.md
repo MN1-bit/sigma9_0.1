@@ -6,8 +6,8 @@
 |------|---|
 | **경로** | `backend/container.py` |
 | **역할** | DI(의존성 주입) Container - 모든 핵심 서비스의 생명주기 및 의존성 관리 |
-| **라인 수** | 420 |
-| **바이트** | 20,328 |
+| **라인 수** | 520 |
+| **바이트** | 25,000+ |
 
 ## 클래스
 
@@ -29,13 +29,19 @@ Container
 │   ├── ticker_info_service (TickerInfoService)
 │   ├── symbol_mapper (SymbolMapper)
 │   └── scoring_strategy (SeismographStrategy)
-└── Core Layer
-    ├── trading_context (TradingContext)
-    ├── realtime_scanner (RealtimeScanner)
-    ├── ignition_monitor (IgnitionMonitor)
-    ├── audit_logger (AuditLogger)
-    ├── event_deduplicator (EventDeduplicator)
-    └── event_sequencer (EventSequencer)
+├── Core Layer
+│   ├── trading_context (TradingContext)
+│   ├── realtime_scanner (RealtimeScanner)
+│   ├── ignition_monitor (IgnitionMonitor)
+│   ├── audit_logger (AuditLogger)
+│   ├── event_deduplicator (EventDeduplicator)
+│   └── event_sequencer (EventSequencer)
+└── Broker Layer [02-001]
+    ├── ibkr_connector (IBKRConnector)
+    ├── order_manager (OrderManager)
+    ├── risk_manager (RiskManager)
+    ├── trailing_stop_manager (TrailingStopManager)
+    └── double_tap_manager (DoubleTapManager)
 ```
 
 #### Providers
@@ -58,6 +64,11 @@ Container
 | `audit_logger` | Singleton | `_create_audit_logger` | 감사 로거 |
 | `event_deduplicator` | Factory | `_create_event_deduplicator` | 이벤트 중복 제거 |
 | `event_sequencer` | Factory | `_create_event_sequencer` | 이벤트 순서 보장 |
+| `ibkr_connector` | Singleton | `_create_ibkr_connector` | IBKR 브로커 연결 [02-001] |
+| `order_manager` | Singleton | `_create_order_manager` | 주문 관리 [02-001] |
+| `risk_manager` | Singleton | `_create_risk_manager` | 리스크 관리 [02-001] |
+| `trailing_stop_manager` | Singleton | `_create_trailing_stop_manager` | Trailing Stop [02-001] |
+| `double_tap_manager` | Singleton | `_create_double_tap_manager` | 재진입 관리 [02-001] |
 
 ## 함수 목록
 
@@ -93,6 +104,11 @@ Container
 | `backend/core/audit_logger.py` | `AuditLogger` | `_create_audit_logger()` |
 | `backend/core/deduplicator.py` | `EventDeduplicator` | `_create_event_deduplicator()` |
 | `backend/core/event_sequencer.py` | `EventSequencer` | `_create_event_sequencer()` |
+| `backend/broker/ibkr_connector.py` | `IBKRConnector` | `_create_ibkr_connector()` [02-001] |
+| `backend/core/order_manager.py` | `OrderManager` | `_create_order_manager()` [02-001] |
+| `backend/core/risk_manager.py` | `RiskManager` | `_create_risk_manager()` [02-001] |
+| `backend/core/trailing_stop.py` | `TrailingStopManager` | `_create_trailing_stop_manager()` [02-001] |
+| `backend/core/double_tap.py` | `DoubleTapManager` | `_create_double_tap_manager()` [02-001] |
 
 ### Imported By (이 파일을 가져가는 것)
 | 파일 | 사용 목적 |
@@ -169,6 +185,7 @@ with container.realtime_scanner.override(Mock()):
 | [09-009] | TradingContext 추가 |
 | [11-002] | DataRepository, ParquetManager 추가 |
 | [15-001] | TickerInfoService 추가 |
+| [02-001] | Broker Layer DI 통합 (5개 Provider 추가) |
 
 ## 외부 의존성
 - `dependency-injector` - DI 프레임워크

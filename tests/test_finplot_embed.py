@@ -9,11 +9,10 @@ os.environ['QT_API'] = 'pyqt6'
 import sys
 import pandas as pd
 import numpy as np
-from datetime import datetime, timedelta
+from datetime import datetime
 
 # PyQt6 먼저 import
 from PyQt6.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QPushButton
-from PyQt6.QtCore import Qt
 
 # finplot import
 import finplot as fplt

@@ -27,15 +27,40 @@ description: 기능 구현 실행 (매 Step devlog 필수)
 ✓ DI Container 사용?
 ```
 
-## 3. Devlog 작성 (매 Step 필수)
+## 3. Task Progress Tracking (필수)
 
-경로: `docs/devlog/impl/{기능명}.md`
+> **원칙**: 매 Sub-task 완료 시 계획서의 체크박스 업데이트
+
+### 마킹 절차
+1. Sub-task 완료
+2. 계획서 파일에서 `- [ ] X.X` → `- [x] X.X` 변경
+3. Devlog에 완료 기록
+4. 다음 Sub-task 진행
+
+### 예시
+```diff
+- - [ ] 1.1 파일 구조 분석
++ - [x] 1.1 파일 구조 분석
+  - [ ] 1.2 의존성 맵핑
+```
+
+> ⚠️ **마킹 없이 다음 Task 진행 금지**
+
+## 4. Devlog 작성 (매 Step 필수)
+
+경로: `docs/devlog/{yy-mm-dd}/{hh-mm}_{phase}-{step}_{subtitle}.md`
+- `yy-mm-dd`: 오늘 날짜
+- `hh-mm`: 작성 시각
+- `phase-step`: 예) `01-001`, `02-003`
+- `subtitle`: 간략한 작업 내용
+
+예시: `docs/devlog/26-01-16/16-30_02-001_chart_refactor.md`
 
 ```markdown
-# [기능명] Devlog
+# [{phase}-{step}] {subtitle}
 
-> **작성일**: YYYY-MM-DD
-> **계획서**: [link](../../Plan/impl/{기능명}_plan.md)
+> **작성일**: YYYY-MM-DD HH:MM
+> **계획서**: [link](../../Plan/{yy-mm-dd}/{hh-mm}_{phase}-{step}_{subtitle}.md)
 
 ## 진행 현황
 
@@ -57,7 +82,7 @@ description: 기능 구현 실행 (매 Step devlog 필수)
 
 > **BLOCKED**: 다음 Step 전 devlog 작성 필수
 
-## 4. 중간 검증
+## 5. 중간 검증
 
 // turbo
 매 Step 후:
@@ -66,7 +91,7 @@ ruff check .
 lint-imports
 ```
 
-### 4.1 기존 에러 분석 (Sub-Phase)
+### 5.1 기존 에러 분석 (Sub-Phase)
 
 > ⚠️ **기존 에러를 무시하고 넘어가지 않는다**
 
@@ -96,7 +121,25 @@ lint-imports
 
 > **BLOCKED**: lint 에러 0건 확인 후 다음 Step 진행
 
-## 5. 완료 후
+## 6. Context Checkpoint (Long Task Management)
+
+> **Purpose**: Prevent context window overflow and maintain quality during extended tasks.
+
+### Trigger Conditions
+Perform checkpoint when ANY of the following occurs:
+- [ ] **200+ lines** of code changes accumulated
+- [ ] **3+ files** modified
+- [ ] **30 minutes** elapsed since last checkpoint
+- [ ] Current Step completed
+
+### Checkpoint Procedure
+1. **Update Plan**: Mark current progress with `[x]` in plan document
+2. **Write Devlog**: Record changes made so far
+3. **Proceed to next step**
+
+> **Effect**: Context compression + external memory → sustained quality in long tasks
+
+## 7. 완료 후
 
 `/IMP-verification` 실행
 

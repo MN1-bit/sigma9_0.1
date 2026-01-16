@@ -167,13 +167,13 @@ class ResamplePanel(QWidget):
         self.progress_bar.setTextVisible(True)
         self.progress_bar.setStyleSheet(f"""
             QProgressBar {{
-                border: 1px solid {theme.get_color('border')};
+                border: 1px solid {theme.get_color("border")};
                 border-radius: 4px;
-                background: {theme.get_color('surface')};
+                background: {theme.get_color("surface")};
                 height: 20px;
             }}
             QProgressBar::chunk {{
-                background: {theme.get_color('primary')};
+                background: {theme.get_color("primary")};
                 border-radius: 3px;
             }}
         """)
@@ -352,4 +352,3 @@ class ResamplePanel(QWidget):
         self.btn_stop.setEnabled(False)
         self._worker = None
         self._pending_tfs = []
-

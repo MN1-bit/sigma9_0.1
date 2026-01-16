@@ -266,11 +266,13 @@ async def _handle_set_active_ticker(data: dict) -> None:
     if changed:
         # 모든 클라이언트에게 브로드캐스트
         # ELI5: 누군가 티커를 바꾸면, 연결된 모든 클라이언트에게 알려줌
-        broadcast_msg = json.dumps({
-            "type": "ACTIVE_TICKER_CHANGED",
-            "ticker": ticker,
-            "source": source,
-        })
+        broadcast_msg = json.dumps(
+            {
+                "type": "ACTIVE_TICKER_CHANGED",
+                "ticker": ticker,
+                "source": source,
+            }
+        )
         await ws_manager.broadcast(broadcast_msg)
 
 

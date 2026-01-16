@@ -84,4 +84,3 @@ async def get_zscore(ticker: str):
     except Exception as e:
         logger.error(f"Z-Score 계산 실패: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-

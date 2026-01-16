@@ -167,7 +167,8 @@ def main():
         help="실제 파일 이동 없이 시뮬레이션",
     )
     parser.add_argument(
-        "-v", "--verbose",
+        "-v",
+        "--verbose",
         action="store_true",
         help="상세 로그 출력",
     )

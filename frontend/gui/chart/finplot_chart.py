@@ -161,10 +161,10 @@ class FinplotChartWidget(QWidget):
 
         # [15-001] Volume 패널 배경 투명화 (ViewBox만 지원)
         self.ax_volume.vb.setBackgroundColor(None)
-        
+
         # 메인 캔들스틱 패널도 배경 투명화
         self.ax.vb.setBackgroundColor(None)
-        
+
         # [15-001] Row 비율 설정 (3:1 = 캔들:볼륨)
         self.ax.vb.win.ci.layout.setRowStretchFactor(0, 3)  # 캔들스틱 row
         self.ax.vb.win.ci.layout.setRowStretchFactor(1, 1)  # 볼륨 row

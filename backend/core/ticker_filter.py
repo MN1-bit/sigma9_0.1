@@ -25,6 +25,7 @@ from loguru import logger
 # TickerFilter 클래스
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 class TickerFilter:
     """
     티커 제외 필터
@@ -167,7 +168,9 @@ class TickerFilter:
 
         excluded_count = len(tickers) - len(result)
         if excluded_count > 0:
-            logger.debug(f"🔍 TickerFilter: {len(tickers)}개 중 {excluded_count}개 제외")
+            logger.debug(
+                f"🔍 TickerFilter: {len(tickers)}개 중 {excluded_count}개 제외"
+            )
 
         return result
 

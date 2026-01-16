@@ -11,13 +11,13 @@
 | 영역 | 파일 수 (실제) | 완료 | 진행률 |
 |------|---------------|------|--------|
 | **backend/** | 98 | 98 | 100% |
-| **frontend/** | 35 | 35 | 100% |
+| **frontend/** | 36 | 36 | 100% |
 | **scripts/** | 10 | 10 | 100% |
 | **tests/** | 15 | 15 | 100% |
-| **.agent/** | 13 | 13 | 100% |
+| **.agent/** | 8 | 8 | 100% |
 | **Root Files** | 8 | 8 | 100% |
 
-**총 파일 수: 179개**
+**총 파일 수: 175개**
 
 ---
 
@@ -158,7 +158,7 @@ backend/
 
 ---
 
-## Phase 2: Frontend Layer (35 files)
+## Phase 2: Frontend Layer (36 files)
 
 ```
 frontend/
@@ -211,6 +211,7 @@ frontend/
 │   ├── [x] __init__.py
 │   ├── [x] backend_client.py     # 백엔드 클라이언트
 │   ├── [x] chart_data_service.py # 차트 데이터 서비스
+│   ├── [x] ibkr_adapter.py       # IBKR 이벤트 어댑터 [02-003]
 │   ├── [x] rest_adapter.py       # REST 어댑터
 │   └── [x] ws_adapter.py         # WebSocket 어댑터
 │
@@ -274,14 +275,7 @@ Sigma9-0.1/
 ├── [x] massive_rest_spec.json    # Massive API REST 스펙
 ├── [x] massive_websocket_spec.json # Massive WebSocket 스펙
 │
-├── .agent/                       # 에이전트 설정 (13 files)
-│   ├── Ref/                      # 참조 문서 (3 files)
-│   │   ├── [x] MPlan.md
-│   │   ├── [x] archt.md
-│   │   └── [x] frameless_dialog_pattern.md
-│   ├── rules/                    # 규칙 (2 files)
-│   │   ├── [x] coding.md
-│   │   └── [x] refactoring.md
+├── .agent/                       # 에이전트 설정 (8 files)
 │   └── workflows/                # 워크플로우 (8 files)
 │       ├── [x] IMP-execution.md
 │       ├── [x] IMP-planning.md
@@ -293,13 +287,16 @@ Sigma9-0.1/
 │       └── [x] refactoring-verification.md
 │
 └── docs/                         # 문서 (폴더 구조만)
-    ├── Plan/
-    ├── analysis/
-    ├── archive/
-    ├── context/
-    ├── devlog/
-    ├── diagrams/
-    └── references/
+    ├── _architecture/            # 파일별 문서화 결과물 (164 files)
+    ├── Plan/                     # 구현 계획서 (날짜별 정리: 26-01-13/, 등)
+    │   └── backtest/             # 백테스트 관련 계획
+    ├── devlog/                   # 개발 로그 (날짜별 정리: 26-01-13/, 등)
+    ├── context/                  # 참조 자료
+    │   ├── references/           # 외부 API, 연구 문서, 레거시 코드 (47 files)
+    │   └── strategy/             # 전략 관련 문서 (25 files)
+    ├── archive/                  # 아카이브
+    ├── diagrams/                 # 다이어그램
+    └── references/               # 추가 참조 자료
 ```
 
 ---
