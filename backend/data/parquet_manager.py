@@ -61,21 +61,36 @@ class ParquetManager:
         >>> result = pm.read_daily("AAPL", days=30)
     """
 
+    # [11-003] 지원하는 타임프레임 목록
+    SUPPORTED_TIMEFRAMES: list[str] = ["1m", "3m", "5m", "15m", "1h", "4h"]
+
     def __init__(self, base_dir: str = "data/parquet"):
         """
         ParquetManager 초기화
+
+        [11-003] 타임프레임별 폴더 구조로 마이그레이션
+        기존: intraday/AAPL_1m.parquet
+        신규: 1m/AAPL.parquet
 
         Args:
             base_dir: Parquet 파일 저장 루트 디렉터리
         """
         # 경로 설정 (ELI5: 파일을 저장할 폴더 위치를 정합니다)
         self.base_dir = Path(base_dir)
-        self.intraday_dir = self.base_dir / "intraday"
         self.daily_path = self.base_dir / "daily" / "all_daily.parquet"
 
-        # 디렉터리 자동 생성 (ELI5: 폴더가 없으면 만들어줍니다)
-        self.intraday_dir.mkdir(parents=True, exist_ok=True)
+        # [11-003] 타임프레임별 디렉터리 (ELI5: 1m/, 5m/, 1h/ 폴더로 분리)
+        self._tf_dirs: dict[str, Path] = {}
+        for tf in self.SUPPORTED_TIMEFRAMES:
+            tf_dir = self.base_dir / tf
+            tf_dir.mkdir(parents=True, exist_ok=True)
+            self._tf_dirs[tf] = tf_dir
+
+        # Daily 디렉터리 생성
         self.daily_path.parent.mkdir(parents=True, exist_ok=True)
+
+        # [11-003] 레거시 intraday 폴더 (하위 호환성 - 읽기 전용 fallback)
+        self._legacy_intraday_dir = self.base_dir / "intraday"
 
         logger.info(f"📦 ParquetManager initialized: {self.base_dir}")
 
@@ -244,14 +259,25 @@ class ParquetManager:
         """
         Intraday 파일 경로 생성
 
+        [11-003] 타임프레임별 폴더 구조 (TF별 검색 성능 최적화)
+        경로 형식: {base_dir}/{timeframe}/{ticker}.parquet
+        예: data/parquet/1m/AAPL.parquet
+
         Args:
             ticker: 종목 심볼 (예: "AAPL")
             timeframe: 타임프레임 ("1m", "5m", "15m", "1h")
 
         Returns:
-            Path: 파일 경로 (예: data/parquet/intraday/AAPL_1m.parquet)
+            Path: 파일 경로 (예: data/parquet/1m/AAPL.parquet)
         """
-        return self.intraday_dir / f"{ticker}_{timeframe}.parquet"
+        # 지원하는 TF는 미리 생성된 폴더 사용
+        if timeframe in self._tf_dirs:
+            return self._tf_dirs[timeframe] / f"{ticker}.parquet"
+
+        # 동적 TF는 폴더 자동 생성 (예: 30m)
+        tf_dir = self.base_dir / timeframe
+        tf_dir.mkdir(parents=True, exist_ok=True)
+        return tf_dir / f"{ticker}.parquet"
 
     def write_intraday(self, ticker: str, timeframe: str, df: pd.DataFrame) -> int:
         """
@@ -319,6 +345,8 @@ class ParquetManager:
         """
         Intraday 데이터 조회
 
+        [11-003] 새 구조 우선, 레거시 fallback 지원
+
         Args:
             ticker: 종목 심볼
             timeframe: 타임프레임 ("1m", "5m", "15m", "1h")
@@ -330,8 +358,14 @@ class ParquetManager:
         """
         path = self._get_intraday_path(ticker, timeframe)
 
+        # [11-003] 새 구조에 파일이 없으면 레거시 경로에서 시도
         if not path.exists():
-            return pd.DataFrame()
+            legacy_path = self._legacy_intraday_dir / f"{ticker}_{timeframe}.parquet"
+            if legacy_path.exists():
+                logger.debug(f"[11-003] 레거시 경로에서 읽기: {legacy_path}")
+                path = legacy_path
+            else:
+                return pd.DataFrame()
 
         df = pq.read_table(path).to_pandas()
 
@@ -540,7 +574,9 @@ class ParquetManager:
         """
         저장된 intraday 데이터의 티커 목록 반환
 
-        파일명에서 티커를 추출합니다 (예: AAPL_1m.parquet → AAPL)
+        [11-003] 타임프레임별 폴더 구조 지원
+        신규: {tf}/AAPL.parquet
+        레거시: intraday/AAPL_{tf}.parquet (fallback)
 
         Args:
             timeframe: 타임프레임 (기본값: "1m")
@@ -548,18 +584,22 @@ class ParquetManager:
         Returns:
             list[str]: 티커 목록
         """
-        if not self.intraday_dir.exists():
-            return []
+        tickers = set()
 
-        # ELI5: intraday 폴더에서 *_1m.parquet 파일들을 찾아서 티커 이름만 추출
-        pattern = f"*_{timeframe}.parquet"
-        files = list(self.intraday_dir.glob(pattern))
+        # [11-003] 새 구조에서 조회: {tf}/*.parquet
+        tf_dir = self._tf_dirs.get(timeframe, self.base_dir / timeframe)
+        if tf_dir.exists():
+            for f in tf_dir.glob("*.parquet"):
+                # AAPL.parquet → AAPL
+                tickers.add(f.stem)
 
-        tickers = []
-        for f in files:
-            # AAPL_1m.parquet → AAPL
-            ticker = f.stem.replace(f"_{timeframe}", "")
-            tickers.append(ticker)
+        # [11-003] 레거시 구조에서도 조회 (fallback): intraday/*_{tf}.parquet
+        if self._legacy_intraday_dir.exists():
+            pattern = f"*_{timeframe}.parquet"
+            for f in self._legacy_intraday_dir.glob(pattern):
+                # AAPL_1m.parquet → AAPL
+                ticker = f.stem.replace(f"_{timeframe}", "")
+                tickers.add(ticker)
 
         return sorted(tickers)
 
@@ -567,18 +607,22 @@ class ParquetManager:
         """
         저장소 통계 반환
 
+        [11-003] 타임프레임별 폴더 구조 통계 지원
+
         Returns:
             dict: 통계 정보
                 - daily_rows: 일봉 레코드 수
                 - daily_tickers: 일봉 티커 수
                 - daily_file_size_mb: 일봉 파일 크기 (MB)
-                - intraday_files: 분봉 파일 수
+                - intraday_files: 분봉 파일 수 (전체)
+                - intraday_by_tf: 타임프레임별 파일 수
         """
         stats = {
             "daily_rows": 0,
             "daily_tickers": 0,
             "daily_file_size_mb": 0.0,
             "intraday_files": 0,
+            "intraday_by_tf": {},
         }
 
         if self.daily_path.exists():
@@ -587,13 +631,28 @@ class ParquetManager:
             stats["daily_tickers"] = df["ticker"].nunique()
             stats["daily_file_size_mb"] = self.daily_path.stat().st_size / (1024 * 1024)
 
-        stats["intraday_files"] = len(list(self.intraday_dir.glob("*.parquet")))
+        # [11-003] TF별 폴더에서 파일 수 집계
+        total_intraday = 0
+        for tf, tf_dir in self._tf_dirs.items():
+            count = len(list(tf_dir.glob("*.parquet")))
+            stats["intraday_by_tf"][tf] = count
+            total_intraday += count
+
+        # 레거시 폴더도 포함
+        if self._legacy_intraday_dir.exists():
+            legacy_count = len(list(self._legacy_intraday_dir.glob("*.parquet")))
+            stats["intraday_by_tf"]["legacy_intraday"] = legacy_count
+            total_intraday += legacy_count
+
+        stats["intraday_files"] = total_intraday
 
         return stats
 
     def delete_ticker_intraday(self, ticker: str) -> bool:
         """
         특정 티커의 모든 Intraday 파일 삭제
+
+        [11-003] 새 구조와 레거시 구조 모두 삭제
 
         Args:
             ticker: 종목 심볼
@@ -602,10 +661,22 @@ class ParquetManager:
             bool: 삭제 성공 여부
         """
         deleted = False
-        for timeframe in ["1m", "5m", "15m", "1h"]:
-            path = self._get_intraday_path(ticker, timeframe)
+
+        # [11-003] 새 구조에서 삭제: {tf}/{ticker}.parquet
+        for tf in self.SUPPORTED_TIMEFRAMES:
+            path = self._get_intraday_path(ticker, tf)
             if path.exists():
                 path.unlink()
                 deleted = True
                 logger.info(f"🗑️ Deleted: {path}")
+
+        # [11-003] 레거시 구조에서도 삭제: intraday/{ticker}_{tf}.parquet
+        if self._legacy_intraday_dir.exists():
+            for tf in ["1m", "3m", "5m", "15m", "1h", "4h"]:
+                legacy_path = self._legacy_intraday_dir / f"{ticker}_{tf}.parquet"
+                if legacy_path.exists():
+                    legacy_path.unlink()
+                    deleted = True
+                    logger.info(f"🗑️ Deleted (legacy): {legacy_path}")
+
         return deleted

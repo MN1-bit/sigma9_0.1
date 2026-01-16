@@ -4,7 +4,7 @@
 # 📌 이 파일의 역할:
 #   - Massive.com 티커 ↔ IBKR 티커 간 변환
 #   - 일부 종목은 양 데이터 소스에서 다른 심볼을 사용
-#   - 예: BRK.A (IBKR) ↔ BRK/A (Polygon)
+#   - 예: BRK.A (IBKR) ↔ BRK/A (Massive)
 #
 # 📖 사용 예시:
 #   >>> mapper = SymbolMapper()
@@ -18,7 +18,7 @@ Symbol Mapping Service
 Massive.com와 IBKR 간 티커 심볼 차이를 처리합니다.
 
 주요 차이점:
-    - 클래스 주식: Polygon은 "/" 사용 (BRK/A), IBKR은 "." 사용 (BRK.A)
+    - 클래스 주식: Massive는 "/" 사용 (BRK/A), IBKR은 "." 사용 (BRK.A)
     - 특수 문자: 일부 ETF/ETN은 표기가 다름
     - 워런트/유닛: 접미사 표기법 차이
 """
@@ -253,10 +253,10 @@ if __name__ == "__main__":
     for symbol, direction in test_cases:
         if direction == "MASSIVE_TO_IBKR":
             result = mapper.MASSIVE_TO_IBKR(symbol)
-            print(f"  Polygon→IBKR: {symbol:10} → {result}")
+            print(f"  Massive→IBKR: {symbol:10} → {result}")
         else:
             result = mapper.IBKR_TO_MASSIVE(symbol)
-            print(f"  IBKR→Polygon: {symbol:10} → {result}")
+            print(f"  IBKR→Massive: {symbol:10} → {result}")
 
     # 배치 변환 테스트
     print("\n" + "-" * 60)

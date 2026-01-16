@@ -1,6 +1,6 @@
 # Sigma9 시스템 아키텍처
 
-> **버전**: v3.5 (2026-01-10)  
+> **버전**: v3.7 (2026-01-15)  
 > **철학**: "Detect the Accumulation, Strike the Ignition, Harvest the Surge."
 
 ---
@@ -195,7 +195,7 @@ IgnitionMonitor._polling_loop() [1초 간격]
        │
        └→ _update_all_scores()
                │
-               ├→ _fetch_quotes() ← Polygon Snapshot API (현재가 조회)
+               ├→ _fetch_quotes() ← Massive Snapshot API (현재가 조회)
                │
                ├→ SeismographStrategy.calculate_ignition_score()
                │       └→ bid/ask 분석, 급등 감지
@@ -236,12 +236,58 @@ RealtimeScanner._periodic_watchlist_broadcast() [1초 간격]
 
 | 저장소 | 위치 | 형식 | 용도 |
 |--------|------|------|------|
-| 일봉 | `data/parquet/daily/` | Parquet | 일봉 OHLCV |
-| 1분봉 | `data/parquet/1m/` | Parquet | 분봉 차트 |
-| 1시간봉 | `data/parquet/1h/` | Parquet | 일중 차트 |
-| Intraday | `data/parquet/intraday/` | Parquet | 수집 스크립트 |
+| 일봉 | `data/parquet/daily/` | Parquet | 일봉 OHLCV (all_daily.parquet) |
+| 1분봉 | `data/parquet/1m/` | Parquet | 분봉 차트 (12,283 파일) |
+| 1시간봉 | `data/parquet/1h/` | Parquet | 일중 차트 (12,588 파일) |
 | Watchlist | `data/watchlist.json` | JSON | 현재 Watchlist |
 | 설정 | `config/` | YAML | 시스템 설정 |
+
+> [!NOTE]
+> [11-003] Intraday 구조가 TF별 폴더로 마이그레이션됨 (2026-01-14)
+> 기존: `intraday/AAPL_1m.parquet` → 신규: `1m/AAPL.parquet`
+
+### 4.5 데이터 정합성 검증 (11-004)
+
+> [!TIP]
+> `backend/scripts/validate_parquet_quality.py`로 데이터 품질 검사
+
+#### CLI 옵션
+
+```bash
+# 빠른 검사 (기본)
+python -m backend.scripts.validate_parquet_quality
+
+# 심층 검사 (OHLC 관계, 갭, 이상치)
+python -m backend.scripts.validate_parquet_quality --full --sample 0.1
+
+# 전체 심층 검사 (~10분)
+python -m backend.scripts.validate_parquet_quality --full --workers 8 --output-json report.json
+```
+
+#### 검사 항목
+
+| 대상 | 항목 | 설명 |
+|------|------|------|
+| Daily | OHLC 관계 | High >= max(O,C), Low <= min(O,C) |
+| Daily | Volume 누락 | OHLC는 있는데 Volume=0/NULL |
+| Daily | 날짜 갭 | 거래일인데 데이터 없음 (공휴일 제외) |
+| Daily | 가격 이상치 | Z-score > 4 (급등락) |
+| Intraday | 중복 타임스탬프 | 동일 시간 중복 레코드 |
+| Intraday | OHLC 관계 | `--full` 모드에서만 |
+
+#### 최근 검사 결과 (2026-01-14)
+
+| 지표 | 값 | 상태 |
+|------|-----|------|
+| Daily 레코드 | 13,636,453 | - |
+| 티커 수 | 19,688 | - |
+| OHLC 위반 | 0 | ✅ |
+| Volume 누락 | 112,960 | ⚠️ 저유동성 정상 |
+| 날짜 갭 | 4,900일 | ⚠️ 미국 공휴일 |
+| 가격 이상치 | 116 | ⚠️ 시장 이벤트 |
+| Intraday 파일 | 24,871 | ✅ 100% 정상 |
+
+> 리포트: `data/reports/integrity_comprehensive.json`
 
 ---
 
@@ -344,7 +390,8 @@ Sigma9-0.1/
 │   ├── broker/                       # IBKR 연동
 │   │
 │   ├── scripts/                      # 스크립트
-│   │   └── procure_intraday_data.py  # Intraday 데이터 수집
+│   │   ├── procure_intraday_data.py  # Intraday 데이터 수집
+│   │   └── validate_parquet_quality.py  # 데이터 정합성 검증
 │   │
 │   └── api/                          # REST/WebSocket 핸들러
 │       └── routes/                   # 라우터 패키지 (14개 도메인)
@@ -401,6 +448,26 @@ Sigma9-0.1/
             ├── seismograph.md
             ├── mep.md
             └── ignition.md
+
+data/                                 # ← 런타임 데이터 (Git 제외)
+├── parquet/
+│   ├── daily/                        # all_daily.parquet (19,688 티커)
+│   ├── 1m/                           # 1분봉 (12,283 파일)
+│   ├── 1h/                           # 1시간봉 (12,588 파일)
+│   ├── indicators/                   # 지표 캐시
+│   └── scores/                       # 점수 캐시
+└── watchlist/                        # Watchlist JSON
+
+scripts/                              # ← R-4 백테스트 파이프라인 (2026-01-15)
+├── control_groups.csv                # R-3 대조군 매칭 결과 (4,205건)
+├── d1_features.parquet               # R-4 D-1 피처 (4,894건)
+├── m_n_features.parquet              # R-4 M-n 피처 (35건, 확장 예정)
+├── merged_features.parquet           # D-1 + M-n 병합
+├── build_control_group.py            # R-3 대조군 생성
+├── build_d1_features.py              # R-4 Phase A D-1 피처
+├── build_m_n_features.py             # R-4 Phase B M-n 피처
+├── eda_features.py                   # R-4 Phase C EDA
+└── download_target_minutes.py        # R-4 Phase D 분봉 다운로드
 ```
 
 ---
@@ -535,6 +602,8 @@ WebSocket:
 
 | 버전 | 날짜 | 주요 변경 |
 |------|------|----------|
+| v3.7 | 2026-01-15 | [R-3, R-4] 백테스트 파이프라인 추가 (Control Group, D-1/M-n 피처, EDA, 분봉 다운로더) |
+| v3.6 | 2026-01-14 | [11-003] Intraday TF별 폴더 구조 마이그레이션 (24,871 파일) |
 | v3.5 | 2026-01-10 | finplot 차트 마이그레이션, Historical Scroll (09-003), Resample Panel 추가 |
 | v3.4 | 2026-01-10 | 전체 모듈 현황 반영, SubscriptionManager 추가, A 채널 추가, 파일 개수 정확화 |
 | v3.3 | 2026-01-10 | DataRepository 통합, Parquet 전면 전환 (11-002) |

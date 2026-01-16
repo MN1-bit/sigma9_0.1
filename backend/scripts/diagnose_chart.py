@@ -12,13 +12,13 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from backend.data.polygon_client import PolygonClient
+from backend.data.massive_client import MassiveClient
 
 
 async def detailed_diagnose(ticker: str = "SGBX"):
     api_key = os.getenv("MASSIVE_API_KEY", "")
 
-    async with PolygonClient(api_key) as client:
+    async with MassiveClient(api_key) as client:
         from datetime import datetime, timedelta
 
         to_date = datetime.now().strftime("%Y-%m-%d")

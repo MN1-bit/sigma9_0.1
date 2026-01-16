@@ -230,7 +230,8 @@ class DetailTable(QFrame):
         """
         [14-004] 데이터 설정. data = [(key, value), ...]
         
-        각 행의 높이가 콘텐츠에 맞게 자동 조절됨.
+        [14-006] 모든 필드에서 동적 높이 작동:
+        - wordWrap + 고정 너비 → Qt height-for-width 계산 활성화
         """
         # 기존 아이템 제거
         while self._grid.count():
@@ -238,22 +239,33 @@ class DetailTable(QFrame):
             if item.widget():
                 item.widget().deleteLater()
 
+        # [14-006] Column 1 고정 너비 200px 기준, 여백 제외 후 val_label 최대 너비 계산
+        # key_label ~50px, 간격 ~20px → val_label 최대 ~110px
+        val_max_width = 110
+
         # 새 아이템 추가
         for row, (key, value) in enumerate(data):
             key_label = QLabel(key)
             key_label.setStyleSheet(f"color: {theme.get_color('text_muted')}; font-size: 10px;")
+            key_label.setWordWrap(True)  # [14-006] 긴 키 이름 대응
+            key_label.setFixedWidth(50)  # [14-006] 키 라벨 고정 너비
             
             val_label = QLabel(str(value) if value else "--")
             val_label.setStyleSheet(f"color: {theme.get_color('text')}; font-size: 10px;")
             val_label.setWordWrap(True)
-            # [14-004] 동적 높이: 콘텐츠에 맞게 행 높이 자동 조절
-            val_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
-            val_label.setMinimumHeight(0)
+            # [14-006] 고정 최대 너비 → wordWrap 시 height-for-width 계산 작동
+            val_label.setMaximumWidth(val_max_width)
+            val_label.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Minimum)
             
-            self._grid.addWidget(key_label, row, 0)
-            self._grid.addWidget(val_label, row, 1)
-            # 행 stretch 비활성화
+            # [14-006] 상단 정렬 (멀티라인 시 키와 값 상단 맞춤)
+            self._grid.addWidget(key_label, row, 0, Qt.AlignmentFlag.AlignTop)
+            self._grid.addWidget(val_label, row, 1, Qt.AlignmentFlag.AlignTop)
             self._grid.setRowStretch(row, 0)
+        
+        # [14-006] 레이아웃 재계산 강제 호출
+        self.updateGeometry()
+        if self.parent():
+            self.parent().updateGeometry()
 
 
 class ListSection(QFrame):
@@ -832,9 +844,13 @@ class TickerInfoWindow(QDialog):
         """창 표시 시 타이머 시작 및 pending 티커 로드."""
         super().showEvent(event)
         
-        # [14-002] Opacity 버그 수정: re-open 시 theme.opacity로 재설정
-        logger.debug(f"[showEvent] Setting opacity to theme.opacity={theme.opacity}")
+        # [14-006] Opacity 버그 수정: re-open 시 theme.opacity로 재설정
+        logger.debug(f"[showEvent] Reapplying opacity: theme.opacity={theme.opacity}")
         self.setWindowOpacity(theme.opacity)
+        
+        # [14-006] Acrylic 효과 재적용 (재오픈 시 손실될 수 있음)
+        if hasattr(self, '_window_effects'):
+            self._window_effects.add_acrylic_effect(self.winId(), "181818CC")
         
         # [14-001] Pending ticker 로드 (창 닫혀있을 때 변경된 티커)
         if self._pending_ticker:

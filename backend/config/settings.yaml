@@ -81,10 +81,10 @@ llm:
   enabled: false            # LLM 기능 활성화 (Step 4.1에서 true로 변경)
 
 # ═══════════════════════════════════════════════════════════════════════════
-# Polygon.io Settings (데이터 소스)
+# Massive.com Settings (데이터 소스)
 # ═══════════════════════════════════════════════════════════════════════════
 massive:
-  enabled: true               # Polygon 데이터 소스 활성화
+  enabled: true               # Massive 데이터 소스 활성화
   base_url: "https://api.massive.com"
   rate_limit: 5               # Free Tier: 5 req/min
   retry_count: 3              # API 실패 시 재시도 횟수

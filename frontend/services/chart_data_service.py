@@ -363,7 +363,10 @@ class ChartDataService:
         return candles
 
     def _bars_to_volumes(self, bars: List) -> List[Dict]:
-        """Bar 유사 객체 리스트를 Volume 딕셔너리로 변환"""
+        """Bar 유사 객체 리스트를 Volume 딕셔너리로 변환
+        
+        [09-007] close 값을 포함하여 Dollar Volume 계산 지원
+        """
         volumes = []
         for bar in bars:
             is_up = bar.close >= bar.open
@@ -371,6 +374,7 @@ class ChartDataService:
                 {
                     "time": self._date_to_timestamp(bar.date),
                     "volume": bar.volume,
+                    "close": bar.close,  # [09-007] Dollar Volume 계산용
                     "is_up": is_up,
                 }
             )

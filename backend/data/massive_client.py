@@ -391,7 +391,7 @@ class MassiveClient:
             "market_cap": results.get("market_cap"),
             "outstanding_shares": results.get("share_class_shares_outstanding")
             or results.get("weighted_shares_outstanding"),
-            "float_shares": None,  # Polygon에서 직접 제공하지 않음
+            "float_shares": None,  # Massive에서 직접 제공하지 않음
             "primary_exchange": results.get("primary_exchange"),
             "last_updated": datetime.now().strftime("%Y-%m-%d"),
         }

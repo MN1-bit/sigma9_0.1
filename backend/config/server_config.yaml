@@ -55,10 +55,10 @@ market_data:
   auto_update_on_start: true      # 서버 시작 시 자동 업데이트
 
 # ═══════════════════════════════════════════════════════════════════════════
-# Polygon.io Settings (데이터 소스)
+# Massive.com Settings (데이터 소스)
 # ═══════════════════════════════════════════════════════════════════════════
 massive:
-  enabled: true               # Polygon 데이터 소스 활성화
+  enabled: true               # Massive 데이터 소스 활성화
   base_url: "https://api.massive.com"
   rate_limit: 5               # Free Tier: 5 req/min
   retry_count: 3              # API 실패 시 재시도 횟수

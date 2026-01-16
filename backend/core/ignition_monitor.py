@@ -71,7 +71,7 @@ class IgnitionMonitor:
         self.running: bool = False
         self._poll_task: Optional[asyncio.Task] = None
 
-        # Polygon API 설정
+        # Massive API 설정
         self._api_key = os.getenv("MASSIVE_API_KEY", "")
 
         logger.debug(f"⚡ IgnitionMonitor 초기화 완료 (poll_interval={poll_interval}s)")
@@ -185,7 +185,7 @@ class IgnitionMonitor:
         """
         모든 종목의 현재가 조회 및 Score 업데이트
 
-        Polygon Snapshot API를 사용하여 현재가를 조회합니다.
+        Massive Snapshot API를 사용하여 현재가를 조회합니다.
         """
         if not self.watchlist_tickers:
             return
@@ -314,7 +314,7 @@ class IgnitionMonitor:
         self, client, tickers: List[str]
     ) -> Dict[str, Dict[str, Any]]:
         """
-        Polygon Snapshot API로 현재가 조회
+        Massive Snapshot API로 현재가 조회
 
         Args:
             client: httpx.AsyncClient
@@ -329,8 +329,8 @@ class IgnitionMonitor:
             logger.warning("⚡ MASSIVE_API_KEY not set")
             return quotes
 
-        # Polygon Snapshot API (배치 조회)
-        # https://polygon.io/docs/stocks/get_v2_snapshot_locale_us_markets_stocks_tickers
+        # Massive Snapshot API (배치 조회)
+        # https://massive.com/docs/stocks/get_v2_snapshot_locale_us_markets_stocks_tickers
         try:
             # 전체 스냅샷 조회
             url = "https://api.massive.com/v2/snapshot/locale/us/markets/stocks/tickers"

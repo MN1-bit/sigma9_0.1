@@ -257,7 +257,7 @@ class TradingScheduler:
 
         📌 실행 시점: 16:30 PM ET (장 마감 30분 후)
         📌 동작:
-            1. Polygon에서 최신 일봉 데이터 가져오기
+            1. Massive에서 최신 일봉 데이터 가져오기
             2. 로컬 DB 업데이트
         """
         logger.info("=" * 50)

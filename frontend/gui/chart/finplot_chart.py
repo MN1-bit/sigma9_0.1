@@ -149,14 +149,25 @@ class FinplotChartWidget(QWidget):
         # 3. ax.vb.win을 레이아웃에 추가
         # 4. fplt.show(qt_exec=False) 호출
 
-        # 메인 차트 (캔들스틱)
-        self.ax = fplt.create_plot(init_zoom_periods=100)
-
-        # 볼륨 차트 (오버레이)
-        self.ax_volume = self.ax.overlay()
+        # ═══════════════════════════════════════════════════════════════════
+        # [15-001] 2-Row Layout: 캔들스틱 + 볼륨 분리 패널
+        # ═══════════════════════════════════════════════════════════════════
+        # create_plot(rows=2)를 사용하면 별도의 Volume 하단 패널 생성
+        # 빈 문자열 title=""은 native sync를 활성화 (setXLink 불필요)
+        self.ax, self.ax_volume = fplt.create_plot("", rows=2, init_zoom_periods=100)
 
         # finplot 요구사항: 위젯에 axs 속성 설정
         self.axs = [self.ax, self.ax_volume]
+
+        # [15-001] Volume 패널 배경 투명화 (ViewBox만 지원)
+        self.ax_volume.vb.setBackgroundColor(None)
+        
+        # 메인 캔들스틱 패널도 배경 투명화
+        self.ax.vb.setBackgroundColor(None)
+        
+        # [15-001] Row 비율 설정 (3:1 = 캔들:볼륨)
+        self.ax.vb.win.ci.layout.setRowStretchFactor(0, 3)  # 캔들스틱 row
+        self.ax.vb.win.ci.layout.setRowStretchFactor(1, 1)  # 볼륨 row
 
         # ax.vb.win (ViewBox의 윈도우)을 레이아웃에 추가
         layout.addWidget(self.ax.vb.win, stretch=1)
@@ -287,10 +298,17 @@ class FinplotChartWidget(QWidget):
         df = pd.DataFrame(volume_data)
         df["time"] = pd.to_datetime(df["time"], unit="s")
         df = df.set_index("time")
-        df = df.rename(columns={"volume": "Volume"})
+
+        # [09-007] Dollar Volume 계산 (close × volume)
+        # ELI5: Dollar Volume = 거래량 × 종가 → 실제 거래된 금액을 보여줌
+        # close가 없으면 기존 volume 사용 (하위호환)
+        if "close" in df.columns:
+            df["Volume"] = df["volume"] * df["close"]
+        else:
+            df["Volume"] = df["volume"]
 
         # finplot volume_ocv는 Open, Close, Volume 3개 컬럼 필요 (ocv = Open, Close, Volume)
-        # is_up 기반으로 Open, Close 더미 값 생성
+        # is_up 기반으로 Open, Close 더미 값 생성 (색상 결정용)
         if "is_up" in df.columns:
             df["Open"] = 0
             df["Close"] = df["is_up"].apply(lambda x: 1 if x else -1)
@@ -301,7 +319,7 @@ class FinplotChartWidget(QWidget):
         # 기존 볼륨 플롯 제거
         self.ax_volume.reset()
 
-        # 볼륨 플롯 (Open, Close, Volume 순서)
+        # Dollar Volume 플롯
         self._volume_plot = fplt.volume_ocv(
             df[["Open", "Close", "Volume"]], ax=self.ax_volume
         )
